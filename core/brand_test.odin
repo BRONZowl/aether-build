@@ -63,15 +63,15 @@ test_brand_art_unique_a_monogram :: proc(t: ^testing.T) {
 	}
 	// Distinct from Grok logo07
 	testing.expect(t, full[0] != `⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`)
-	// Geometric A peak (not Grok open-ring fleck style)
-	testing.expect(t, full[0] == `⠀⠀⠀⠀⢀⣴⠞⠛⠳⣦⡀⠀⠀⠀⠀`)
+	// Avengers A × SpaceX X monogram
+	testing.expect(t, full[0] == `⠀⠀⠀⠀⠀⣀⣤⠶⢛⡛⠶⣤⣀⠀⠀⠀⠀⠀`)
 
 	small := brand_art_lines(.Small)
 	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)
 	for line in small {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_SMALL_CELLS_W)
 	}
-	testing.expect(t, small[0] != `⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`)
+	testing.expect(t, small[0] == `⣀⣤⢶⣻⣟⡶⣤⣀`)
 }
 
 @(test)

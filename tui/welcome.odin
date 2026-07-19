@@ -2,7 +2,7 @@
 //
 // Stacked layout (narrow): centered logo → gap → menu → flex → tip
 // Hero layout (cols ≥ 90): bordered box, logo left, version+menu right
-// Logo: unique Aether geometric-A monogram (core.brand).
+// Logo: Aether A×X monogram — Avengers A + SpaceX X (core.brand).
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
