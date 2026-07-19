@@ -295,6 +295,25 @@ push_assistant :: proc(
 		if pi % 2 == 1 {
 			// C1.3: language-tagged fences (mermaid, rust, …)
 			body_start, lang := fence_body_start_and_lang(part)
+			// M8: mermaid → Unicode box-drawing layout when enabled
+			if is_mermaid_lang(lang) {
+				// body is after language tag; when tag is flowchart/sequence the
+				// tag itself is the diagram header — rejoin as source.
+				body: string
+				if lang == "mermaid" || lang == "mmd" {
+					body = part[body_start:] if body_start <= len(part) else part
+				} else {
+					// e.g. ```flowchart\nA-->B  → "flowchart\nA-->B"
+					body = part
+				}
+				art, aok := try_render_mermaid(body, width, context.temp_allocator)
+				if aok && len(art) > 0 {
+					for line in art {
+						mark_line(out, styles, block_idxs, bi, line, .Code, allocator)
+					}
+					continue
+				}
+			}
 			head := fence_header_line(lang, context.temp_allocator)
 			foot := fence_footer_line(lang, context.temp_allocator)
 			mark_line(out, styles, block_idxs, bi, head, .Code, allocator)

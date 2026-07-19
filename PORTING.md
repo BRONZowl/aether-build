@@ -67,7 +67,7 @@ Last updated: 2026-07-19 (product-contract audit vs grok-build `fca5b1f`).
 | MCP runtime | mcp | Full | **Done**; **R2b doctor in-process** (`/mcp doctor`) |
 | Skills + hooks | skills, hooks | Full | **Done** |
 | Memory file-backed | memory | Full | **Done**; SQLite/embeddings **Drop** |
-| Pager / TUI | pager* | C1–C2 | **Done**; full mermaid engine **Drop** |
+| Pager / TUI | pager* | C1–C2 + M8 | **Done**; Unicode mermaid layout **M8**; PNG/SVG residual N/A |
 | Sessions / slash | shell* | B2.1–2 | **Done**; multi-client ACP **Drop** (C3 N/A unless reopened) |
 | Soft sandbox | sandbox | FS + soft bash + M6 | **Done** soft; **M6** bwrap OS wrap |
 | Plugins / marketplace | marketplace | None | **Drop** |
@@ -194,8 +194,8 @@ make -C aether build vet test smoke-tui
 | Config | `xai-grok-config*` | `core` + `aether.toml` | Full | Product keys merge (A5.1); marketplace/remote/managed **N/A** |
 | Tools runtime | `xai-grok-tools*` | `tools/`, `agent/*` | Full | See tool matrix (all Full or N/A) |
 | Shell / session actor | `xai-grok-shell*` | `agent/session`, `slash`, `repl` | Full | B2.1–2 lifecycle + soft rewind; multi-client ACP **N/A** |
-| Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; full mermaid layout engine **N/A** (fence labels ship) |
-| Markdown render | `xai-grok-markdown*` | `tui/markdown` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; mermaid chrome only |
+| Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; **M8** Unicode mermaid layout (flowchart + sequence); PNG/SVG residual N/A |
+| Markdown render | `xai-grok-markdown*` | `tui/markdown`, `tui/mermaid` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; **M8** mermaid Unicode art |
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + doctor; **M3** enroll/set-token auto-reconnect; full browser OAuth DCR still host-assisted N/A |
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
@@ -405,7 +405,7 @@ make -C aether build vet test smoke-tui
 
 ### Phase D — L4 platform (optional)
 
-Telemetry, update, voice, mermaid layout engine, marketplace — **N/A (R3 Drop)** unless reopened as Port.
+Telemetry, update, voice, marketplace — **N/A (R3 Drop)** unless reopened as Port. Mermaid Unicode layout **M8 Complete** (PNG residual N/A).
 
 ### Phase M — Ship-hardening max (reopened 2026-07-19)
 
@@ -423,7 +423,7 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | **M9** | Subagent personas | **Complete** |
 | **M5** | Hashline optional tool pack | **Complete** (`AETHER_TOOL_PACK=hashline`; content_only_v1 simplified) |
 | **M6** | OS sandbox (Landlock) | **Complete** (soft + bwrap wrap; landlock probe; in-process Landlock residual N/A) |
-| **M8** | Mermaid layout upgrade | None |
+| **M8** | Mermaid layout upgrade | **Complete** (Unicode flowchart/sequence art; framed fallback; PNG/SVG residual N/A) |
 
 ### Phase R — Rust retirement
 
@@ -437,7 +437,7 @@ See **[Rust retirement](#rust-retirement-odin-only-endgame)** above (R0–R5).
 | R3b | Telemetry / update / voice | **N/A** |
 | R3c | OS Landlock/Seatbelt | **M6 Complete** (bwrap + soft; in-process Landlock residual N/A) |
 | R3d | C3 ACP multi-client | **N/A** |
-| R3e | Mermaid layout engine | **N/A** (fence labels Full) |
+| R3e | Mermaid layout engine | **M8 Complete** (Unicode art; PNG/SVG residual N/A) |
 | R3f | Rich multi-client stream events | **N/A** (agent loop Full for single-process) |
 | Ship-path Partial→Full | Agent/auth/config/tools/shell/pager/md/sandbox/workspace/media/secrets | **Full** with residual N/A notes |
 
@@ -530,7 +530,8 @@ single-process product).
 |----------|--------|
 | Goal `--budget` token orchestrator | Grok goal_tracker budget auto-pause; Aether `/goal` set/status/pause/resume/clear + `update_goal` only |
 | Hooks folder trust | **M1 shipped** — project hooks gated; plugins still M4 |
-| Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, mermaid engine, Mixpanel | Phase D / residual N/A |
+| Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, Mixpanel | Phase D / residual N/A |
+| Mermaid PNG/SVG raster pipeline | **M8** ships Unicode art; Grok PNG affordance residual N/A |
 | In-process Landlock apply | **M6** uses bwrap when available; LSM probe only |
 | Remote workspace services, SQLite memory | Documented N/A in matrices |
 

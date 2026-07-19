@@ -410,7 +410,7 @@ Session allow/deny grants are in-memory only (not written to config). Cleared on
 
 ## Non-goals (for now)
 
-ACP multi-client UI, persona subagents, full permission allow-list UI, full mermaid layout engine (fences are labeled), plan-mode free-text deny feedback, remote Auto-mode classifier.
+ACP multi-client UI, full permission allow-list UI, Mermaid PNG/SVG raster (Unicode flowchart/sequence art ships), plan-mode free-text deny feedback, remote Auto-mode classifier.
 
 ## License
 

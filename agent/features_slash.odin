@@ -258,6 +258,27 @@ handle_features_slash :: proc(arg: string, allocator := context.allocator) -> st
 		core.effective_sandbox_mode() != .Off,
 		"AETHER_OS_SANDBOX=soft|bwrap · workspace shell isolation",
 	)
+	// M8: mermaid Unicode layout (logic mirrored from tui.mermaid_render_enabled)
+	mermaid_on := !env_kill_set("AETHER_NO_MERMAID")
+	if mermaid_on {
+		mv := strings.to_lower(
+			strings.trim_space(os.get_env("AETHER_RENDER_MERMAID", context.temp_allocator)),
+			context.temp_allocator,
+		)
+		switch mv {
+		case "0", "off", "false", "no", "source", "raw":
+			mermaid_on = false
+		}
+	}
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
+		"mermaid-layout",
+		mermaid_on,
+		"AETHER_RENDER_MERMAID · AETHER_NO_MERMAID · Unicode flowchart/sequence art",
+	)
 	features_write_row(
 		&b,
 		f,

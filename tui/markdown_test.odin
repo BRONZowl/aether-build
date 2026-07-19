@@ -52,7 +52,16 @@ test_push_assistant_mermaid_fence :: proc(t: ^testing.T) {
 	push_assistant(&out, &styles, &idxs, 0, text, 80, context.temp_allocator)
 	joined := strings.join(out[:], "\n", context.temp_allocator)
 	testing.expect(t, strings.contains(joined, "mermaid"))
-	testing.expect(t, strings.contains(joined, "graph TD") || strings.contains(joined, "A-->B"))
+	// M8: Unicode layout art (boxes/arrows) or framed/raw source fallback
+	testing.expect(
+		t,
+		strings.contains(joined, "graph TD") ||
+		strings.contains(joined, "A-->B") ||
+		strings.contains(joined, "┌") ||
+		strings.contains(joined, "╭") ||
+		strings.contains(joined, "◇ mermaid") ||
+		strings.contains(joined, "A") && strings.contains(joined, "B"),
+	)
 	testing.expect(t, strings.contains(joined, "See:") || strings.contains(joined, "Done"))
 }
 

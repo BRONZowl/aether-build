@@ -37,6 +37,8 @@ ENV_CATALOG := []Env_Row {
 	{"AETHER_TOOL_PACK", "tool pack: standard (default) | hashline (mutual-exclusion edit pack)", false},
 	{"AETHER_OS_SANDBOX", "shell OS sandbox: off|soft|bwrap (landlock alias → bwrap)", false},
 	{"AETHER_NO_OS_SANDBOX", "force OS sandbox off", false},
+	{"AETHER_RENDER_MERMAID", "mermaid layout: auto|on|off (Unicode art; default auto)", false},
+	{"AETHER_NO_MERMAID", "disable mermaid Unicode layout (raw fence only)", false},
 	{"AETHER_NO_MCP", "disable MCP", false},
 	{"AETHER_NO_SKILLS", "disable skills discovery", false},
 	{"AETHER_NO_DESKTOP_NOTIFY", "disable desktop notifications", false},
