@@ -468,70 +468,27 @@ bash_cargo_is_readonly :: proc(args: string) -> bool {
 
 // npm/pnpm/yarn: inspection only (not install/run/build — those write or execute project code).
 bash_npm_family_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	// yarn often uses yarn list / yarn why without sub as first after global
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	// peel -C / --prefix / --cwd value flags lightly
-	for {
-		if sub == "--prefix" || sub == "--cwd" || sub == "-C" || sub == "--dir" {
-			_, rest2 := first_shell_token(rest)
-			sub, rest = first_shell_token(rest2)
-			continue
-		}
-		if strings.has_prefix(sub, "-") &&
-		   (sub == "-s" ||
-			   sub == "--silent" ||
-			   sub == "-q" ||
-			   sub == "--quiet" ||
-			   sub == "-l" ||
-			   sub == "--long" ||
-			   sub == "--json" ||
-			   sub == "--version" ||
-			   sub == "-v" ||
-			   sub == "--help" ||
-			   sub == "-h") {
-			if sub == "--version" || sub == "-v" || sub == "--help" || sub == "-h" {
-				return true
-			}
-			sub, rest = first_shell_token(rest)
-			continue
-		}
-		break
+	if bash_is_help_or_version(a) {
+		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a, []string{"--prefix", "--cwd", "-C", "--dir"})
+	if !ok {
+		return false
 	}
 	// config get/list only
 	if sub == "config" {
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "get" || sub2 == "list" || sub2 == "ls" || sub2 == ""
+		return bash_nested_allow(rest, []string{"get", "list", "ls"})
 	}
 	return bash_token_in(
 		sub,
 		[]string{
-			"list",
-			"ls",
-			"ll",
-			"la",
-			"outdated",
-			"why",
-			"view",
-			"info",
-			"show",
-			"audit",
-			"version",
-			"help",
-			"explain",
-			"query",
-			"root",
-			"bin",
-			"prefix",
-			"doctor",
-			"fund",
-			"search",
-			"repo",
-			"docs",
-			"home",
-			"bugs",
+			"list", "ls", "ll", "la", "outdated", "why", "view", "info", "show",
+			"audit", "version", "help", "explain", "query", "root", "bin", "prefix",
+			"doctor", "fund", "search", "repo", "docs", "home", "bugs",
 		},
 	)
 }
@@ -845,92 +802,82 @@ bash_zig_is_readonly :: proc(args: string) -> bool {
 
 // B42: swift package inspect (not build/run/test/package resolve).
 bash_swift_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "--version" ||
-	   sub == "-version" ||
-	   sub == "--help" ||
-	   sub == "-h" ||
-	   sub == "help" ||
-	   sub == "version" {
+	if a == "-version" || bash_is_help_or_version(a) {
 		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
 	}
 	if sub == "package" {
 		sub2, rest2 := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "" || n == "--help" || n == "help" || n == "-h" {
 			return true
 		}
-		// inspect-ish package subcommands
 		if bash_token_in(
-			   sub2,
-			   []string{
-				   "describe",
-				   "show-dependencies",
-				   "show-executables",
-				   "dump-package",
-				   "dump-symbol-graph",
-				   "tools-version",
-				   "completion-tool",
-			   },
-		   ) {
+			n,
+			[]string{
+				"describe", "show-dependencies", "show-executables", "dump-package",
+				"dump-symbol-graph", "tools-version", "completion-tool",
+			},
+		) {
 			return true
 		}
 		// plugin list only
-		if sub2 == "plugin" {
+		if n == "plugin" {
 			sub3, _ := first_shell_token(rest2)
-			return sub3 == "" || sub3 == "--list" || sub3 == "list" || sub3 == "--help" || sub3 == "help"
+			p := strings.to_lower(sub3, context.temp_allocator)
+			return p == "" || p == "--list" || p == "list" || p == "--help" || p == "help" || p == "-h"
 		}
 		return false
 	}
 	// swiftc --version style sometimes invoked as swift -frontend …
-	if sub == "-frontend" {
-		return false
-	}
 	return false
 }
 
 // B42: dotnet info/list (not build/run/test/new/restore).
 bash_dotnet_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		// bare `dotnet` prints help
 		return true
 	}
-	if sub == "--info" ||
-	   sub == "--list-sdks" ||
-	   sub == "--list-runtimes" ||
-	   sub == "--version" ||
-	   sub == "-h" ||
-	   sub == "--help" ||
-	   sub == "help" {
+	// global flag-style inspect
+	if a == "--info" ||
+	   a == "--list-sdks" ||
+	   a == "--list-runtimes" ||
+	   bash_is_help_or_version(a) {
 		return true
 	}
-	// nuget list source is inspect; add/remove mutates
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return true
+	}
 	if sub == "nuget" {
 		sub2, rest2 := first_shell_token(rest)
-		if sub2 == "list" || sub2 == "locals" {
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "list" || n == "locals" {
 			// locals --list is inspect; --clear mutates
-			if sub2 == "locals" && strings.contains(rest2, "--clear") {
+			if n == "locals" && strings.contains(rest2, "--clear") {
 				return false
 			}
 			return true
 		}
-		return sub2 == "" || sub2 == "--help" || sub2 == "help"
+		return n == "" || n == "--help" || n == "help" || n == "-h"
 	}
 	if sub == "tool" {
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "" || sub2 == "--help" || sub2 == "help"
+		return bash_nested_allow(rest, []string{"list"})
 	}
 	if sub == "workload" {
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "search" || sub2 == "" || sub2 == "--help" || sub2 == "help"
+		return bash_nested_allow(rest, []string{"list", "search"})
 	}
-	// sdk check
 	if sub == "sdk" {
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "check" || sub2 == "" || sub2 == "--help" || sub2 == "help"
+		return bash_nested_allow(rest, []string{"check"})
 	}
 	return false
 }
@@ -2101,42 +2048,45 @@ bash_aws_is_readonly :: proc(args: string) -> bool {
 
 // B25: pytest collect/version/help only (not running tests).
 bash_pytest_is_readonly :: proc(args: string) -> bool {
+	a := strings.trim_space(args)
 	// empty pytest runs tests
-	if strings.trim_space(args) == "" {
+	if a == "" {
 		return false
 	}
-	rest := args
-	saw_inspect := false
+	// must see an inspect flag; paths alone still run tests
+	if !(strings.contains(a, "--collect-only") ||
+		strings.contains(a, "--co") ||
+		strings.contains(a, "--version") ||
+		strings.contains(a, "--help") ||
+		strings.contains(a, "-h") ||
+		strings.contains(a, "-V") ||
+		strings.contains(a, "--fixtures") ||
+		strings.contains(a, "--markers")) {
+		return false
+	}
+	// unknown flags (besides quiet/verbose and inspect) fail closed
+	rest := a
 	for {
 		tok, rem := first_shell_token(rest)
 		if tok == "" {
 			break
 		}
 		rest = rem
-		if tok == "--collect-only" ||
-		   tok == "--co" ||
-		   tok == "--version" ||
-		   tok == "--help" ||
-		   tok == "-h" ||
-		   tok == "-V" ||
-		   tok == "--fixtures" ||
-		   tok == "--markers" {
-			saw_inspect = true
+		if !strings.has_prefix(tok, "-") {
+			continue // path / node id ok when inspect present
+		}
+		if bash_token_in(
+			tok,
+			[]string{
+				"--collect-only", "--co", "--version", "--help", "-h", "-V",
+				"--fixtures", "--markers", "-q", "--quiet", "-v", "--verbose",
+			},
+		) {
 			continue
 		}
-		// common path/filter args for collection
-		if tok == "-q" || tok == "--quiet" || tok == "-v" || tok == "--verbose" {
-			continue
-		}
-		// bare path tokens for collect scope still inspect-ish if --collect-only present
-		if strings.has_prefix(tok, "-") {
-			// unknown flag → fail closed
-			return false
-		}
-		// path / node id: only ok when we also saw collect/help/version
-		continue
+		return false
 	}
-	return saw_inspect
+	return true
 }
 
 // B28: cmake help/version/find-package inspect (not configure/build/install).

@@ -99,218 +99,72 @@ bash_kind_is_readonly :: proc(args: string) -> bool {
 
 // B83: minikube inspect (status/profile list/version/ip; not start/stop/delete).
 bash_minikube_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args, []string{"-p", "--profile", "--node"})
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-p" || tok == "--profile" || tok == "--node" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--profile=") ||
-		   strings.has_prefix(tok, "-p") && len(tok) > 2 {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "start" ||
-		   sub == "stop" ||
-		   sub == "delete" ||
-		   sub == "pause" ||
-		   sub == "unpause" ||
-		   sub == "ssh" ||
-		   sub == "cp" ||
-		   sub == "mount" ||
-		   sub == "tunnel" ||
-		   sub == "dashboard" ||
-		   sub == "service" || // may open browser / tunnel
-		   sub == "addons" || // enable/disable; list is inspect
-		   sub == "config" ||
-		   sub == "image" ||
-		   sub == "cache" ||
-		   sub == "update-context" ||
-		   sub == "kubectl" ||
-		   sub == "node" ||
-		   sub == "completion" {
-			if sub == "addons" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "list" || n == "help" || n == "--help" || n == ""
-			}
-			if sub == "config" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "view" || n == "get" || n == "defaults" || n == "help" || n == "--help" || n == ""
-			}
-			if sub == "image" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "ls" || n == "list" || n == "help" || n == "--help"
-			}
-			if sub == "profile" {
-				// handled below
-			}
-			if sub == "node" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "list" || n == "help" || n == "--help" || n == ""
-			}
-			if sub == "service" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				// list only
-				return n == "list" || n == "help" || n == "--help"
-			}
-			if sub != "profile" {
-				return false
-			}
-		}
-		if sub == "profile" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// list only (not set/delete)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		// inspect
-		if sub == "status" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "ip" ||
-		   sub == "logs" ||
-		   sub == "docker-env" ||
-		   sub == "podman-env" ||
-		   sub == "ssh-key" ||
-		   sub == "ssh-host" ||
-		   sub == "update-check" ||
-		   sub == "license" ||
-		   sub == "options" {
-			// docker-env / podman-env print shell — inspect
-			return true
-		}
+	// nested inspect-only groups
+	if sub == "addons" || sub == "node" || sub == "profile" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	if sub == "config" {
+		return bash_nested_allow(rem, []string{"view", "get", "defaults"})
+	}
+	if sub == "image" {
+		return bash_nested_allow(rem, []string{"ls", "list"})
+	}
+	if sub == "service" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	if bash_token_in(
+		sub,
+		[]string{
+			"start", "stop", "delete", "pause", "unpause", "ssh", "cp", "mount",
+			"tunnel", "dashboard", "cache", "update-context", "kubectl", "completion",
+		},
+	) {
 		return false
 	}
+	return bash_token_in(
+		sub,
+		[]string{
+			"status", "version", "help", "ip", "logs", "docker-env", "podman-env",
+			"ssh-key", "ssh-host", "update-check", "license", "options",
+		},
+	)
 }
 
 // B82: skaffold inspect (diagnose/render/version/schema; not run/dev/delete).
 bash_skaffold_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(
+		args,
+		[]string{"-f", "--filename", "-p", "--profile", "--kube-context", "--namespace", "-n", "--kubeconfig"},
+	)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// common globals that take values
-		if tok == "-f" ||
-		   tok == "--filename" ||
-		   tok == "-p" ||
-		   tok == "--profile" ||
-		   tok == "--kube-context" ||
-		   tok == "--namespace" ||
-		   tok == "-n" ||
-		   tok == "--kubeconfig" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--filename=") ||
-		   strings.has_prefix(tok, "--profile=") ||
-		   strings.has_prefix(tok, "--kube-context=") ||
-		   strings.has_prefix(tok, "--namespace=") ||
-		   strings.has_prefix(tok, "--kubeconfig=") ||
-		   (strings.has_prefix(tok, "-f") && len(tok) > 2) ||
-		   (strings.has_prefix(tok, "-p") && len(tok) > 2) {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / runners
-		if sub == "run" ||
-		   sub == "dev" ||
-		   sub == "debug" ||
-		   sub == "delete" ||
-		   sub == "deploy" ||
-		   sub == "build" ||
-		   sub == "test" ||
-		   sub == "apply" ||
-		   sub == "verify" ||
-		   sub == "exec" ||
-		   sub == "filter-api-server-logs" ||
-		   sub == "init" ||
-		   sub == "fix" ||
-		   sub == "survey" ||
-		   sub == "credits" {
-			// credits is inspect-ish
-			if sub == "credits" {
-				return true
-			}
-			return false
-		}
-		// inspect
-		if sub == "diagnose" ||
-		   sub == "render" ||
-		   sub == "schema" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "config" ||
-		   sub == "completion" ||
-		   sub == "options" ||
-		   sub == "inspect" {
-			// completion writes shell files
-			if sub == "completion" {
-				return false
-			}
-			// config set mutates
-			if sub == "config" {
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "" ||
-					n == "list" ||
-					n == "get" ||
-					n == "help" ||
-					n == "--help"
-			}
-			return true
-		}
+	if sub == "config" {
+		return bash_nested_allow(rem, []string{"list", "get"})
+	}
+	if bash_token_in(
+		sub,
+		[]string{
+			"run", "dev", "debug", "delete", "deploy", "build", "test", "apply",
+			"verify", "exec", "filter-api-server-logs", "init", "fix", "survey", "completion",
+		},
+	) {
 		return false
 	}
+	return bash_token_in(
+		sub,
+		[]string{"diagnose", "render", "schema", "version", "help", "options", "inspect", "credits"},
+	)
 }
 
 // B81: kustomize inspect (build/cfg/version; not edit/create to disk).
@@ -511,247 +365,104 @@ bash_vault_is_readonly :: proc(args: string) -> bool {
 
 // B75: Consul inspect (members/catalog/kv get/info; not put/delete/join).
 bash_consul_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string {
+		"-http-addr", "-datacenter", "-token", "-ca-file", "-client-cert", "-client-key",
+	}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-http-addr" ||
-		   tok == "-datacenter" ||
-		   tok == "-token" ||
-		   tok == "-ca-file" ||
-		   tok == "-client-cert" ||
-		   tok == "-client-key" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-http-addr=") ||
-		   strings.has_prefix(tok, "-datacenter=") ||
-		   strings.has_prefix(tok, "-token=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// hard mutators / sensitive
-		if sub == "join" ||
-		   sub == "leave" ||
-		   sub == "force-leave" ||
-		   sub == "reload" ||
-		   sub == "monitor" ||
-		   sub == "exec" ||
-		   sub == "lock" ||
-		   sub == "watch" ||
-		   sub == "connect" ||
-		   sub == "acl" ||
-		   sub == "operator" ||
-		   sub == "services" ||
-		   sub == "event" ||
-		   sub == "rtt" {
-			return false
-		}
-		if sub == "snapshot" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "inspect" || n == "help" || n == "--help"
-		}
-		if sub == "config" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "read" || n == "help" || n == "--help"
-		}
-		if sub == "catalog" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "datacenters" ||
-				n == "nodes" ||
-				n == "services" ||
-				n == "node" ||
-				n == "service" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "kv" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// get/export only (not put/delete/import)
-			return n == "get" || n == "export" || n == "help" || n == "--help"
-		}
-		if sub == "intention" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "list" || n == "get" || n == "match" || n == "check" || n == "help" || n == "--help"
-		}
-		if sub == "health" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "node" ||
-				n == "checks" ||
-				n == "service" ||
-				n == "state" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "members" ||
-		   sub == "info" ||
-		   sub == "validate" ||
-		   sub == "version" ||
-		   sub == "help" {
-			return true
-		}
+	if bash_token_in(
+		sub,
+		[]string{
+			"join", "leave", "force-leave", "reload", "monitor", "exec", "lock", "watch",
+			"connect", "acl", "operator", "services", "event", "rtt",
+		},
+	) {
 		return false
 	}
+	if sub == "snapshot" {
+		return bash_nested_allow(rem, []string{"inspect"})
+	}
+	if sub == "config" {
+		return bash_nested_allow(rem, []string{"list", "read"})
+	}
+	if sub == "catalog" {
+		return bash_nested_allow(rem, []string{"datacenters", "nodes", "services", "node", "service"})
+	}
+	if sub == "kv" {
+		// get/export only (not put/delete/import) — empty next not ok for kv
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "get" || n == "export" || n == "help" || n == "--help" || n == "-h"
+	}
+	if sub == "intention" {
+		return bash_nested_allow(rem, []string{"list", "get", "match", "check"})
+	}
+	if sub == "health" {
+		return bash_nested_allow(rem, []string{"node", "checks", "service", "state"})
+	}
+	return bash_token_in(sub, []string{"members", "info", "validate", "version", "help"})
 }
 
 // B75: Nomad inspect (status/node status/job status; not run/stop/alloc exec).
 bash_nomad_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string{"-address", "-region", "-namespace", "-token"}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-address" ||
-		   tok == "-region" ||
-		   tok == "-namespace" ||
-		   tok == "-token" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-address=") ||
-		   strings.has_prefix(tok, "-region=") ||
-		   strings.has_prefix(tok, "-namespace=") ||
-		   strings.has_prefix(tok, "-token=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-
-		if sub == "run" ||
-		   sub == "stop" ||
-		   sub == "system" ||
-		   sub == "operator" ||
-		   sub == "acl" ||
-		   sub == "volume" ||
-		   sub == "var" ||
-		   sub == "quota" ||
-		   sub == "sentinel" ||
-		   sub == "namespace" ||
-		   sub == "scaling" ||
-		   sub == "service" ||
-		   sub == "ui" ||
-		   sub == "monitor" {
-			return false
-		}
-		if sub == "job" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "status" ||
-				n == "history" ||
-				n == "inspect" ||
-				n == "allocations" ||
-				n == "evals" ||
-				n == "deployments" ||
-				n == "plan" ||
-				n == "validate" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "alloc" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// status/logs/fs only (not exec/restart/signal)
-			return n == "" ||
-				n == "status" ||
-				n == "logs" ||
-				n == "fs" ||
-				n == "checks" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "deployment" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "status" || n == "list" || n == "help" || n == "--help"
-		}
-		if sub == "node" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			if n == "drain" || n == "eligibility" || n == "purge" {
-				return false
-			}
-			// status or bare id
-			return n == "" || n == "status" || n == "help" || n == "--help" || !strings.has_prefix(n, "-")
-		}
-		if sub == "server" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "members" || n == "help" || n == "--help"
-		}
-		if sub == "agent" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "info" || n == "self" || n == "health" || n == "help" || n == "--help"
-		}
-		if sub == "fmt" {
-			r2 := rem
-			has_check := false
-			for {
-				t2, r3 := first_shell_token(r2)
-				if t2 == "" {
-					break
-				}
-				if t2 == "-check" || t2 == "--check" {
-					has_check = true
-				}
-				r2 = r3
-			}
-			return has_check
-		}
-		if sub == "status" || sub == "version" || sub == "help" {
-			return true
-		}
+	if bash_token_in(
+		sub,
+		[]string{
+			"run", "stop", "system", "operator", "acl", "volume", "var", "quota",
+			"sentinel", "namespace", "scaling", "service", "ui", "monitor",
+		},
+	) {
 		return false
 	}
+	if sub == "job" {
+		return bash_nested_allow(
+			rem,
+			[]string{"status", "history", "inspect", "allocations", "evals", "deployments", "plan", "validate"},
+		)
+	}
+	if sub == "alloc" {
+		return bash_nested_allow(rem, []string{"status", "logs", "fs", "checks"})
+	}
+	if sub == "deployment" {
+		return bash_nested_allow(rem, []string{"status", "list"})
+	}
+	if sub == "node" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		if n == "drain" || n == "eligibility" || n == "purge" {
+			return false
+		}
+		// status, bare id, or help
+		return n == "" ||
+			n == "status" ||
+			n == "help" ||
+			n == "--help" ||
+			n == "-h" ||
+			!strings.has_prefix(n, "-")
+	}
+	if sub == "server" {
+		return bash_nested_allow(rem, []string{"members"})
+	}
+	if sub == "agent" {
+		return bash_nested_allow(rem, []string{"info", "self", "health"})
+	}
+	if sub == "fmt" {
+		return strings.contains(rem, "-check") || strings.contains(rem, "--check")
+	}
+	return bash_token_in(sub, []string{"status", "version", "help"})
 }
 
 // B74: Packer inspect (validate/inspect/version/fmt -check; not build/init).

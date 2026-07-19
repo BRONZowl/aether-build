@@ -35,54 +35,38 @@ bash_skopeo_is_readonly :: proc(args: string) -> bool {
 // B85: dive image layer explorer (always inspect of an image; no push).
 bash_dive_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		// bare dive needs image — help-ish / TUI
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" {
+	if bash_is_help_or_version(a) {
 		return true
 	}
 	// dive build is docker build wrapper — mutates
-	if strings.has_prefix(a, "build ") || a == "build" {
+	sub, rem, ok := bash_peel_to_sub(a)
+	if ok && sub == "build" {
 		return false
 	}
-	// any other args are image refs / flags for explore
+	// --export to a path writes; --export=- / bare flags ok
 	rest := a
 	for {
-		tok, rem := first_shell_token(rest)
+		tok, r2 := first_shell_token(rest)
 		if tok == "" {
-			return true
+			break
 		}
-		if tok == "build" {
-			return false
-		}
-		if strings.has_prefix(tok, "-") {
-			// --ci is still inspect; --export may write
-			if tok == "--export" || strings.has_prefix(tok, "--export=") || tok == "-j" || tok == "--json" {
-				// json to stdout ok; -j file?
-				if tok == "--export" {
-					next, _ := first_shell_token(rem)
-					if next != "" && next != "-" && !strings.has_prefix(next, "-") {
-						return false
-					}
-				}
-				if strings.has_prefix(tok, "--export=") {
-					val := tok[strings.index_byte(tok, '=') + 1:]
-					if val != "" && val != "-" {
-						return false
-					}
-				}
+		if tok == "--export" {
+			next, _ := first_shell_token(r2)
+			if next != "" && next != "-" && !strings.has_prefix(next, "-") {
+				return false
 			}
-			rest = rem
-			continue
 		}
-		// image name — inspect
-		rest = rem
+		if strings.has_prefix(tok, "--export=") {
+			val := tok[strings.index_byte(tok, '=') + 1:]
+			if val != "" && val != "-" {
+				return false
+			}
+		}
+		rest = r2
 	}
+	_ = rem
+	_ = ok
+	// image name / flags — explore inspect
 	return true
 }
 
@@ -298,156 +282,55 @@ bash_infracost_writes_file :: proc(args: string) -> bool {
 // B90: tflint inspect (default lint / --version; not --init / --fix-config).
 bash_tflint_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		// bare tflint lints cwd
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-v" {
-		return true
+	// plugin install / config or report file writes
+	if strings.contains(a, "--init") ||
+	   strings.contains(a, "--fix-config") ||
+	   strings.contains(a, "--fix") {
+		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// plugin install / config write
-		if tok == "--init" ||
-		   tok == "--fix-config" ||
-		   tok == "--fix" ||
-		   strings.has_prefix(tok, "--fix=") ||
-		   strings.has_prefix(tok, "--fix-config") {
-			return false
-		}
-		// --fix=path writes report file
-		if tok == "--format" || tok == "-f" {
-			// format is stdout format — peel value
-			if strings.has_prefix(tok, "--format=") {
-				rest = rem
-				continue
-			}
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			// peel flags that take values
-			if tok == "--config" ||
-			   tok == "-c" ||
-			   tok == "--var" ||
-			   tok == "--var-file" ||
-			   tok == "--module" ||
-			   tok == "--chdir" ||
-			   tok == "--filter" ||
-			   tok == "--minimum-failure-severity" ||
-			   tok == "--call-module-type" ||
-			   tok == "--format" ||
-			   tok == "-f" {
-				if strings.contains(tok, "=") {
-					rest = rem
-					continue
-				}
-				// value may follow
-				if tok == "--module" {
-					// boolean in newer tflint sometimes
-					rest = rem
-					continue
-				}
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				continue
-			}
-			if strings.has_prefix(tok, "--config=") ||
-			   strings.has_prefix(tok, "--var=") ||
-			   strings.has_prefix(tok, "--var-file=") ||
-			   strings.has_prefix(tok, "--chdir=") ||
-			   strings.has_prefix(tok, "--filter=") ||
-			   strings.has_prefix(tok, "--format=") {
-				rest = rem
-				continue
-			}
-			rest = rem
-			continue
-		}
-		// path to module — lint
-		rest = rem
-	}
+	// bare tflint / path args — lint to stdout
 	return true
 }
 
 // B90: terraform-docs inspect (render to stdout; not --output-file / inject).
 bash_terraform_docs_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-v" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
 	// file writes
 	if bash_terraform_docs_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			// --output-mode inject rewrites README
-			if tok == "--output-mode" || strings.has_prefix(tok, "--output-mode=") {
-				mode := ""
-				if strings.has_prefix(tok, "--output-mode=") {
-					mode = tok[strings.index_byte(tok, '=') + 1:]
-				} else {
-					mode, _ = first_shell_token(rem)
-				}
-				if mode == "inject" || mode == "replace" {
-					return false
-				}
-			}
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// subcommands: markdown, json, yaml, toml, tfvars, asciidoc, pretty, completion
-		if sub == "completion" {
-			return false
-		}
-		if sub == "markdown" ||
-		   sub == "json" ||
-		   sub == "yaml" ||
-		   sub == "yml" ||
-		   sub == "toml" ||
-		   sub == "tfvars" ||
-		   sub == "tfvars-hcl" ||
-		   sub == "tfvars-json" ||
-		   sub == "asciidoc" ||
-		   sub == "asciidoc-document" ||
-		   sub == "asciidoc-table" ||
-		   sub == "pretty" ||
-		   sub == "xml" ||
-		   sub == "html" ||
-		   sub == "version" ||
-		   sub == "help" {
-			return true
-		}
-		// path argument (module dir)
-		rest = rem
+	// --output-mode inject/replace rewrites README
+	if strings.contains(a, "--output-mode=inject") ||
+	   strings.contains(a, "--output-mode=replace") ||
+	   strings.contains(a, "--output-mode inject") ||
+	   strings.contains(a, "--output-mode replace") {
+		return false
 	}
+	if bash_is_help_or_version(a) {
+		return true
+	}
+	sub, _, ok := bash_peel_to_sub(a)
+	if !ok {
+		return true // path-only module dir
+	}
+	if sub == "completion" {
+		return false
+	}
+	// format subcommands or bare path as first token (module dir)
+	if bash_token_in(
+		sub,
+		[]string{
+			"markdown", "json", "yaml", "yml", "toml", "tfvars", "tfvars-hcl", "tfvars-json",
+			"asciidoc", "asciidoc-document", "asciidoc-table", "pretty", "xml", "html",
+			"version", "help",
+		},
+	) {
+		return true
+	}
+	// path argument (module dir) as first non-flag token
 	return true
 }
 
@@ -844,134 +727,40 @@ bash_buildah_is_readonly :: proc(args: string) -> bool {
 
 // B88: nerdctl inspect (docker-compatible ps/images/logs; not run/build/push).
 bash_nerdctl_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string {
+		"-n", "--namespace", "-a", "--address", "-H", "--host",
+		"--cgroup-manager", "--snapshotter", "--data-root",
+		"--cni-path", "--cni-netconfpath", "--bip", "--storage-driver",
+	}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	// compose plugin same as docker compose
-	rest := a
-	// peel global flags that take values
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-n" ||
-		   tok == "--namespace" ||
-		   tok == "-a" ||
-		   tok == "--address" ||
-		   tok == "-H" ||
-		   tok == "--host" ||
-		   tok == "--cgroup-manager" ||
-		   tok == "--insecure-registry" ||
-		   tok == "--snapshotter" ||
-		   tok == "--data-root" ||
-		   tok == "--cni-path" ||
-		   tok == "--cni-netconfpath" ||
-		   tok == "--bip" ||
-		   tok == "--iptables" ||
-		   tok == "--storage-driver" {
-			// flags with optional values
-			if tok == "-n" ||
-			   tok == "--namespace" ||
-			   tok == "-a" ||
-			   tok == "--address" ||
-			   tok == "-H" ||
-			   tok == "--host" ||
-			   tok == "--cgroup-manager" ||
-			   tok == "--snapshotter" ||
-			   tok == "--data-root" ||
-			   tok == "--cni-path" ||
-			   tok == "--cni-netconfpath" ||
-			   tok == "--bip" ||
-			   tok == "--storage-driver" {
-				// may be --namespace=x form
-				if strings.has_prefix(tok, "--") && strings.contains(tok, "=") {
-					rest = rem
-					continue
-				}
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				continue
-			}
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "--namespace=") ||
-		   strings.has_prefix(tok, "--address=") ||
-		   strings.has_prefix(tok, "--host=") ||
-		   strings.has_prefix(tok, "--cgroup-manager=") ||
-		   strings.has_prefix(tok, "--snapshotter=") ||
-		   strings.has_prefix(tok, "--data-root=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			// other boolean globals
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "compose" {
-			return bash_docker_compose_is_readonly(rem)
-		}
-		if sub == "version" ||
-		   sub == "help" ||
-		   sub == "info" ||
-		   sub == "events" {
-			return true
-		}
-		// classic inspect (mirror docker)
-		if bash_token_in(
-			   sub,
-			   []string{"ps", "images", "image", "logs", "inspect", "top", "stats", "port", "diff", "system"},
-		   ) {
-			// image ls vs image rm — nerdctl image is parent
-			if sub == "image" || sub == "images" {
-				return bash_nerdctl_image_is_readonly(rem, sub == "images")
-			}
-			if sub == "system" {
-				// system df/info — inspect; system prune mutates
-				srest := rem
-				for {
-					st, srem := first_shell_token(srest)
-					if st == "" {
-						return true
-					}
-					if strings.has_prefix(st, "-") {
-						srest = srem
-						continue
-					}
-					ssub := strings.to_lower(st, context.temp_allocator)
-					if ssub == "df" || ssub == "info" || ssub == "events" {
-						return true
-					}
-					return false
-				}
-			}
-			return true
-		}
-		// container inspect aliases
-		if sub == "container" {
-			crest := rem
-			for {
-				ct, crem := first_shell_token(crest)
-				if ct == "" {
-					return true
-				}
-				if strings.has_prefix(ct, "-") {
-					crest = crem
-					continue
-				}
-				csub := strings.to_lower(ct, context.temp_allocator)
-				return bash_token_in(
-					csub,
-					[]string{"ls", "list", "ps", "inspect", "logs", "top", "stats", "port", "diff"},
-				)
-			}
-		}
-		return false
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
+		return true
 	}
+	if sub == "compose" {
+		return bash_docker_compose_is_readonly(rem)
+	}
+	if bash_token_in(sub, []string{"version", "help", "info", "events"}) {
+		return true
+	}
+	if sub == "image" || sub == "images" {
+		return bash_nerdctl_image_is_readonly(rem, sub == "images")
+	}
+	if sub == "system" {
+		return bash_nested_allow(rem, []string{"df", "info", "events"})
+	}
+	if sub == "container" {
+		return bash_nested_allow(
+			rem,
+			[]string{"ls", "list", "ps", "inspect", "logs", "top", "stats", "port", "diff"},
+		)
+	}
+	return bash_token_in(
+		sub,
+		[]string{"ps", "logs", "inspect", "top", "stats", "port", "diff"},
+	)
 }
 
 bash_nerdctl_image_is_readonly :: proc(args: string, bare_images: bool) -> bool {
@@ -979,26 +768,10 @@ bash_nerdctl_image_is_readonly :: proc(args: string, bare_images: bool) -> bool 
 		// nerdctl images [filters] — list
 		return true
 	}
-	rest := args
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "ls" ||
-		   sub == "list" ||
-		   sub == "inspect" ||
-		   sub == "history" {
-			return true
-		}
-		// rm/pull/push/tag/build/import/export/prune
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {"ls", "list", "inspect", "history"},
+	)
 }
 
 // B88: ctr (containerd) inspect (images/containers/tasks/content list; not pull/run/rm).
@@ -1838,67 +1611,27 @@ bash_grype_is_readonly :: proc(args: string) -> bool {
 // B86: trivy scan (image/fs/config/repo/sbom/k8s/version; not server/plugin/login/clean).
 bash_trivy_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
 	// --output / -o file (not stdout)
 	if bash_trivy_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / long-running / auth (registry → login; vex → mutators)
-		if sub == "server" ||
-		   sub == "plugin" ||
-		   sub == "login" ||
-		   sub == "registry" ||
-		   sub == "clean" ||
-		   sub == "completion" ||
-		   sub == "module" ||
-		   sub == "vex" {
-			return false
-		}
-		// inspect scanners
-		if sub == "image" ||
-		   sub == "fs" ||
-		   sub == "filesystem" ||
-		   sub == "repo" ||
-		   sub == "repository" ||
-		   sub == "config" ||
-		   sub == "rootfs" ||
-		   sub == "sbom" ||
-		   sub == "kubernetes" ||
-		   sub == "k8s" ||
-		   sub == "vm" ||
-		   sub == "aws" ||
-		   sub == "azure" ||
-		   sub == "google" ||
-		   sub == "convert" ||
-		   sub == "version" ||
-		   sub == "help" {
-			return true
-		}
-		// legacy: trivy <image>
+	if bash_is_help_or_version(a) {
 		return true
 	}
+	sub, _, ok := bash_peel_to_sub(a)
+	if !ok {
+		return true
+	}
+	// mutators / long-running / auth
+	if bash_token_in(
+		sub,
+		[]string{"server", "plugin", "login", "registry", "clean", "completion", "module", "vex"},
+	) {
+		return false
+	}
+	// known scanners or legacy: trivy <image>
+	_ = sub
+	return true
 }
 
 // syft/grype: -o/--file report path (not stdout/-)
