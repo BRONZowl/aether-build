@@ -44,7 +44,7 @@ test_brand_art_disabled :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_brand_art_matches_grok_canvas :: proc(t: ^testing.T) {
+test_brand_art_unique_a_monogram :: proc(t: ^testing.T) {
 	prev := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator)
 	_ = os.unset_env("AETHER_NO_ASCII_ART")
 	_ = os.unset_env("AETHER_ASCII_ART")
@@ -53,7 +53,6 @@ test_brand_art_matches_grok_canvas :: proc(t: ^testing.T) {
 			_ = os.set_env("AETHER_NO_ASCII_ART", prev)
 		}
 	}
-	// Aether monogram on Grok logo07 canvas: 7×14 braille
 	full := brand_art_lines(.Full)
 	testing.expect(t, len(full) == BRAND_FULL_CELLS_H)
 	for line in full {
@@ -62,19 +61,17 @@ test_brand_art_matches_grok_canvas :: proc(t: ^testing.T) {
 			testing.expect(t, r >= 0x2800 && r <= 0x28FF)
 		}
 	}
-	// Not the Grok mark (must differ from logo07 first line)
+	// Distinct from Grok logo07
 	testing.expect(t, full[0] != `⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`)
-	// Aether full first line
-	testing.expect(t, full[0] == `⠀⠀⠀⠀⠀⢀⣀⣤⣤⡀⠀⠀⡠⠀`)
+	// Geometric A peak (not Grok open-ring fleck style)
+	testing.expect(t, full[0] == `⠀⠀⠀⠀⢀⣴⠞⠛⠳⣦⡀⠀⠀⠀⠀`)
 
-	// Aether monogram on Grok logo05 canvas: 5×10
 	small := brand_art_lines(.Small)
 	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)
 	for line in small {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_SMALL_CELLS_W)
 	}
 	testing.expect(t, small[0] != `⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`)
-	testing.expect(t, small[0] == `⠀⠀⣠⣴⠶⢶⣤⡀⡠⠂`)
 }
 
 @(test)

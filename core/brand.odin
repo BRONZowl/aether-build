@@ -1,8 +1,8 @@
 // Package core — Aether brand / welcome art.
 //
-// Opening layout matches Grok Build (stacked / hero, height tiers, fixed canvas).
-// Glyph is an original Aether open-"A" Braille monogram (not Grok's mark), on the
-// same U+2800 medium and logo05/logo07 cell sizes (10×5 / 14×7).
+// Welcome *layout* follows Grok Build (stacked / hero, height tiers, menu).
+// Glyph is original Aether: bold geometric "A" Braille monogram — letterform
+// peak with crossbar and solid legs, not Grok's open-ring mark.
 package core
 
 import "core:fmt"
@@ -10,8 +10,7 @@ import "core:os"
 import "core:strings"
 import "core:unicode/utf8"
 
-// Grok Build–shaped thresholds (window/content height).
-// Slightly relaxed floors so mid-size panes still show a mark.
+// Height tiers for when art is shown.
 BRAND_SMALL_MIN_ROWS :: 14
 BRAND_FULL_MIN_ROWS :: 20
 BRAND_SMALL_MIN_COLS :: 20
@@ -20,11 +19,11 @@ BRAND_FULL_MIN_COLS :: 28
 // Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
 BRAND_HERO_MIN_COLS :: 90
 
-// Fixed canvas sizes (braille cells) — same as Grok logo05 / logo07.
-BRAND_FULL_CELLS_W :: 14
-BRAND_FULL_CELLS_H :: 7
-BRAND_SMALL_CELLS_W :: 10
-BRAND_SMALL_CELLS_H :: 5
+// Monogram canvas (braille cells).
+BRAND_FULL_CELLS_W :: 15
+BRAND_FULL_CELLS_H :: 6
+BRAND_SMALL_CELLS_W :: 9
+BRAND_SMALL_CELLS_H :: 3
 
 Brand_Tier :: enum {
 	None,
@@ -33,28 +32,24 @@ Brand_Tier :: enum {
 	Full,
 }
 
-// Full welcome mark — Aether open "A" on logo07 canvas (14×7).
-// Layout language: open form, soft strokes, top-right fleck, bottom-left taper.
-BRAND_ART_FULL := [7]string {
-	`⠀⠀⠀⠀⠀⢀⣀⣤⣤⡀⠀⠀⡠⠀`,
-	`⠀⠀⠀⢀⣴⡿⠋⣀⠙⢿⣦⡾⠀⠀`,
-	`⠀⠀⣴⡿⠋⣠⠞⠉⠳⣄⠙⢿⣦⠀`,
-	`⠀⠀⣿⣧⠞⠁⠀⠀⠀⠈⢳⣼⡿⠀`,
-	`⠀⠀⢻⣧⠀⠀⠀⠀⠀⠀⣠⣿⠃⠀`,
-	`⠀⠀⠀⠻⢷⣤⣴⣶⣶⣾⡿⠇⠀⠀`,
-	`⠠⠊⠀⠀⠀⠈⠉⠉⠉⠁⠀⠀⠀⠀`,
+// Full mark — bold geometric A (peak + crossbar + solid legs). Unique letterform.
+BRAND_ART_FULL := [6]string {
+	`⠀⠀⠀⠀⢀⣴⠞⠛⠳⣦⡀⠀⠀⠀⠀`,
+	`⠀⠀⢀⣴⠟⠁⣠⣤⣄⠈⠻⣦⡀⠀⠀`,
+	`⢀⣴⠟⠁⣠⣾⣋⣀⣙⣷⣄⠈⠻⣦⡀`,
+	`⣿⡇⠀⠈⠉⠉⠉⠉⠉⠉⠉⠁⠀⢸⣿`,
+	`⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿`,
+	`⣿⡇⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿`,
 }
 
-// Small welcome mark — Aether open "A" on logo05 canvas (10×5).
-BRAND_ART_SMALL := [5]string {
-	`⠀⠀⣠⣴⠶⢶⣤⡀⡠⠂`,
-	`⣠⣾⠟⣡⠴⢤⡙⢿⣧⡀`,
-	`⣿⡟⠈⠁⠀⠀⠉⠸⣿⡗`,
-	`⠈⠳⣤⣀⣠⣤⣤⡴⠛⠁`,
-	`⠐⠀⠀⠉⠉⠉⠁⠀⠀⠀`,
+// Small mark — compact geometric A.
+BRAND_ART_SMALL := [3]string {
+	`⠀⢀⣴⠞⠛⠳⣦⡀⠀`,
+	`⣴⡟⢁⣴⠿⣦⡈⢻⣦`,
+	`⣿⡇⠉⠉⠉⠉⠉⢸⣿`,
 }
 
-BRAND_ART_CHIP :: "⣿ aether · odin"
+BRAND_ART_CHIP :: "◇ aether · odin"
 
 // Welcome menu (stacked + hero) — Grok layout: label left, shortcut right.
 // Keys match Aether TUI bindings (Ctrl+N / Ctrl+S / Ctrl+Q).

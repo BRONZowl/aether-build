@@ -2,7 +2,7 @@
 //
 // Stacked layout (narrow): centered logo → gap → menu → flex → tip
 // Hero layout (cols ≥ 90): bordered box, logo left, version+menu right
-// Logo assets: Grok logo07 / logo05 (core.brand).
+// Logo: unique Aether geometric-A monogram (core.brand).
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
