@@ -4,10 +4,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
-### Cleanup (E1/E2)
+### Cleanup (E1–E3)
 
-- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive more matchers (pipx, gem, composer, bundle, cargo, docker/compose, helm, pip, rustup, go, uv, odin, zig, ansible-config/galaxy)
+- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container (docker, helm, cargo, k3d/kind/tilt, crane/skopeo, kubectx/ns, terraform, …)
 - `new_session`: own `aether_sessions_dir` once (no double-clone leak)
+- Slash: shared `slash_ui_bool` for `/vim-mode`, `/timestamps`, `/compact-mode`
 
 ### Launcher / defaults
 

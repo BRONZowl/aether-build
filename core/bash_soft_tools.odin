@@ -285,35 +285,21 @@ bash_brew_is_readonly :: proc(args: string) -> bool {
 
 // B36: kubectl get/describe/logs/… + config view (not apply/delete/create).
 bash_kubectl_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" || sub == "--help" || sub == "-h" || sub == "help" || sub == "version" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if bash_token_in(
-		   sub,
-		   []string{
-			   "get",
-			   "logs",
-			   "describe",
-			   "top",
-			   "api-resources",
-			   "api-versions",
-			   "explain",
-			   "cluster-info",
-			   "auth", // auth can-i is inspect
-			   "diff",
-			   "wait",
-		   },
-	   ) {
+	sub, rest, ok := bash_peel_to_sub(args)
+	if !ok {
 		return true
 	}
 	if sub == "config" {
 		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "" || n == "--help" || n == "help" || n == "-h" {
 			return true
 		}
 		return bash_token_in(
-			sub2,
+			n,
 			[]string{
 				"view",
 				"get-contexts",
@@ -323,39 +309,36 @@ bash_kubectl_is_readonly :: proc(args: string) -> bool {
 			},
 		)
 	}
-	return false
+	return bash_token_in(
+		sub,
+		[]string{
+			"get",
+			"logs",
+			"describe",
+			"top",
+			"api-resources",
+			"api-versions",
+			"explain",
+			"cluster-info",
+			"auth", // auth can-i is inspect
+			"diff",
+			"wait",
+			"version",
+			"help",
+		},
+	)
 }
 
 // B36: terraform / tofu inspect (not apply/destroy/import).
 bash_terraform_is_readonly :: proc(args: string) -> bool {
-	rest := args
-	sub := ""
-	// peel global -chdir[=dir]
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-chdir" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-chdir=") {
-			rest = rem
-			continue
-		}
-		sub = tok
-		rest = rem
-		break
-	}
-	if sub == "--help" || sub == "-h" || sub == "help" || sub == "version" || sub == "-version" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	switch sub {
-	case "validate", "providers", "output", "show", "graph", "metadata":
+	sub, rest, ok := bash_peel_to_sub(args, []string{"-chdir"})
+	if !ok {
 		return true
-	case "fmt":
+	}
+	if sub == "fmt" {
 		// only check/diff modes; bare fmt rewrites files
 		if strings.contains(rest, "-check") || strings.contains(rest, "-diff") {
 			if strings.contains(rest, "-write=true") {
@@ -364,26 +347,34 @@ bash_terraform_is_readonly :: proc(args: string) -> bool {
 			return true
 		}
 		return false
-	case "plan":
+	}
+	if sub == "plan" {
 		// plan inspect unless -out / generate-config-out write artifacts
 		if strings.contains(rest, "-out") || strings.contains(rest, "-generate-config-out") {
 			return false
 		}
 		return true
-	case "state":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "show", "pull"})
-	case "workspace":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "show"})
 	}
-	return false
+	if sub == "state" {
+		sub2, _ := first_shell_token(rest)
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "" || n == "--help" || n == "help" || n == "-h" {
+			return true
+		}
+		return bash_token_in(n, []string{"list", "show", "pull"})
+	}
+	if sub == "workspace" {
+		sub2, _ := first_shell_token(rest)
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "" || n == "--help" || n == "help" || n == "-h" {
+			return true
+		}
+		return bash_token_in(n, []string{"list", "show"})
+	}
+	return bash_token_in(
+		sub,
+		[]string{"validate", "providers", "output", "show", "graph", "metadata", "version", "help"},
+	)
 }
 
 // B36: helm list/status/get/template/lint (not install/upgrade/uninstall).
@@ -547,39 +538,35 @@ bash_npm_family_is_readonly :: proc(args: string) -> bool {
 
 // B38: bun inspect (not install/run/test/build).
 bash_bun_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		// bare `bun` may start REPL — fail closed
 		return false
 	}
-	if sub == "--version" ||
-	   sub == "-v" ||
-	   sub == "--help" ||
-	   sub == "-h" ||
-	   sub == "help" ||
-	   sub == "version" {
+	if bash_is_help_or_version(a) {
 		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
 	}
 	// package manager inspect
 	if sub == "pm" {
 		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
+		n := strings.to_lower(sub2, context.temp_allocator)
+		if n == "" || n == "--help" || n == "help" || n == "-h" {
 			return true
 		}
 		return bash_token_in(
-			sub2,
+			n,
 			[]string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"},
 		)
 	}
-	// top-level inspect-ish
-	if bash_token_in(sub, []string{"pm", "outdated", "why", "info", "x"}) {
-		// bun x runs packages — fail closed
-		if sub == "x" {
-			return false
-		}
-		return true
+	// top-level inspect-ish; bun x runs packages — fail closed
+	if sub == "x" {
+		return false
 	}
-	return false
+	return bash_token_in(sub, []string{"pm", "outdated", "why", "info"})
 }
 
 // B38: deno inspect (not run/test/install/compile/cache).
@@ -2293,22 +2280,31 @@ bash_ninja_is_readonly :: proc(args: string) -> bool {
 
 // B28: meson introspect/configure --help (not compile/install).
 bash_meson_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	switch sub {
-	case "--help", "-h", "--version", "version", "help":
+	if bash_is_help_or_version(a) {
 		return true
-	case "introspect":
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
+	}
+	if sub == "introspect" {
 		return true // all introspect subcommands read build dir
-	case "configure":
+	}
+	if sub == "configure" {
 		// meson configure without -D is inspect; with -D can mutate options
 		if strings.contains(rest, "-D") || strings.contains(rest, "--clearcache") {
 			return false
 		}
 		return true
-	case "rewriter", "compile", "install", "test", "dist", "init", "setup", "subprojects":
+	}
+	if bash_token_in(
+		sub,
+		[]string{"rewriter", "compile", "install", "test", "dist", "init", "setup", "subprojects"},
+	) {
 		return false
 	}
 	return false

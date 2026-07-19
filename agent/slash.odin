@@ -505,87 +505,42 @@ run_slash :: proc(
 		return .Continue
 	case "/vim-mode", "/vim":
 		// C2.2 — opt-in scrollback j/k navigation; B9 persists [ui] vim_mode
-		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
-		switch a {
-		case "", "toggle", "t":
-			on := core.toggle_vim_mode()
-			_ = core.persist_ui_bool("vim_mode", on)
-			emit(out, fmt.tprintf("aether: vim-mode %s", "on" if on else "off"))
-		case "on", "true", "1", "yes":
-			core.set_vim_mode(true)
-			_ = core.persist_ui_bool("vim_mode", true)
-			emit(out, "aether: vim-mode on")
-		case "off", "false", "0", "no":
-			core.set_vim_mode(false)
-			_ = core.persist_ui_bool("vim_mode", false)
-			emit(out, "aether: vim-mode off")
-		case "status", "show", "?":
-			emit(
-				out,
-				fmt.tprintf(
-					"aether: vim-mode %s (scrollback: j/k g/G H/L J/K i; Shift+←/→ user turns; config [ui] vim_mode)",
-					"on" if core.vim_mode_enabled() else "off",
-				),
-			)
-		case:
-			emit(out, "aether: usage: /vim-mode [on|off|status|toggle]")
-		}
+		slash_ui_bool(
+			arg,
+			"vim-mode",
+			"vim_mode",
+			core.vim_mode_enabled,
+			core.set_vim_mode,
+			core.toggle_vim_mode,
+			"scrollback: j/k g/G H/L J/K i; Shift+←/→ user turns; config [ui] vim_mode",
+			out,
+		)
 		return .Continue
 	case "/timestamps", "/timestamp":
 		// B37 — HH:MM prefixes on TUI transcript; persists [ui] timestamps
-		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
-		switch a {
-		case "", "toggle", "t":
-			on := core.toggle_timestamps()
-			_ = core.persist_ui_bool("timestamps", on)
-			emit(out, fmt.tprintf("aether: timestamps %s", "on" if on else "off"))
-		case "on", "true", "1", "yes":
-			core.set_timestamps(true)
-			_ = core.persist_ui_bool("timestamps", true)
-			emit(out, "aether: timestamps on")
-		case "off", "false", "0", "no":
-			core.set_timestamps(false)
-			_ = core.persist_ui_bool("timestamps", false)
-			emit(out, "aether: timestamps off")
-		case "status", "show", "?":
-			emit(
-				out,
-				fmt.tprintf(
-					"aether: timestamps %s (HH:MM on transcript blocks; config [ui] timestamps)",
-					"on" if core.timestamps_enabled() else "off",
-				),
-			)
-		case:
-			emit(out, "aether: usage: /timestamps [on|off|status|toggle]")
-		}
+		slash_ui_bool(
+			arg,
+			"timestamps",
+			"timestamps",
+			core.timestamps_enabled,
+			core.set_timestamps,
+			core.toggle_timestamps,
+			"HH:MM on transcript blocks; config [ui] timestamps",
+			out,
+		)
 		return .Continue
 	case "/compact-mode", "/cm":
 		// B8 — denser TUI chrome; B9 persists [ui] compact_mode
-		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
-		switch a {
-		case "", "toggle", "t":
-			on := core.toggle_compact_mode()
-			_ = core.persist_ui_bool("compact_mode", on)
-			emit(out, fmt.tprintf("aether: compact-mode %s", "on" if on else "off"))
-		case "on", "true", "1", "yes":
-			core.set_compact_mode(true)
-			_ = core.persist_ui_bool("compact_mode", true)
-			emit(out, "aether: compact-mode on")
-		case "off", "false", "0", "no":
-			core.set_compact_mode(false)
-			_ = core.persist_ui_bool("compact_mode", false)
-			emit(out, "aether: compact-mode off")
-		case "status", "show", "?":
-			emit(
-				out,
-				fmt.tprintf(
-					"aether: compact-mode %s (denser header/status/tool chrome; config [ui] compact_mode)",
-					"on" if core.compact_mode_enabled() else "off",
-				),
-			)
-		case:
-			emit(out, "aether: usage: /compact-mode [on|off|status|toggle]")
-		}
+		slash_ui_bool(
+			arg,
+			"compact-mode",
+			"compact_mode",
+			core.compact_mode_enabled,
+			core.set_compact_mode,
+			core.toggle_compact_mode,
+			"denser header/status/tool chrome; config [ui] compact_mode",
+			out,
+		)
 		return .Continue
 	case "/loop":
 		// Multi-line result: emit line-by-line for TUI notices

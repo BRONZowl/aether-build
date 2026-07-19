@@ -6,119 +6,30 @@ import "core:strings"
 
 // B85: crane inspect (manifest/digest/ls/config/version; not push/delete/copy).
 bash_crane_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "push" ||
-		   sub == "delete" ||
-		   sub == "rm" ||
-		   sub == "copy" ||
-		   sub == "cp" ||
-		   sub == "append" ||
-		   sub == "mutate" ||
-		   sub == "rebase" ||
-		   sub == "export" || // may write tarball
-		   sub == "pull" || // writes local
-		   sub == "auth" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "serve" ||
-		   sub == "registry" ||
-		   sub == "edit" ||
-		   sub == "flatten" ||
-		   sub == "tag" {
-			// tag mutates remote
-			return false
-		}
-		// inspect
-		if sub == "manifest" ||
-		   sub == "digest" ||
-		   sub == "config" ||
-		   sub == "ls" ||
-		   sub == "list" ||
-		   sub == "catalog" ||
-		   sub == "validate" ||
-		   sub == "blob" || // read blob to stdout — inspect
-		   sub == "raw" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "completion" {
-			if sub == "completion" {
-				return false
-			}
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"manifest", "digest", "config", "ls", "list", "catalog", "validate",
+			"blob", "raw", "version", "help",
+		},
+		deny = {
+			"push", "delete", "rm", "copy", "cp", "append", "mutate", "rebase",
+			"export", "pull", "auth", "login", "logout", "serve", "registry",
+			"edit", "flatten", "tag", "completion",
+		},
+	)
 }
 
 // B85: skopeo inspect (inspect/list-tags/login no; not copy/delete).
 bash_skopeo_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "--version" ||
-	   a == "version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "copy" ||
-		   sub == "delete" ||
-		   sub == "sync" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "standalone-sign" ||
-		   sub == "standalone-verify" ||
-		   sub == "generate-sigstore-key" {
-			return false
-		}
-		if sub == "inspect" ||
-		   sub == "list-tags" ||
-		   sub == "layers" ||
-		   sub == "help" ||
-		   sub == "--version" ||
-		   sub == "version" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {"inspect", "list-tags", "layers", "help", "version"},
+		deny = {
+			"copy", "delete", "sync", "login", "logout",
+			"standalone-sign", "standalone-verify", "generate-sigstore-key",
+		},
+	)
 }
 
 // B85: dive image layer explorer (always inspect of an image; no push).
@@ -934,77 +845,26 @@ bash_helmfile_writes_file :: proc(args: string) -> bool {
 
 // B89: stern multi-pod logs (always inspect; no cluster mutate).
 bash_stern_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
+	sub, _, ok := bash_peel_to_sub(args)
+	if !ok {
+		return true // flags only / bare — log query
 	}
-	// completion scripts
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			// all flags are query/filter for log stream
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "completion" || sub == "help" || sub == "version" {
-			if sub == "completion" {
-				return false
-			}
-			return true
-		}
-		// bare query string / pod pattern — logs
-		return true
-	}
+	// completion scripts may write; bare query string / pod pattern — logs
+	return sub != "completion"
 }
 
 // B89: kubeconform manifest validate (always inspect; not schema install mutators).
 bash_kubeconform_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "-v" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" {
+	if bash_is_help_or_version(a) {
 		return true
 	}
 	// -o output format (json/junit/text) is stdout; -cache dir writes cache — ask
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-cache" || tok == "--cache" {
-			// next is cache dir — local write
-			return false
-		}
-		if strings.has_prefix(tok, "-cache=") || strings.has_prefix(tok, "--cache=") {
-			return false
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		// file path / dir — validate
-		rest = rem
+	if strings.contains(a, "-cache") || strings.contains(a, "--cache") {
+		return false
 	}
 	return true
 }
@@ -2038,51 +1898,22 @@ bash_regctl_output_file :: proc(args: string) -> bool {
 // B86: syft SBOM inspect (scan/packages/version; not login/attest).
 bash_syft_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	if bash_is_help_or_version(a) {
 		return true
 	}
 	// file write destinations
 	if bash_syft_grype_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / auth
-		if sub == "login" ||
-		   sub == "attest" ||
-		   sub == "completion" {
-			return false
-		}
-		// inspect / convert-to-stdout
-		if sub == "packages" ||
-		   sub == "scan" ||
-		   sub == "convert" ||
-		   sub == "cataloger" ||
-		   sub == "version" ||
-		   sub == "help" {
-			return true
-		}
-		// bare image/dir/source ref (legacy: `syft alpine:3`)
+	sub, _, ok := bash_peel_to_sub(a)
+	if !ok {
 		return true
 	}
+	if bash_token_in(sub, []string{"login", "attest", "completion"}) {
+		return false
+	}
+	// known inspect verbs or bare image/dir/source ref (legacy: `syft alpine:3`)
+	return true
 }
 
 // B86: grype vuln scan (scan/version/db status; not db delete/update login).

@@ -6,212 +6,95 @@ import "core:strings"
 
 // B84: k3d inspect (cluster list/get/version; not create/delete/start).
 bash_k3d_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// resource groups
-		if sub == "cluster" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "list" ||
-				n == "ls" ||
-				n == "get" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "node" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "ls" || n == "get" || n == "help" || n == "--help"
-		}
-		if sub == "image" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// import mutates; list none — fail closed for import
-			return n == "help" || n == "--help"
-		}
-		if sub == "registry" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "ls" || n == "get" || n == "help" || n == "--help"
-		}
-		if sub == "kubeconfig" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// get prints; merge/write asks
-			return n == "get" || n == "help" || n == "--help" || n == ""
-		}
-		// top-level mutators / shortcuts
-		if sub == "create" ||
-		   sub == "delete" ||
-		   sub == "start" ||
-		   sub == "stop" ||
-		   sub == "import-images" ||
-		   sub == "completion" {
-			return false
-		}
-		if sub == "version" || sub == "help" || sub == "config" {
-			if sub == "config" {
-				// config init may write
-				next, _ := first_shell_token(rem)
-				n := strings.to_lower(next, context.temp_allocator)
-				return n == "" || n == "help" || n == "--help"
-			}
-			return true
-		}
+	// resource groups with nested inspect verbs
+	if sub == "cluster" || sub == "node" || sub == "registry" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "" ||
+			n == "list" ||
+			n == "ls" ||
+			n == "get" ||
+			n == "help" ||
+			n == "--help" ||
+			n == "-h"
+	}
+	if sub == "image" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		// import mutates; list none — fail closed for import
+		return n == "help" || n == "--help" || n == "-h"
+	}
+	if sub == "kubeconfig" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		// get prints; merge/write asks
+		return n == "get" || n == "help" || n == "--help" || n == "-h" || n == ""
+	}
+	if sub == "config" {
+		// config init may write
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "" || n == "help" || n == "--help" || n == "-h"
+	}
+	if bash_token_in(
+		sub,
+		[]string{"create", "delete", "start", "stop", "import-images", "completion"},
+	) {
 		return false
 	}
+	return bash_token_in(sub, []string{"version", "help"})
 }
 
 // B84: tilt inspect (version/describe/get/args; not up/down/ci/trigger).
 bash_tilt_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
+	if a == "args" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "args" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-f" || tok == "--file" || tok == "--context" || tok == "--namespace" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--file=") ||
-		   strings.has_prefix(tok, "--context=") ||
-		   strings.has_prefix(tok, "-f") && len(tok) > 2 {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / long-running
-		if sub == "up" ||
-		   sub == "down" ||
-		   sub == "ci" ||
-		   sub == "demo" ||
-		   sub == "trigger" ||
-		   sub == "docker" ||
-		   sub == "alpha" ||
-		   sub == "snapshot" ||
-		   sub == "create-snapshot" ||
-		   sub == "completion" ||
-		   sub == "verify-install" {
-			return false
-		}
-		// inspect
-		if sub == "version" ||
-		   sub == "help" ||
-		   sub == "describe" ||
-		   sub == "get" ||
-		   sub == "args" ||
-		   sub == "api-resources" ||
-		   sub == "dump" ||
-		   sub == "logs" ||
-		   sub == "explain" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"version", "help", "describe", "get", "args", "api-resources", "dump", "logs", "explain",
+		},
+		deny = {
+			"up", "down", "ci", "demo", "trigger", "docker", "alpha", "snapshot",
+			"create-snapshot", "completion", "verify-install",
+		},
+		value_flags = {"-f", "--file", "--context", "--namespace"},
+	)
 }
 
 // B83: kind inspect (get/list/version/export; not create/delete/load).
 bash_kind_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "create" ||
-		   sub == "delete" ||
-		   sub == "load" ||
-		   sub == "export" || // export kubeconfig may write - refine
-		   sub == "build" ||
-		   sub == "completion" {
-			if sub == "export" {
-				// kind export kubeconfig - often writes; fail closed
-				return false
-			}
-			if sub == "completion" {
-				return false
-			}
-			return false
-		}
-		// get / version
-		if sub == "get" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// get clusters / get nodes / get kubeconfig (prints)
-			return n == "" ||
-				n == "clusters" ||
-				n == "nodes" ||
-				n == "kubeconfig" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "version" || sub == "help" {
-			return true
-		}
+	if sub == "get" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "" ||
+			n == "clusters" ||
+			n == "nodes" ||
+			n == "kubeconfig" ||
+			n == "help" ||
+			n == "--help" ||
+			n == "-h"
+	}
+	if bash_token_in(sub, []string{"create", "delete", "load", "export", "build", "completion"}) {
 		return false
 	}
+	return bash_token_in(sub, []string{"version", "help"})
 }
 
 // B83: minikube inspect (status/profile list/version/ip; not start/stop/delete).
@@ -526,59 +409,21 @@ bash_kustomize_writes_output :: proc(args: string) -> bool {
 
 // B81: kubectx — list/current only (switching context is mild mutate → ask).
 bash_kubectx_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		// bare lists contexts
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "--help" || a == "-h" || a == "help" || a == "--current" || a == "-c" {
-		return true
-	}
-	// any positional name switches context
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "--help" || tok == "-h" || tok == "--current" || tok == "-c" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		// context name / - (previous) switches
-		return false
-	}
+	// flags only (--current/-c peel away); any positional switches context
+	_, _, ok := bash_peel_to_sub(args)
+	return !ok
 }
 
 // B81: kubens — list/current only (switching ns asks).
 bash_kubens_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "--help" || a == "-h" || a == "help" || a == "--current" || a == "-c" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "--help" || tok == "-h" || tok == "--current" || tok == "-c" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		return false
-	}
+	_, _, ok := bash_peel_to_sub(args)
+	return !ok
 }
 
 // B79: istioctl inspect (version/proxy-status/analyze/proxy-config; not install/apply).
