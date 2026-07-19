@@ -74,6 +74,7 @@ subagent_system_prompt :: proc(
 	cwd: string,
 	skills_catalog: string,
 	allocator := context.allocator,
+	persona_instructions: string = "",
 ) -> string {
 	role: string
 	switch t {
@@ -100,6 +101,14 @@ You are a delegated worker — stay in scope. Prefer tools over guessing. Be con
 		date,
 		allocator = allocator,
 	)
+	if persona_instructions != "" {
+		base = fmt.aprintf(
+			"%s\n\n## Persona instructions\n\n%s",
+			base,
+			persona_instructions,
+			allocator = allocator,
+		)
+	}
 	if skills_catalog != "" {
 		return fmt.aprintf("%s%s", base, skills_catalog, allocator = allocator)
 	}
@@ -113,8 +122,9 @@ refresh_subagent_system_prompt :: proc(
 	cwd: string,
 	skills_catalog: string,
 	allocator := context.allocator,
+	persona_instructions: string = "",
 ) {
-	sys := subagent_system_prompt(kind, cwd, skills_catalog, allocator)
+	sys := subagent_system_prompt(kind, cwd, skills_catalog, allocator, persona_instructions)
 	if len(msgs) > 0 && msgs[0].role == .System {
 		delete(msgs[0].content)
 		msgs[0].content = sys
@@ -152,6 +162,7 @@ run_subagent :: proc(
 	allocator := context.allocator,
 	isolation: Isolation_Mode = .None,
 	inherit_worktree := "",
+	persona_instructions := "",
 ) -> string {
 	empty: [dynamic]Chat_Message
 	return run_subagent_seeded(
@@ -165,6 +176,7 @@ run_subagent :: proc(
 		allocator,
 		isolation,
 		inherit_worktree,
+		persona_instructions,
 	)
 }
 
@@ -180,6 +192,7 @@ run_subagent_seeded :: proc(
 	allocator := context.allocator,
 	isolation: Isolation_Mode = .None,
 	inherit_worktree := "",
+	persona_instructions := "",
 ) -> string {
 	if !subagents_enabled() {
 		if has_seed {
@@ -257,7 +270,8 @@ run_subagent_seeded :: proc(
 	msgs: [dynamic]Chat_Message
 	if has_seed {
 		msgs = seed_msgs
-		refresh_subagent_system_prompt(&msgs, kind, ws, catalog, allocator)
+		// Resume: keep original system prompt (persona already applied if any)
+		refresh_subagent_system_prompt(&msgs, kind, ws, catalog, allocator, persona_instructions)
 		append(
 			&msgs,
 			Chat_Message {
@@ -271,7 +285,7 @@ run_subagent_seeded :: proc(
 			&msgs,
 			Chat_Message {
 				role    = .System,
-				content = subagent_system_prompt(kind, ws, catalog, allocator),
+				content = subagent_system_prompt(kind, ws, catalog, allocator, persona_instructions),
 			},
 		)
 		append(
@@ -419,6 +433,16 @@ handle_spawn_subagent :: proc(
 			allocator = allocator,
 		)
 	}
+	// M9: optional persona
+	persona_name := extract_json_string_field_agent(arguments_json, "persona")
+	persona_instr := ""
+	if strings.trim_space(persona_name) != "" {
+		pi, perr := persona_instructions_for(persona_name, parent.workspace, context.temp_allocator)
+		if perr != "" {
+			return fmt.aprintf("error: %s", perr, allocator = allocator)
+		}
+		persona_instr = pi
+	}
 
 	if resume_id != "" {
 		src, err := bg_lookup_for_resume(resume_id, allocator)
@@ -493,9 +517,10 @@ handle_spawn_subagent :: proc(
 			allocator,
 			isolation,
 			"",
+			persona_instr,
 		)
 	}
-	return run_subagent(creds, model, prompt, kind, parent, allocator, isolation, "")
+	return run_subagent(creds, model, prompt, kind, parent, allocator, isolation, "", persona_instr)
 }
 
 // small JSON string extractor (duplicated lightly to avoid mcp import here for fields)

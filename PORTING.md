@@ -200,10 +200,10 @@ make -C aether build vet test smoke-tui
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
 | Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`); OS sandbox **N/A** until M6 |
-| Plugins / marketplace | plugin crates | — | **N/A** | R3a Drop — not on Odin ship path; reopen as Port if product needs plugins |
+| Plugins / marketplace | plugin crates | `agent/plugins` | Full (MVP) | **M4** local `/plugins` list/add/remove/reload + skill roots; remote marketplace residual N/A |
 | Sandbox | `xai-grok-sandbox` | workspace path gates | Full | Soft FS + soft bash ship; OS Landlock/Seatbelt **N/A** (R3c) |
 | Workspace / worktree | `xai-grok-workspace*` | `worktree`, tools | Full | Linked worktrees for subagents; full remote workspace services **N/A** |
-| Subagents | shell + tools task | `subagent`, `bg_task` | Full | explore/plan/gp, bg, resume, worktree; personas **N/A** |
+| Subagents | shell + tools task | `subagent`, `bg_task` | Full | explore/plan/gp, bg, resume, worktree; **M9** personas |
 | Plan mode | tools + shell tracker | `plan_mode` | Full | Lifecycle + gate; ACP reverse-request **N/A** |
 | Scheduler | tools scheduler | `scheduler` | Full | Durable + fire; multi-client **N/A** |
 | Media (image/video) | tools image/video | `image_*`, `video_gen` | Full | Magick + `[Image #N]` + paste/vision; ZDR/tier **N/A** |
@@ -238,7 +238,7 @@ make -C aether build vet test smoke-tui
 | `update_goal` | Full | Session-durable goal state; **M2** `/goal --budget` pause; multi-agent classifier residual N/A; A1.10a |
 | `image_gen` / `image_edit` | Full | Compress + `[Image #N]` registry; path/clipboard paste + multimodal chat (M1); A1.9 |
 | `image_to_video` / `reference_to_video` | Full | Token/path resolve via registry; ZDR/tier N/A; A1.9 |
-| `spawn_subagent` / `task` | Full | explore/plan/gp + bg + resume + worktree; `task` alias; personas N/A; A1.11c |
+| `spawn_subagent` / `task` | Full | explore/plan/gp + bg + resume + worktree; `task` alias; **M9** `persona=`; A1.11c |
 | `get_task_output` / `kill_task` | Full | Multi-id + timeout_ms wait; cap 20 |
 | `wait_tasks` / `wait_commands_or_subagents` | Full | Alias multi-wait; default 30s; wait_any; A1.3 |
 | `skill` | Full | Discover + invoke + disabled gate; marketplace N/A; A1.12b |
@@ -261,7 +261,7 @@ make -C aether build vet test smoke-tui
 | `/view-plan` | `/view-plan` `/show-plan` `/plan view` | Full | **B32** dump `.grok/plan.md` |
 | `/context` | `/context` | Full | est. tokens (chars/4) + usage bar + session stats |
 | `/hooks-*` | `/hooks` | Full | status/list/reload/**paths/add/remove** (B18); **trust/untrust (M1)** → `~/.grok/trusted_folders.toml`; command + HTTP A4.1–7 |
-| `/plugins` `/reload-plugins` | — | **N/A** | R3a Drop with marketplace |
+| `/plugins` `/reload-plugins` | `/plugins` | Full (MVP) | **M4** list/add/remove/reload/trust; remote marketplace N/A |
 | `/session-info` | `/session-info` `/session` | Full | + context one-liner |
 | `/settings` `/config` | `/config` `/settings` `/preferences` `/prefs` | Full | **B34** effective settings dump (no modal; no secrets) |
 | `/feedback` | `/feedback` | Full | local JSONL; remote API N/A |
@@ -418,8 +418,8 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | **M10** | `/create-skill` scaffold | **Complete** |
 | **M3** | MCP browser OAuth enroll | **Complete** (enroll/set-token + auto-reconnect; DCR still host-assisted) |
 | **M7** | In-process login R0-B | **Complete** (device-code login; `--host` fallback) |
-| **M4** | Plugins / marketplace basics | None |
-| **M9** | Subagent personas | None |
+| **M4** | Plugins / marketplace basics | **Complete** (local list/add/remove/reload; no remote marketplace) |
+| **M9** | Subagent personas | **Complete** |
 | **M5** | Hashline optional tool pack | None |
 | **M6** | OS sandbox (Landlock) | None |
 | **M8** | Mermaid layout upgrade | None |

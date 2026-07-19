@@ -27,6 +27,10 @@ collect_skill_roots :: proc(
 	}
 	append_root(&roots, fmt.tprintf("%s/skills", home), allocator)
 
+	// M4: user plugins skills (~/.grok/plugins/*/skills)
+	plugins_user, _ := filepath.join({home, "plugins"}, context.temp_allocator)
+	append_plugin_skill_roots(&roots, plugins_user, allocator)
+
 	// walk from cwd up
 	dir := cwd if cwd != "" else "."
 	abs, aerr := filepath.abs(dir, context.temp_allocator)
@@ -54,9 +58,45 @@ collect_skill_roots :: proc(
 		}
 		append_root(&roots, fmt.tprintf("%s/.agents/skills", d), allocator)
 		append_root(&roots, fmt.tprintf("%s/.grok/skills", d), allocator)
+		// M4: project plugins (only if folder trusted for that cwd level —
+		// discovery always scans; hooks/plugins host gates project plugins
+		// at list time; skills from untrusted project plugins still load if
+		// present — gate skill scan by trust for project plugin root only)
+		if core.project_scope_allowed(d) {
+			pp, _ := filepath.join({d, ".grok", "plugins"}, context.temp_allocator)
+			append_plugin_skill_roots(&roots, pp, allocator)
+		}
 	}
 
 	return roots[:]
+}
+
+// append_plugin_skill_roots: each child plugin's skills/ dir (or plugin root with packages).
+append_plugin_skill_roots :: proc(
+	roots: ^[dynamic]string,
+	plugins_root: string,
+	allocator := context.allocator,
+) {
+	if plugins_root == "" || !os.exists(plugins_root) || !os.is_directory(plugins_root) {
+		return
+	}
+	fis, err := os.read_all_directory_by_path(plugins_root, context.temp_allocator)
+	if err != nil {
+		return
+	}
+	for fi in fis {
+		if fi.type != .Directory || strings.has_prefix(fi.name, ".") {
+			continue
+		}
+		pdir, _ := filepath.join({plugins_root, fi.name}, context.temp_allocator)
+		sk, _ := filepath.join({pdir, "skills"}, context.temp_allocator)
+		if os.exists(sk) && os.is_directory(sk) {
+			append_root(roots, sk, allocator)
+		} else {
+			// plugin root may contain skill packages directly
+			append_root(roots, pdir, allocator)
+		}
+	}
 }
 
 // collect_command_roots returns commands/ dirs low→high priority.

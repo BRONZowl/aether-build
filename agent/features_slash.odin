@@ -227,6 +227,24 @@ handle_features_slash :: proc(arg: string, allocator := context.allocator) -> st
 		f,
 		&n,
 		&n_on,
+		"plugins",
+		plugins_enabled(),
+		"AETHER_NO_PLUGINS · /plugins local packages",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
+		"personas",
+		personas_enabled(),
+		"AETHER_NO_PERSONAS · spawn_subagent persona=",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
 		"web-fetch",
 		web_fetch_enabled(),
 		"AETHER_NO_WEB_FETCH",

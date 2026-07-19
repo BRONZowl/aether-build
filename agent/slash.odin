@@ -759,6 +759,33 @@ run_slash :: proc(
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 		emit(out, handle_create_skill_slash(arg, ws, context.temp_allocator))
 		return .Continue
+	case "/plugins", "/plugin":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		pout := handle_plugins_slash(arg, ws, context.temp_allocator)
+		pstart := 0
+		for i := 0; i <= len(pout); i += 1 {
+			if i == len(pout) || pout[i] == '\n' {
+				line := pout[pstart:i]
+				if line != "" {
+					emit(out, line)
+				}
+				pstart = i + 1
+			}
+		}
+		return .Continue
+	case "/personas", "/persona":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		if strings.trim_space(arg) == "help" || strings.trim_space(arg) == "?" {
+			emit(
+				out,
+				"Usage: /personas — list personas for spawn_subagent persona=\n" +
+				"Files: ~/.grok/personas/<name>.md or <cwd>/.grok/personas/<name>.md\n" +
+				"Optional frontmatter: name, description. Body = instructions (M9).",
+			)
+			return .Continue
+		}
+		emit(out, format_personas_list(ws, context.temp_allocator))
+		return .Continue
 	case "/skills":
 		arg_l := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
 		if arg_l == "reload" || arg_l == "refresh" {

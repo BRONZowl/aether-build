@@ -61,6 +61,8 @@ HELP_CATALOG := [?]Help_Line {
 	{is_section = false, text = "  /hooks [status|list|paths|add|remove|reload]  local hooks"},
 	{is_section = false, text = "  /skills [reload]    list skills + commands (reload rediscovers)"},
 	{is_section = false, text = "  /create-skill       scaffold SKILL.md under user or project skills (M10)"},
+	{is_section = false, text = "  /plugins            list/add/remove/reload local plugins (M4)"},
+	{is_section = false, text = "  /personas           list subagent personas for spawn persona= (M9)"},
 	{is_section = false, text = "  /skill <name>       load skill/command body (user; disabled OK)"},
 	{is_section = false, text = "  /todos [clear]      show session task list (or clear)"},
 	{is_section = false, text = "  /goal [obj|status|pause|resume|clear]  process-local goal mode"},

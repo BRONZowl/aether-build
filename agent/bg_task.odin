@@ -64,18 +64,19 @@ Bg_Completion :: struct {
 }
 
 Bg_Work :: struct {
-	task:           ^Bg_Task,
-	creds:          Credentials,
-	model:          string,
-	prompt:         string,
-	workspace:      string,
-	kind:           Subagent_Type,
-	mcp_enabled:    bool,
-	skills_enabled: bool,
-	max_turns:      int,
+	task:                 ^Bg_Task,
+	creds:                Credentials,
+	model:                string,
+	prompt:               string,
+	workspace:            string,
+	kind:                 Subagent_Type,
+	mcp_enabled:          bool,
+	skills_enabled:       bool,
+	max_turns:            int,
 	// When set, worker resumes from these messages (takes ownership; freed after clone into run).
-	seed_msgs:      [dynamic]Chat_Message,
-	has_seed:       bool,
+	seed_msgs:            [dynamic]Chat_Message,
+	has_seed:             bool,
+	persona_instructions: string, // owned; empty = none (M9)
 }
 
 Bg_Shell_Work :: struct {
@@ -673,6 +674,7 @@ spawn_subagent_background :: proc(
 	allocator := context.allocator,
 	isolation: Isolation_Mode = .None,
 	inherit_worktree := "",
+	persona_instructions := "",
 ) -> string {
 	return spawn_subagent_background_seeded(
 		creds,
@@ -686,6 +688,7 @@ spawn_subagent_background :: proc(
 		allocator,
 		isolation,
 		inherit_worktree,
+		persona_instructions,
 	)
 }
 
@@ -702,6 +705,7 @@ spawn_subagent_background_seeded :: proc(
 	allocator := context.allocator,
 	isolation: Isolation_Mode = .None,
 	inherit_worktree := "",
+	persona_instructions := "",
 ) -> string {
 	if !subagents_enabled() {
 		if has_seed {
@@ -779,6 +783,9 @@ spawn_subagent_background_seeded :: proc(
 	if has_seed {
 		work.seed_msgs = seed_msgs
 		work.has_seed = true
+	}
+	if persona_instructions != "" {
+		work.persona_instructions = strings.clone(persona_instructions, context.allocator)
 	}
 
 	_ = thread.create_and_start_with_poly_data(work, bg_worker_proc, nil, .Normal, true)
@@ -1140,7 +1147,14 @@ bg_worker_proc :: proc(work: ^Bg_Work) {
 		msgs = work.seed_msgs
 		work.has_seed = false
 		work.seed_msgs = {}
-		refresh_subagent_system_prompt(&msgs, work.kind, work.workspace, catalog)
+		refresh_subagent_system_prompt(
+			&msgs,
+			work.kind,
+			work.workspace,
+			catalog,
+			context.allocator,
+			work.persona_instructions,
+		)
 		append(
 			&msgs,
 			Chat_Message {
@@ -1154,7 +1168,13 @@ bg_worker_proc :: proc(work: ^Bg_Work) {
 			&msgs,
 			Chat_Message {
 				role    = .System,
-				content = subagent_system_prompt(work.kind, work.workspace, catalog),
+				content = subagent_system_prompt(
+					work.kind,
+					work.workspace,
+					catalog,
+					context.allocator,
+					work.persona_instructions,
+				),
 			},
 		)
 		append(
@@ -1273,6 +1293,7 @@ bg_worker_proc :: proc(work: ^Bg_Work) {
 	delete(work.model)
 	delete(work.prompt)
 	delete(work.workspace)
+	delete(work.persona_instructions)
 	if work.has_seed {
 		destroy_messages(work.seed_msgs[:])
 	}

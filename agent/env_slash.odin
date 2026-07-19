@@ -32,6 +32,8 @@ ENV_CATALOG := []Env_Row {
 	{"AETHER_NO_UI_PERSIST", "do not write UI prefs to config.toml", false},
 	{"AETHER_NO_HOOKS", "disable hooks", false},
 	{"AETHER_NO_FOLDER_TRUST", "disable folder trust (always load project hooks)", false},
+	{"AETHER_NO_PLUGINS", "disable plugins discovery (/plugins)", false},
+	{"AETHER_NO_PERSONAS", "disable subagent personas", false},
 	{"AETHER_NO_MCP", "disable MCP", false},
 	{"AETHER_NO_SKILLS", "disable skills discovery", false},
 	{"AETHER_NO_DESKTOP_NOTIFY", "disable desktop notifications", false},
