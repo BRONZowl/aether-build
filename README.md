@@ -1,26 +1,30 @@
 # Aether-Grok
 
-High-performance **Odin** coding agent — peer product to Rust [Grok Build](https://x.ai/cli) in this monorepo.
+High-performance **Odin** coding agent — peer product to Rust [Grok Build](https://x.ai/cli).
 
-> **Dual product:** **Aether** (`aether/`, Odin) and **Grok** (`crates/`, Rust) are **independent**. Neither build requires the other; **nothing is deleted**. Parity and separation: **[PORTING.md](./PORTING.md)**.
+> **Status:** daily-driver **product-contract parity PASS** (tools + slash inventory). Ship-hardening **M1–M10** + visual **V1** complete. Ledger: **[PORTING.md](./PORTING.md)** · history: **[CHANGELOG.md](./CHANGELOG.md)**.
 >
-> **Ship mode R0-A (locked):** primary auth is **`XAI_API_KEY`** (plus existing `~/.grok/auth.json` if present). Browser `grok login` is optional interop if a Rust `grok` binary is installed — not a source-tree dependency.
+> **Dual product:** Aether (this tree / monorepo `aether/`) and Grok (`crates/`) are **independent**. Neither build requires the other.
+>
+> **Auth (R0-A):** primary **`XAI_API_KEY`** (or `~/.grok/auth.json`). **`aether login`** = in-process **device-code** (M7). Optional `login --host` bridges to an installed Rust `grok login`.
 
-**Program goal:** full product capabilities in Odin — agent core (L1), shell product (L2), pager-class UI (L3). Status tags: **[PORTING.md](./PORTING.md)**.
+**Program goal:** full product capabilities in Odin — agent core (L1), shell product (L2), pager-class UI (L3).
 
-**Today:** daily-usable **headless** agent, multi-turn **REPL**, and fullscreen **TUI** (`aether tui`) — progressive SSE, core tools, **MCP**, **skills**, **hooks**, **subagents**, **plan mode**, **scheduler**, **media**, **memory**, slash builtins, config merge, sessions, permission modes (incl. **auto**), soft bash safety, PDF/PPTX read, TUI themes/vim/mouse/paste. Phases **A**/**B**/**C1–C2** Complete. Separation **S0–S4** landed (self-contained layout + dual-product charter + standalone export).
+**Today:** headless agent, multi-turn **REPL**, fullscreen **TUI** — SSE, core tools, **MCP**, **skills** + `/create-skill`, **hooks** + folder trust, **subagents** + **personas**, **plan mode**, **scheduler**, **media**, **memory**, local **plugins**, soft bash, optional **OS sandbox** (`AETHER_OS_SANDBOX`), opt-in **hashline** pack, **mermaid** Unicode art, **brand ASCII** welcome art, PDF/PPTX read, themes/vim/mouse/paste. Phases **A**/**B**/**C1–C2**, separation **S0–S4**, ship-hardening **M**, visual **V1** complete.
 
 ### Standalone export (S4)
 
-Export this product as a **standalone source tree** without removing monorepo `aether/`:
+From a monorepo layout, export this product without removing the monorepo copy:
 
 ```bash
+# monorepo root:
 bash aether/scripts/export-standalone.sh --dest /tmp/aether-standalone
 # or: make -C aether extract EXTRACT_ARGS='--dest /tmp/aether-standalone --verify'
+# this tree already standalone: see STANDALONE.md
 ```
 
 Optional `--git-history` preserves `aether/` git history via `git subtree split`.  
-`make dist` is a **binary** tarball only; S4 is **source** + standalone CI. See `STANDALONE.md` inside the extract. No remote push by default.
+`make dist` is a **binary** tarball only. No remote push by default.
 
 ## Quick start
 
@@ -36,13 +40,13 @@ Optional `--git-history` preserves `aether/` git history via `git subtree split`
 No Cargo / Rust source tree is required. No installed Rust `grok` binary is required for normal use (R0-A). Shared `~/.grok` files are optional **interop** with an existing Grok install.
 
 ```bash
-# from this tree (standalone) — or monorepo: make -C aether …
+# from this tree (standalone). Monorepo: make -C aether …
 make bootstrap-odin                 # Odin → ./.tools (or monorepo ../.tools)
 make build test smoke-tui
 ./bin/aether --version              # or: ./out/aether
 ./bin/aether -p "say hi in three words"
-./bin/aether                        # multi-turn REPL
-./bin/aether tui                    # fullscreen chat (TTY)
+./bin/aether                        # multi-turn REPL (brand art + tips)
+./bin/aether tui                    # fullscreen chat (TTY; empty session shows brand art)
 make install                        # PATH: aether-grok-odin, grok-odin (+ aether if free)
 make smoke                          # live -p check (skips without auth)
 ```
@@ -74,19 +78,20 @@ export ODIN_ROOT="${ODIN_ROOT:-$PWD/.tools/odin}"
 odin build . -collection:aether=. -out:out/aether -o:speed
 ```
 
-### Auth (R0-A)
+### Auth (R0-A + M7)
 
 1. **Recommended:** set **`XAI_API_KEY`** for API-key mode.
-2. Or use an existing **`~/.grok/auth.json`** / `$GROK_HOME/auth.json` session (e.g. from a previous `grok login`).
-3. **Optional interop:** `aether login` / `/login` shells out to an installed **`grok login`** if on PATH (`AETHER_GROK_BIN` / `GROK_BIN`). Not required; does not need the monorepo `crates/` tree.
-4. **`aether whoami`** — identity only (no secrets).
+2. Or use an existing **`~/.grok/auth.json`** / `$GROK_HOME/auth.json` session.
+3. **`aether login` / `/login`** — in-process **device-code** sign-in (M7); no Rust binary required.
+4. **Optional legacy:** `aether login --host` / host **`grok login`** if a Rust `grok` is on PATH (`AETHER_GROK_BIN` / `GROK_BIN`).
+5. **`aether whoami`** — identity only (no secrets).
 
 ## CLI
 
 | Flag / command | Meaning |
 |----------------|---------|
-| *(no args)* / `chat` | Multi-turn interactive REPL (startup tip: `/about · /help · /keys · /exit`) |
-| `tui` | Fullscreen chat UI (TTY required) |
+| *(no args)* / `chat` | Multi-turn interactive REPL (brand art + `/about · /help · /keys · /exit`) |
+| `tui` | Fullscreen chat UI (TTY required; empty session shows brand art) |
 | `-p` / `--print` / `--single TEXT` | One-shot headless agent |
 | `-m` / `--model ID` | Model override |
 | `--max-turns N` | Tool-loop cap per prompt (default 20) |
@@ -97,13 +102,13 @@ odin build . -collection:aether=. -out:out/aether -o:speed
 | `--yolo` / `--always-approve` | Auto-approve write/shell |
 | `--read-only` | Deny write/shell tools |
 | `--session` / `-c` / `--continue` | Resume a saved session |
-| `login [args]` | Browser sign-in via host `grok login` (A5.2) |
+| `login [args]` | Device-code sign-in (M7); `--host` → optional host `grok login` |
 | `whoami` | Show signed-in identity (no secrets) |
 | `--help` / `--version` | Meta |
 
 Config merge (low→high): defaults → `~/.grok/config.toml` → project `aether.toml` (`AETHER_CONFIG`) → CLI. Product keys (A5.1/C2): `[models].default`, `[ui].permission_mode` / `yolo` / `auto_compact` / `auto_compact_pct` / **`theme`** / **`vim_mode`**, `[compact].*`, `[agent].max_turns`, `[permission].allow` / `deny`, `[memory].enabled` / `auto_dream`, `[memory.initial_injection].enabled`, `[subagents].enabled`. Themes: `dark` (default), `light`, `tokyonight`, `rosepine`, `oscura` — `/theme`. Vim scrollback: `[ui] vim_mode = true` or `/vim-mode` (`j`/`k`/`g`/`G`/`H`/`L`/`J`/`K`/`i` — H/L user turns, J/K assistant). Simple mode: **Shift+←/→** jump prev/next user turn. Mouse: wheel scrolls; left-click selects a scrollback block or focuses the compose prompt; **middle-click** pastes PRIMARY selection (Wayland/X11; clipboard fallback; `pbpaste` on macOS). **Ctrl+V** / middle-paste: clipboard **image** or image **path**/`file://`/`data:image` attaches as `[Image #N]` (vision on send; tools resolve the same token). Terminal **bracketed paste** (ESC`[200~`…`201~`) inserts multi-line text in one shot (with the same image-path rewrite). Opt out vision expand: `AETHER_NO_MULTIMODAL=1`. `NO_COLOR` / `AETHER_NO_COLOR=1` disables color. Env kill-switches (`AETHER_NO_*`, `AETHER_AUTO_COMPACT_PCT`) still win over TOML.
 
-REPL slash commands: **`/help [filter]`** (B65 sectioned catalog), **`/about`** (B50 product blurb), **`/aliases`** (B53 alias table), **`/keys`** (B41 TUI shortcuts; `/bindings`), **`/tools`** (B45 model tool catalog), **`/soft-bash`** (B47–B48 soft-bash safety; B80 `check <cmd>` dry-run), **`/permissions`** (B61 mode dashboard; `/perm`), **`/env`** (B62 product env / AETHER_* catalog), **`/paths`** (B63 data path dashboard; `/where`), **`/features`** (B68 feature flags; `/flags`), `/status`, **`/config`** (B34 effective settings; aliases `/settings` `/prefs`), **`/doctor`** (B30/B39 health check + optional host tools), `/session`, `/sessions`, `/resume`, `/save`, `/load`, `/rename`, `/fork`, `/export`, `/import`, **`/rewind [N]`**, **`/undo-file`**, **`/copy [N]`**, **`/history`**, **`/model`**, **`/effort`**, **`/auto`**, **`/compact-mode`** (`/cm`), **`/timestamps`** (B37 HH:MM on transcript), `/new`, `/clear`, `/whoami`, `/login`, `/mcp`, `/skills`, `/skill`, `/plan`, **`/view-plan`**, **`/remember`**, `/todos`, `/goal`, `/loop`, `/imagine`, `/imagine-video`, `/theme`, `/vim-mode`, `/exit` (plus bare `/skill-name` when discovered).
+REPL slash commands: **`/help [filter]`**, **`/about`** (brand art + blurb), **`/aliases`**, **`/keys`**, **`/tools`**, **`/soft-bash`**, **`/permissions`** (`/perm`), **`/env`**, **`/paths`**, **`/features`** (`/flags`), `/status`, **`/config`**, **`/doctor`**, `/session`, `/sessions`, `/resume`, `/save`, `/load`, `/rename`, `/fork`, `/export`, `/import`, **`/rewind`**, **`/undo-file`**, **`/copy`**, **`/history`**, **`/model`**, **`/effort`**, **`/auto`**, **`/compact-mode`**, **`/timestamps`**, `/new`, `/clear`, `/whoami`, **`/login`**, `/mcp`, `/skills`, `/skill`, **`/create-skill`**, **`/plugins`**, `/plan`, **`/view-plan`**, **`/remember`**, `/todos`, `/goal`, `/loop`, `/imagine`, `/imagine-video`, `/theme`, `/vim-mode`, `/exit` (plus bare `/skill-name` when discovered).
 
 **Compact mode (B8):** `/compact-mode` densifies TUI header/status/tool chrome (more content rows on small screens). Config: `[ui] compact_mode = true` in `~/.grok/config.toml` or `aether.toml`.
 
@@ -185,7 +190,7 @@ Resolution order:
 
 1. `XAI_API_KEY` / `GROK_CODE_XAI_API_KEY` (API-key mode)
 2. `GROK_AUTH` inline JSON (rare)
-3. `$GROK_HOME/auth.json` or `~/.grok/auth.json` (prefer OIDC session from `grok login`)
+3. `$GROK_HOME/auth.json` or `~/.grok/auth.json` (session from `aether login` device-code or prior Grok login)
 
 Session path defaults to `https://cli-chat-proxy.grok.com/v1` with Bearer + `X-XAI-Token-Auth: xai-grok-cli` and proxy headers. Expired OIDC tokens are refreshed via the issuer’s token endpoint and written back to `auth.json`.
 
@@ -193,9 +198,9 @@ Session path defaults to `https://cli-chat-proxy.grok.com/v1` with Bearer + `X-X
 
 | Name | Notes |
 |------|--------|
-| `run_terminal_cmd` | `sh -c`; FG timeout default 120s max 300s; `is_background` → task_id + `terminal/bash-*.log`; **soft bash:** hard-deny catastrophic cmds (`rm -rf /`, pipe-to-shell, …) even under yolo; auto-allow read-only shell (`ls`/`eza`/`fd`/`dust`, `git status`, `aws s3 ls` / `sts get-caller-identity`, `gcloud … list`, `az … show`, `podman ps`, `brew list`/`info`, `apt list`/`search`, `dnf info`, `pacman -Q`/`-Ss`, `flatpak list`, `snap info`, `apk search`, `pipx list`, `gem search`, `composer show`, `bundle list`/`show`, `rake -T`, `mvn dependency:tree`, `gradle tasks`, `sbt tasks`/`about`, `bazel query`/`info`, `pulumi stack ls`, `ansible --list-hosts`, `ansible-playbook --syntax-check`, `vagrant status`/`box list`, `packer validate`/`inspect`, `consul members`/`kv get`, `nomad status`/`job plan`, `vault status`/`secrets list` (not secret read), `argocd app list`/`diff`, `flux get`/`check`, `istioctl proxy-status`/`analyze`, `kustomize build`, `skaffold diagnose`/`render`, `kind get clusters`, `minikube status`, `k3d cluster list`, `tilt describe`, `crane digest`/`skopeo inspect`/`dive`, `syft`/`grype`/`trivy` scan, `cosign verify`/`oras discover`/`regctl image digest`, `buildah images`/`nerdctl ps`/`ctr images ls`, `helmfile list`/`stern`/`kubeconform`, `tflint`/`terraform-docs`/`terragrunt plan`, `checkov`/`tfsec`/`infracost breakdown`, `kubectx`/`kubens` list, `curl -I`, `nix flake show`, `http`/`xh` GET, `gh pr list`, …) including in read-only mode. Opt out: `AETHER_NO_BASH_SOFT=1` or `/soft-bash off`. OS sandbox/persistent shell N/A |
+| `run_terminal_cmd` | `sh -c`; FG timeout default 120s max 300s; `is_background` → task_id + `terminal/bash-*.log`; **soft bash** hard-deny + readonly auto-allow (large inspect matrix; `/soft-bash`). Optional **OS sandbox**: `AETHER_OS_SANDBOX=soft\|bwrap` (M6). Opt out soft: `AETHER_NO_BASH_SOFT=1` |
 | `read_file` | Line-numbered text (`offset`/`limit`, negative offset from end); images → metadata + optional small data URL; **PDF** → `pdftotext`; **PPTX** → slide text via `unzip` + `a:t` scrape; `pages` for PDF/PPTX (e.g. `1-5`, max 20/call); other binary rejected |
-| `search_replace` | Exact replace (unique or `replace_all`); empty `old_string` creates/overwrites; plan-mode gate; hashline/notebook N/A |
+| `search_replace` | Exact replace (unique or `replace_all`); empty `old_string` creates/overwrites; plan-mode gate. Opt-in **hashline** pack: `AETHER_TOOL_PACK=hashline` (mutual exclusion) |
 | `write` | Full-file create/overwrite (`file_path` + `content`); parents created; Edit permission |
 | `delete_file` | Delete one file (`target_file` or `file_path`); not directories; Edit permission |
 | `grep` | ripgrep: `pattern`, `path`, `glob`, `type`, `-i`, `-A`/`-B`/`-C`, `multiline`, `head_limit` (total lines, default 200) |
@@ -415,10 +420,16 @@ Session allow/deny grants are in-memory only (not written to config). Cleared on
 
 `make smoke` needs auth. `make smoke-tui` does not (scripted keys via `script(1)`).
 
-## Non-goals (for now)
+## Non-goals / intentional residuals
 
-ACP multi-client UI, full permission allow-list UI, Mermaid PNG/SVG raster (Unicode flowchart/sequence art ships), plan-mode free-text deny feedback, remote Auto-mode classifier.
+Documented in **[PORTING.md](./PORTING.md)** residual table. Summary:
+
+- ACP multi-client UI · remote marketplace · Mixpanel/telemetry product · voice · self-update  
+- Mermaid **PNG/SVG** raster (Unicode flowchart/sequence art ships) · Grok Braille logo + shimmer  
+- In-process **Landlock/Seatbelt** (soft + bubblewrap ships) · full MCP browser OAuth DCR  
+- SQLite/embeddings memory · remote workspace services · remote Auto-mode classifier  
+- Full permission allow-list editor UI · plan-mode free-text deny depth  
 
 ## License
 
-Same tree as Grok Build — see repository root `LICENSE`.
+Apache-2.0 — see [LICENSE](./LICENSE).

@@ -60,7 +60,7 @@ Last updated: 2026-07-19 (product-contract audit vs grok-build `fca5b1f`).
 
 | Capability | Rust home (examples) | Odin | Fate |
 |------------|----------------------|------|------|
-| Agent loop / tools / SSE | agent, tools, sampler | Strong | **Done** + residual polish |
+| Agent loop / tools / SSE | agent, tools, sampler | Strong | **Done** |
 | Auth session / API key | `xai-grok-auth` | Session + key | **Done** for R0-A; browser OIDC **Drop** unless R0-B |
 | Host `grok login` | shell/auth | optional bridge | **R2a demoted** (optional legacy; API key primary) |
 | Config product keys | config* | merge done | **Done**; remote/managed **Drop** |
@@ -485,11 +485,12 @@ Run tests.
 
 ---
 
-## Metrics snapshot (S4 / 2026-07-19)
+## Metrics snapshot (2026-07-19)
 
 Ship-path subsystem and model-tool rows are **Full** or intentional **N/A** (Drop).
-No unowned Partial/None on the Odin daily-driver path. Historical kickoff
-counts (Full: 0) are obsolete; re-read the matrices above when status changes.
+No unowned Partial/None on the Odin daily-driver path. Ship-hardening **M1–M10**,
+visual **V1**, and **final polish** Complete. Historical kickoff counts (Full: 0)
+are obsolete; re-read the matrices above when status changes.
 
 ---
 
@@ -530,7 +531,7 @@ No ship-path model tool **Missing**.
 | compact, always-approve/yolo, flush, dream, memory, context, feedback, goal, loop, session-info | Present | Full |
 | hooks-list/add/remove | `/hooks` | Full |
 | hooks-trust / hooks-untrust | `/hooks trust\|untrust` | **Full (M1)** |
-| plugins / reload-plugins | — | **N/A** (R3a marketplace Drop) |
+| plugins / reload-plugins | `/plugins` | **Full (M4 local)**; remote marketplace residual N/A |
 
 Pager/TUI session, model, effort, plan, sessions, etc. live outside that small
 ACP slash table in Rust; Aether covers them as local slash + TUI (Full for
@@ -551,11 +552,14 @@ single-process product).
 **Product-contract parity: PASS.** No Class A (ship-path missing) findings.
 Ledger residuals are Class B (documented N/A). No PORTING ship-path row demoted.
 
+**Ship-hardening program closeout (2026-07-19):** Waves **0–5** (M1–M10) + visual **V1** + **final polish** Complete. See [CHANGELOG.md](./CHANGELOG.md).
+
 ---
 
 ## Related
 
 - User-facing overview: [README.md](./README.md)  
 - Inventory script: [scripts/parity-inventory.py](./scripts/parity-inventory.py)  
+- Changelog: [CHANGELOG.md](./CHANGELOG.md)  
 - Private mirror (org): `BronzOwl-Labs/aether-grok-build` branch `aether`  
 - Reference: `../grok-build/crates/codegen/xai-grok-*` (read-only for port work)  

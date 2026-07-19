@@ -134,7 +134,8 @@ esac
 
 echo
 echo "Dependencies (runtime): libcurl, ripgrep (rg). Optional: pdftotext, unzip."
-echo "Auth: export XAI_API_KEY=...  (optional: installed Rust grok for browser login only)"
+echo "Auth: export XAI_API_KEY=...  or: aether-grok-odin login  (device-code, M7)"
+echo "      Optional legacy: aether-grok-odin login --host  (requires Rust grok on PATH)"
 echo
 echo "Try: aether-grok-odin --version"
 echo "     aether-grok-odin -p \"say hi\""

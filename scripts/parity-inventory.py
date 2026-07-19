@@ -6,7 +6,8 @@ Usage (from aether tree or with paths):
   GROK_BUILD=/path/to/grok-build python3 scripts/parity-inventory.py
 
 Compares default GrokBuild model tools and shell builtin slash commands.
-Alternate packs (hashline/codex/opencode) and Dropped L4 are reported as N/A.
+Default pack tools must HIT. Opt-in packs (hashline) are OPTIN Full.
+True N/A (deploy_app, codex/opencode) stay N/A. Dropped L4 is out of inventory.
 """
 from __future__ import annotations
 
@@ -63,13 +64,16 @@ SHIP_TOOLS = [
 # Aether super-set (not required for GrokBuild default pack)
 AETHER_EXTRA = ["write", "glob", "delete_file", "wait_commands_or_subagents"]
 
-# Explicit N/A product tools
+# Explicit N/A product tools (not ship-path defaults)
 NA_TOOLS = {
     "deploy_app": "Grok stub / app-builder service; keep N/A",
-    # hashline_* are opt-in Full (M5) via AETHER_TOOL_PACK=hashline — not default GrokBuild pack
-    "hashline_read": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
-    "hashline_edit": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
-    "hashline_grep": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
+}
+
+# Opt-in Full (implemented; not in default GrokBuild pack)
+OPTIN_TOOLS = {
+    "hashline_read": "M5 AETHER_TOOL_PACK=hashline (mutual exclusion)",
+    "hashline_edit": "M5 AETHER_TOOL_PACK=hashline (mutual exclusion)",
+    "hashline_grep": "M5 AETHER_TOOL_PACK=hashline (mutual exclusion)",
 }
 
 # Grok shell BUILTIN_COMMANDS + PROMPT_COMMANDS → Aether mapping
@@ -176,6 +180,12 @@ def main() -> int:
         print(f"  {status:4}  {t:28}  aether={'yes' if ok else 'NO'}  ({rust_hint})")
     for t, reason in NA_TOOLS.items():
         print(f"  N/A   {t:28}  {reason}")
+    for t, reason in OPTIN_TOOLS.items():
+        ok = t in ae
+        status = "OPTIN" if ok else "MISS"
+        if not ok:
+            miss += 1
+        print(f"  {status:5} {t:28}  {reason}")
     print("  Aether extras (super-set):", ", ".join(AETHER_EXTRA))
     print()
 
@@ -195,7 +205,10 @@ def main() -> int:
     if miss:
         print(f"MISSING ship-path items: {miss}")
         return 2
-    print("OK: all default GrokBuild tools present; slash builtins Full or intentional N/A")
+    print(
+        "OK: all default GrokBuild tools present; opt-in packs Full; "
+        "slash builtins Full or intentional N/A"
+    )
     return 0
 
 

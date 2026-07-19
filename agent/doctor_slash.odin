@@ -113,9 +113,14 @@ handle_doctor_slash :: proc(
 		doctor_line(&b, "warn", "make", "not on PATH", &ok_n, &warn_n, &fail_n)
 	}
 
-	// M5 tool pack + M6 OS sandbox
+	// M5 tool pack + M6 OS sandbox + V1 brand art
 	pack := tools.tool_pack_string(tools.tool_pack_from_env())
 	doctor_line(&b, "ok", "tool-pack", fmt.tprintf("%s (AETHER_TOOL_PACK)", pack), &ok_n, &warn_n, &fail_n)
+	if core.brand_art_enabled() {
+		doctor_line(&b, "ok", "ascii-art", "on (AETHER_ASCII_ART; welcome brand)", &ok_n, &warn_n, &fail_n)
+	} else {
+		doctor_line(&b, "ok", "ascii-art", "off (AETHER_NO_ASCII_ART)", &ok_n, &warn_n, &fail_n)
+	}
 	sb_line := core.sandbox_status_line(context.temp_allocator)
 	// first line only for doctor table
 	sb_short := sb_line
