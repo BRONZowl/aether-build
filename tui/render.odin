@@ -341,19 +341,21 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	s.last_cols = cols
 
 	input_h := input_line_count(s, cols)
+	info_h := composer_info_rows(s)
 	// Live slash suggestion menu (between body and status); capped to fit terminal
-	menu_h := slash_menu_height(s, rows, input_h)
-	// header + status + input [+ slash menu]
-	body_h := rows - 2 - input_h - menu_h
+	menu_h := slash_menu_height(s, rows, input_h+info_h)
+	// header + status + input [+ info] [+ slash menu]
+	fixed := chrome_fixed_rows(s) // header + status [+ info]
+	body_h := rows - fixed - input_h - menu_h
 	if body_h < 1 {
 		body_h = 1
 	}
 	// Re-cap if body clamp pushed total over rows (tiny terminals)
-	for body_h + menu_h + 2 + input_h > rows && menu_h > 0 {
+	for body_h + menu_h + fixed + input_h > rows && menu_h > 0 {
 		menu_h -= 1
 	}
-	if body_h + menu_h + 2 + input_h > rows {
-		body_h = max(1, rows - 2 - input_h - menu_h)
+	if body_h + menu_h + fixed + input_h > rows {
+		body_h = max(1, rows - fixed - input_h - menu_h)
 	}
 
 	lines := make([dynamic]string, 0, 128, context.temp_allocator)
@@ -378,60 +380,9 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	// full clear + home once per frame (reliable; alt screen)
 	strings.write_string(&b, "\x1b[H\x1b[J")
 
-	// row 1 header
-	focus_tag := "prompt" if s.focus == .Prompt else "scroll"
-	sess_part := s.session_id
-	if s.session_title != "" {
-		// short title for chrome
-		t := s.session_title
-		if len(t) > 28 {
-			t = fmt.tprintf("%s…", t[:27])
-		}
-		sess_part = fmt.tprintf("%s · %s", s.session_id, t)
-	}
-	plan_chip := agent.plan_mode_chip()
-	todo_chip := ""
-	if n := tools.todo_open_count(); n > 0 {
-		todo_chip = fmt.tprintf(" todos:%d", n)
-	}
-	goal_chip := agent.goal_chip()
-	compact := core.compact_mode_enabled()
-	// B26: live context usage chip (session msgs + streaming draft)
-	ctx_chip := ""
-	if stream_sess() != nil {
-		live := ""
-		if s.streaming {
-			live = strings.to_string(s.live_assist)
-		}
-		ctx_chip = format_context_chip(stream_sess().msgs[:], live, compact)
-	}
-	header: string
-	if compact {
-		// denser chrome (B8)
-		header = fmt.tprintf(
-			"aether %s %s%s%s%s [%s]%s",
-			s.model,
-			s.perm,
-			plan_chip,
-			todo_chip,
-			ctx_chip,
-			focus_tag,
-			" ·c" if compact else "",
-		)
-	} else {
-		header = fmt.tprintf(
-			" aether  %s  sess=%s  %s%s%s%s%s  [%s]",
-			s.model,
-			sess_part,
-			s.perm,
-			plan_chip,
-			todo_chip,
-			goal_chip,
-			ctx_chip,
-			focus_tag,
-		)
-	}
-	write_row(&b, header, cols, .Bar_Reverse, true)
+	// row 1 — Grok-shaped top bar: branch · cwd | chips (mode · context · model)
+	header := format_top_bar(s, cols)
+	write_row(&b, header, cols, .Bar_Dim, true)
 
 	// body rows (or modal overlays / Grok-parity welcome)
 	if s.ask_active {
@@ -471,6 +422,7 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 
 	// status — hints match Grok Build prompt bindings
 	st := s.status if s.status != "" else "ready"
+	compact := core.compact_mode_enabled()
 	scroll_info := ""
 	if max_scroll > 0 && !modal_open {
 		scroll_info = fmt.tprintf("  [%d/%d]", total - s.scroll, total)
@@ -541,8 +493,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	}
 	write_row(&b, status, cols, .Bar_Dim, true)
 
-	// input region + cursor (may omit trailing NL on last line to avoid scroll)
-	write_input(&b, s, cols, input_h, rows)
+	// input region + optional model/mode info line + cursor
+	write_input(&b, s, cols, input_h, info_h, rows)
 
 	fmt.print(strings.to_string(b))
 }
@@ -659,14 +611,31 @@ write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: 
 	}
 }
 
-write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int, screen_rows: int) {
-	prefix := "> "
+write_input :: proc(
+	b: ^strings.Builder,
+	s: ^App_State,
+	cols: int,
+	input_h: int,
+	info_h: int,
+	screen_rows: int,
+) {
+	prefix := INPUT_PREFIX // "❯ "
+	// Empty focused prompt: Grok-shaped placeholder (not submitted)
+	text := input_text(s)
+	show_placeholder := text == "" && s.focus == .Prompt && !s.streaming
 	full_b := strings.builder_make(context.temp_allocator)
 	strings.write_string(&full_b, prefix)
-	strings.write_string(&full_b, input_text(s))
+	if show_placeholder {
+		strings.write_string(&full_b, "Type a message…")
+	} else {
+		strings.write_string(&full_b, text)
+	}
 	full := strings.to_string(full_b)
 	// cursor is in input bytes; absolute in full = prefix + cursor
 	cur_abs := len(prefix) + s.cursor
+	if show_placeholder {
+		cur_abs = len(prefix) // caret at start of empty field
+	}
 
 	Row :: struct {
 		start, end: int, // byte range in full
@@ -728,6 +697,7 @@ write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int,
 	}
 
 	from := max(0, len(rows_v) - input_h)
+	total_composer := input_h + info_h
 	for hi in 0 ..< input_h {
 		ri := from + hi
 		line := ""
@@ -735,8 +705,13 @@ write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int,
 			r := rows_v[ri]
 			line = full[r.start:r.end]
 		}
-		is_last := hi == input_h - 1
-		strings.write_string(b, "\x1b[1m")
+		// last physical row of the whole paint is input last only when no info line
+		is_last := hi == input_h - 1 && info_h == 0
+		if show_placeholder {
+			strings.write_string(b, "\x1b[2m") // dim placeholder
+		} else {
+			strings.write_string(b, "\x1b[1m") // bold input
+		}
 		n := write_fit(b, line, cols)
 		strings.write_string(b, "\x1b[0m")
 		for i := n; i < cols; i += 1 {
@@ -747,6 +722,12 @@ write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int,
 			strings.write_string(b, "\r\n")
 		}
 	}
+	// Grok-shaped info line under composer: model · mode [· multi]
+	if info_h > 0 {
+		info := format_composer_info(s)
+		write_row(b, info, cols, .Bar_Dim, false) // last row — no trailing NL
+		_ = total_composer
+	}
 
 	vis_row := cur_row - from
 	if vis_row < 0 {
@@ -755,8 +736,8 @@ write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int,
 	if vis_row >= input_h {
 		vis_row = input_h - 1
 	}
-	// 1-based absolute screen row for CUP
-	abs_row := screen_rows - input_h + vis_row + 1
+	// 1-based absolute screen row for CUP (above optional info line)
+	abs_row := screen_rows - info_h - input_h + vis_row + 1
 	abs_col := min(cols, cur_col + 1)
 	strings.write_string(b, fmt.tprintf("\x1b[%d;%dH\x1b[?25h", abs_row, abs_col))
 }

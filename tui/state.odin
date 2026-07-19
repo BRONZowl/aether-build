@@ -76,6 +76,7 @@ App_State :: struct {
 	status_owned:    string,
 	status:          string,
 	model:           string,
+	cwd:             string, // owned; workspace path for top-bar location (Grok-shaped)
 	session_id:      string,
 	session_title:   string, // owned; short display title for header
 	perm:            string,
@@ -173,6 +174,7 @@ state_destroy :: proc(s: ^App_State) {
 	delete(s.live_assist.buf)
 	delete(s.status_owned)
 	delete(s.model)
+	delete(s.cwd)
 	delete(s.session_id)
 	delete(s.session_title)
 	delete(s.perm)
@@ -199,6 +201,16 @@ state_set_status :: proc(s: ^App_State, text: string) {
 	delete(s.status_owned)
 	s.status_owned = strings.clone(text)
 	s.status = s.status_owned
+}
+
+// state_set_cwd updates the top-bar workspace path (no-op if unchanged).
+state_set_cwd :: proc(s: ^App_State, cwd: string) {
+	path := cwd if cwd != "" else "."
+	if s.cwd == path {
+		return
+	}
+	delete(s.cwd)
+	s.cwd = strings.clone(path)
 }
 
 // stream_scroll_adjust: delta > 0 scrolls toward older content (leaves bottom).
@@ -628,12 +640,15 @@ input_end :: proc(s: ^App_State) {
 	s.cursor = i
 }
 
+// INPUT_PREFIX is the Grok-shaped composer chevron (display width 2 with trailing space).
+INPUT_PREFIX :: "❯ "
+
 input_line_count :: proc(s: ^App_State, cols: int) -> int {
 	text := input_text(s)
 	// count wrapped lines for "❯ " + text
 	w := max(8, cols - 2)
 	lines := 1
-	col := 2 // prompt
+	col := 2 // prompt prefix columns
 	for r in text {
 		if r == '\n' {
 			lines += 1
@@ -653,6 +668,11 @@ input_line_count :: proc(s: ^App_State, cols: int) -> int {
 		return 1
 	}
 	return lines
+}
+
+// total_input_rows: wrapped input + optional model/mode info line under composer.
+total_input_rows :: proc(s: ^App_State, cols: int) -> int {
+	return input_line_count(s, cols) + composer_info_rows(s)
 }
 
 // ordered_remove_range removes [lo, hi)

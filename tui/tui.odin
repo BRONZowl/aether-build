@@ -66,6 +66,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 	state_init(&st)
 	defer state_destroy(&st)
 	st.model = strings.clone(model)
+	state_set_cwd(&st, cwd)
 	state_set_session_meta(&st, sess.id, sess.title)
 	st.perm = strings.clone(core.permission_mode_string(perm))
 	state_set_status(&st, "ready")
@@ -80,6 +81,12 @@ run :: proc(opts: agent.Headless_Options) -> int {
 	dirty := true
 
 	for !st.quit {
+		// Keep top-bar location in sync (session /cd, /new, load).
+		state_set_cwd(&st, cwd)
+		if st.model != model {
+			delete(st.model)
+			st.model = strings.clone(model)
+		}
 		if dirty {
 			render(&term, &st)
 			dirty = false

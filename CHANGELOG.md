@@ -4,6 +4,12 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### TUI chrome (Grok-shaped)
+
+- Top bar: git branch + `~/cwd` (left) · plan/goal/todos/ctx/mode/model chips (right)
+- Composer: `❯` prefix, empty placeholder, dim `model · mode` info line under input
+- `core/git_info`: cached branch from `.git/HEAD` + home-collapse cwd display
+
 ### Cleanup (E1–E3 + emit/json)
 
 - Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container
