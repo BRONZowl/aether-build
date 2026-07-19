@@ -64,9 +64,11 @@ test_brand_art_grok_shell_with_a :: proc(t: ^testing.T) {
 	// Same outer envelope as Grok logo07 (first + last lines)
 	testing.expect(t, full[0] == `⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`)
 	testing.expect(t, full[6] == `⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`)
-	// Center differs from Grok (A fill, not open diagonal)
+	// Center differs from Grok (thinner A fill, not open diagonal)
 	testing.expect(t, full[2] != `⠀⠀⣼⡟⠁⠀⠀⠀⢀⡴⠻⣿⡀⠀`)
 	testing.expect(t, full[3] != `⠀⠀⣿⡇⠀⠀⠀⠔⠁⠀⠀⣿⡇⠀`)
+	// Current thin-A center line
+	testing.expect(t, full[3] == `⠀⠀⣿⡇⢠⠏⠉⠉⢧⠀⠀⣿⡇⠀`)
 
 	small := brand_art_lines(.Small)
 	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)

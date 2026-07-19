@@ -32,23 +32,23 @@ Brand_Tier :: enum {
 	Full,
 }
 
-// Full mark — Grok logo07 shell + "A" in the middle (14×7 braille).
+// Full mark — Grok logo07 shell + thinner "A" in the middle (14×7 braille).
 BRAND_ART_FULL := [7]string {
 	`⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`,
-	`⠀⠀⠀⣠⣾⢿⣿⣟⠛⠛⢀⡴⠁⠀`,
-	`⠀⠀⣼⡟⢁⣼⣿⣿⣄⠐⠻⣿⡀⠀`,
-	`⠀⠀⣿⡇⣿⡿⠿⠿⣿⡇⠀⣿⡇⠀`,
-	`⠀⠀⢹⣷⡿⠃⠀⠀⠻⣷⣴⡿⠀⠀`,
+	`⠀⠀⠀⣠⣾⠿⣻⡛⠛⠛⢀⡴⠁⠀`,
+	`⠀⠀⣼⡟⠁⢠⠇⢧⠀⠐⠻⣿⡀⠀`,
+	`⠀⠀⣿⡇⢠⠏⠉⠉⢧⠀⠀⣿⡇⠀`,
+	`⠀⠀⢹⣷⠞⠀⠀⠀⠘⢆⣴⡿⠀⠀`,
 	`⠀⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋⠀⠀⠀`,
 	`⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`,
 }
 
-// Small mark — Grok logo05 shell + "A" in the middle (10×5).
+// Small mark — Grok logo05 shell + thinner "A" in the middle (10×5).
 BRAND_ART_SMALL := [5]string {
 	`⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`,
-	`⠀⢀⡾⢻⣿⣷⠁⢴⡎⠀`,
-	`⠀⢸⣷⣿⠿⢿⣷⢀⣿⠀`,
-	`⠀⢈⠿⢋⣀⣈⣻⡿⠃⠀`,
+	`⠀⢀⡾⠋⡝⡄⠁⢴⡎⠀`,
+	`⠀⢸⡇⡸⠉⠹⡀⢀⣿⠀`,
+	`⠀⢈⠗⢁⣀⣀⣡⡾⠃⠀`,
 	`⠐⠁⠀⠈⠉⠉⠉⠀⠀⠀`,
 }
 
