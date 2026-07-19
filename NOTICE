@@ -1,0 +1,59 @@
+Aether (aether-grok-build)
+Copyright 2023-2026 SpaceXAI
+
+This product is licensed under the Apache License, Version 2.0.
+See the LICENSE file in the root of this distribution.
+
+--------------------------------------------------------------------------------
+Notices and provenance (Apache License §4)
+--------------------------------------------------------------------------------
+
+1. First-party Work
+   Aether is first-party software of SpaceXAI, released under Apache-2.0.
+   Copyright notices in LICENSE apply to original and modified materials
+   in this tree unless a subdirectory states otherwise.
+
+2. Relationship to Grok Build
+   Substantial portions of Aether are an Odin reimplementation / port of
+   concepts, command surfaces, and UX from Grok Build (xAI Grok CLI /
+   xai-grok-pager and related crates), which are also Copyright SpaceXAI
+   and licensed under Apache License 2.0.
+
+   This NOTICE satisfies Apache §4 attribution for that lineage. Where
+   Aether source is a derivative work of Grok Build materials, changes
+   include (non-exhaustively): Odin reimplementation, Aether product
+   branding, dual-product separation, and feature ports documented in
+   PORTING.md / CHANGELOG.md.
+
+3. Welcome / brand Braille art (assets/logo, core/brand.odin)
+   The welcome monogram uses a Braille layout inspired by Grok Build's
+   welcome logo assets (logo05 / logo07 style canvas and flourishes),
+   with an original center letter "A" for Aether. The files under
+   assets/logo/ are not byte-identical to Grok Build assets; they are
+   modified works. Copyright SpaceXAI; Apache-2.0.
+
+   See also: assets/logo/NOTICE
+
+4. Trademarks
+   Apache License 2.0 does not grant rights to trademarks. Names and
+   marks including but not limited to "Grok", "xAI", "SpaceXAI", and
+   "Aether" remain the property of their respective owners. Use of those
+   names in this repository is for product identification and
+   interoperability documentation only.
+
+5. Third-party runtime dependencies
+   The Aether binary links against system libraries (e.g. libcurl) and
+   may invoke optional external tools (e.g. ripgrep, pdftotext). Those
+   components retain their own licenses and are not redistributed in
+   this source tree. The Odin compiler and standard library (when
+   bootstrapped into .tools/) are not part of the Aether source
+   distribution and remain under their upstream licenses
+   (see Odin project licensing).
+
+6. Distributions
+   Binary and source redistributions of Aether MUST include a copy of
+   LICENSE and this NOTICE (Apache §4(a), §4(d)).
+
+--------------------------------------------------------------------------------
+End of NOTICE
+--------------------------------------------------------------------------------

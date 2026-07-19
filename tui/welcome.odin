@@ -1,8 +1,12 @@
 // Package tui — Grok Build–parity welcome screen (empty session).
 //
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+//
 // Stacked layout (narrow): centered logo → gap → menu → flex → tip
 // Hero layout (cols ≥ 90): bordered box, logo left, version+menu right
 // Logo: Grok-style Braille shell with "A" in the center (core.brand).
+// See LICENSE and NOTICE for Apache-2.0 terms and Grok Build lineage.
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 

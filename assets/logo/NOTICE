@@ -1,0 +1,13 @@
+Aether welcome Braille monogram
+Copyright 2023-2026 SpaceXAI
+Licensed under the Apache License, Version 2.0 (see ../../LICENSE).
+
+These files (logo05.txt, logo07.txt) and the embedded monogram in
+core/brand.odin are modified works in the style of Grok Build welcome
+logo assets (U+2800 Braille canvas / flourishes), with a center letter
+"A" for Aether product identity.
+
+They are NOT byte-identical copies of Grok Build logo05/logo07.
+
+Apache §4: this NOTICE and the root NOTICE document provenance and
+modifications relative to Grok Build lineage (also SpaceXAI, Apache-2.0).

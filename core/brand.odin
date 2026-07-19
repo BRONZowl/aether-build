@@ -1,8 +1,14 @@
 // Package core — Aether brand / welcome art.
 //
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+//
 // Welcome *layout* follows Grok Build (stacked / hero, height tiers, menu).
 // Glyph: Grok-style Braille shell (logo07/logo05 canvas + flourishes) with a
 // solid letter "A" in the open center — Aether mark, not a Grok clone.
+//
+// Provenance: modified work in the lineage of Grok Build welcome logo assets
+// (Apache-2.0, Copyright SpaceXAI). See NOTICE and assets/logo/NOTICE.
 package core
 
 import "core:fmt"

@@ -434,4 +434,17 @@ Documented in **[PORTING.md](./PORTING.md)** residual table. Summary:
 
 ## License
 
-Apache-2.0 — see [LICENSE](./LICENSE).
+First-party code and assets in this repository are licensed under the
+**Apache License, Version 2.0** — see [LICENSE](./LICENSE).
+
+Attribution and provenance (including Grok Build lineage and modified welcome
+Braille art) are in [NOTICE](./NOTICE) and [assets/logo/NOTICE](./assets/logo/NOTICE).
+
+Redistributions of source or binary form **must** include `LICENSE` and
+`NOTICE` (Apache License §4).
+
+**Trademarks:** Apache-2.0 does not grant trademark rights. “Grok”, “xAI”,
+“SpaceXAI”, and “Aether” remain marks of their respective owners.
+
+**Runtime tools** (libcurl, ripgrep, Odin toolchain under `.tools/`) are not
+redistributed as part of this source tree and keep their upstream licenses.

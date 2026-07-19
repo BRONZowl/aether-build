@@ -123,8 +123,17 @@ dist: build
 	@mkdir -p $(DIST_DIR)/$(DIST_NAME)
 	cp -f $(OUT) $(DIST_DIR)/$(DIST_NAME)/aether
 	@if [ -x $(WRAPPER) ]; then cp -f $(WRAPPER) $(DIST_DIR)/$(DIST_NAME)/aether-wrapper; fi
+	@# Apache-2.0 §4: binary redistributions must include LICENSE + NOTICE
+	cp -f $(AETHER_DIR)/LICENSE $(DIST_DIR)/$(DIST_NAME)/LICENSE
+	cp -f $(AETHER_DIR)/NOTICE $(DIST_DIR)/$(DIST_NAME)/NOTICE
+	@if [ -f $(AETHER_DIR)/assets/logo/NOTICE ]; then \
+		mkdir -p $(DIST_DIR)/$(DIST_NAME)/assets/logo; \
+		cp -f $(AETHER_DIR)/assets/logo/NOTICE $(DIST_DIR)/$(DIST_NAME)/assets/logo/NOTICE; \
+	fi
 	@printf '%s\n' \
 		'# Aether $(AETHER_VERSION)' \
+		'' \
+		'License: Apache-2.0 — see LICENSE and NOTICE in this directory.' \
 		'' \
 		'Binary: ./aether' \
 		'Auth:   export XAI_API_KEY=...' \

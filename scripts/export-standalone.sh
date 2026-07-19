@@ -209,6 +209,7 @@ Export mode used for **this** tree: **${MODE}**
 - [README.md](./README.md) — product overview
 - [PORTING.md](./PORTING.md) — parity / separation ledger
 - LICENSE — Apache-2.0 (copied from monorepo when present)
+- NOTICE — Apache §4 attribution / provenance
 
 ## Monorepo-only helpers
 
@@ -226,6 +227,16 @@ copy_license() {
     cp -f "$AETHER_DIR/LICENSE" "$DEST/LICENSE"
   else
     log "warning: no LICENSE found to copy"
+  fi
+  # Apache §4: ship NOTICE with source redistributions
+  if [[ -f "$AETHER_DIR/NOTICE" ]]; then
+    cp -f "$AETHER_DIR/NOTICE" "$DEST/NOTICE"
+    log "copied NOTICE from aether tree"
+  elif [[ -f "$MONOREPO_ROOT/NOTICE" ]]; then
+    cp -f "$MONOREPO_ROOT/NOTICE" "$DEST/NOTICE"
+    log "copied NOTICE from monorepo root"
+  else
+    log "warning: no NOTICE found to copy"
   fi
 }
 

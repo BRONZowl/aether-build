@@ -33,6 +33,7 @@ Export mode used for **this** tree: **snapshot**
 - [README.md](./README.md) — product overview
 - [PORTING.md](./PORTING.md) — parity / separation ledger
 - LICENSE — Apache-2.0 (copied from monorepo when present)
+- NOTICE — Apache §4 attribution / Grok Build lineage
 
 ## Monorepo-only helpers
 
