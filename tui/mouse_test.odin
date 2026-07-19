@@ -1,6 +1,7 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
+import "core:strings"
 import "core:testing"
 
 @(test)
@@ -23,10 +24,27 @@ test_hit_test_with_slash_menu :: proc(t: ^testing.T) {
 	rows, body_h, input_h, menu_h := 10, 3, 2, 3
 	testing.expect(t, hit_test_click_zone(1, rows, body_h, input_h, menu_h) == .Header)
 	testing.expect(t, hit_test_click_zone(4, rows, body_h, input_h, menu_h) == .Body)
-	testing.expect(t, hit_test_click_zone(5, rows, body_h, input_h, menu_h) == .Status) // menu
-	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, menu_h) == .Status)
+	testing.expect(t, hit_test_click_zone(5, rows, body_h, input_h, menu_h) == .Slash_Menu)
+	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, menu_h) == .Slash_Menu)
 	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, menu_h) == .Status)
 	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h, menu_h) == .Input)
+}
+
+@(test)
+test_slash_menu_click_accepts_row :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.focus = .Prompt
+	input_set_text(&st, "/")
+	st.cursor = 1
+	// body_h=3, menu_h=5 → menu rows 5..9; row 5=header, 6=first match
+	body_h, menu_h := 3, 5
+	// click first match row (y = 2+body_h+1 = 6)
+	testing.expect(t, slash_menu_click(&st, 6, body_h, menu_h))
+	got := input_text(&st)
+	testing.expect(t, strings.has_prefix(got, "/"))
+	testing.expect(t, len(got) > 1)
 }
 
 @(test)

@@ -31,6 +31,8 @@ test_create_skill_user_scope :: proc(t: ^testing.T) {
 		}
 	}
 	_ = os.unset_env("AETHER_NO_SKILLS")
+	// create reloads global skills registry — free after test
+	defer maybe_stop_skills(nil)
 
 	out := handle_create_skill_slash("my-skill user does useful things", dir, context.allocator)
 	defer delete(out)
@@ -58,6 +60,7 @@ test_create_skill_reject_exists :: proc(t: ^testing.T) {
 			_ = os.unset_env("GROK_HOME")
 		}
 	}
+	defer maybe_stop_skills(nil)
 	_ = handle_create_skill_slash("dup-skill user", dir, context.temp_allocator)
 	out := handle_create_skill_slash("dup-skill user", dir, context.allocator)
 	defer delete(out)

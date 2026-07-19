@@ -978,6 +978,14 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 			return true
 		}
 		return false
+	case .Slash_Menu:
+		if st.focus != .Prompt {
+			focus_prompt(st)
+		}
+		if slash_menu_click(st, my, body_h, menu_h) {
+			return true
+		}
+		return st.focus == .Prompt // focus change only
 	case .Header, .Status, .Outside:
 		return false
 	case .Body:

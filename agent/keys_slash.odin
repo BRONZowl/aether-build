@@ -19,7 +19,7 @@ handle_keys_slash :: proc(allocator := context.allocator) -> string {
 	strings.write_string(&b, "  Esc Esc (800ms)    clear non-empty prompt\n")
 	strings.write_string(&b, "  Ctrl+C             clear draft; mid-turn cancel HTTP\n")
 	strings.write_string(&b, "  ↑/↓ empty prompt   durable prompt history\n")
-	strings.write_string(&b, "  /…                 live slash menu · ↑↓ · Tab accept\n")
+	strings.write_string(&b, "  /…                 live slash menu · ↑↓ · Tab/click accept · Esc dismiss\n")
 	strings.write_string(&b, "  Tab                accept slash/@path · else focus toggle\n")
 	strings.write_string(&b, "  Ctrl+V             paste (text / image → [Image #N])\n\n")
 

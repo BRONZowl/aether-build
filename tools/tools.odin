@@ -109,7 +109,7 @@ tools_json_schema :: proc(
 	}
 	// Strip denied tool objects by name (best-effort JSON filter).
 	filtered := filter_tools_schema(out, all_deny, allocator)
-	delete(out)
+	delete(out, allocator)
 	return filtered
 }
 

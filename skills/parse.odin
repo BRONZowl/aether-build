@@ -19,11 +19,15 @@ Parsed_Skill :: struct {
 	disabled:    bool, // model cannot invoke; user slash still can
 }
 
-destroy_parsed_skill :: proc(s: ^Parsed_Skill) {
-	delete(s.name)
-	delete(s.description)
-	delete(s.path)
-	delete(s.dir)
+destroy_parsed_skill :: proc(s: ^Parsed_Skill, allocator := context.allocator) {
+	if s == nil {
+		return
+	}
+	delete(s.name, allocator)
+	delete(s.description, allocator)
+	delete(s.path, allocator)
+	delete(s.dir, allocator)
+	s^ = {}
 }
 
 // normalize_skill_name: lowercase, spaces/underscores → hyphens, strip invalid.

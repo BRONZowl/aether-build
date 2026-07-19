@@ -28,8 +28,10 @@ image_reg_clear :: proc() {
 	sync.mutex_lock(&g_image_reg_mu)
 	defer sync.mutex_unlock(&g_image_reg_mu)
 	image_reg_ensure()
+	// Values are always cloned with heap_allocator — free with the same allocator
+	// (context.allocator may be the test tracking allocator → bad free / heap corruption).
 	for _, v in g_image_reg {
-		delete(v)
+		delete(v, runtime.heap_allocator())
 	}
 	clear(&g_image_reg)
 	g_image_reg_next = 1

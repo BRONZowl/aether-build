@@ -1,6 +1,7 @@
 // Package skills — SKILL.md discovery and invocation (product shell).
 package skills
 
+import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -19,20 +20,30 @@ get_registry :: proc() -> ^Skill_Registry {
 	return g_registry
 }
 
+// Live registry always uses the process heap so it outlives unit-test tracking
+// allocators (context.allocator). Tests that install a registry must still call
+// maybe_stop_skills / stop_registry, but accidental survival no longer dangles.
+skills_heap :: proc() -> runtime.Allocator {
+	return runtime.heap_allocator()
+}
+
 // start_registry discovers skills for cwd. Returns nil if disabled or empty.
+// Always allocates the registry on the process heap (see skills_heap).
 start_registry :: proc(cwd: string, quiet: bool, allocator := context.allocator) -> ^Skill_Registry {
+	_ = allocator // API compat; live registry ignores test/tracking allocators
+	ha := skills_heap()
 	if v := os.get_env("AETHER_NO_SKILLS", context.temp_allocator); v == "1" ||
 	   strings.equal_fold(v, "true") {
 		return nil
 	}
-	cfg := load_skills_config(allocator)
-	defer destroy_skills_config(&cfg)
-	list := discover_skills(cwd, cfg, allocator)
+	cfg := load_skills_config(ha)
+	defer destroy_skills_config(&cfg, ha)
+	list := discover_skills(cwd, cfg, ha)
 	if len(list) == 0 {
 		delete(list)
 		return nil
 	}
-	reg := new(Skill_Registry, allocator)
+	reg := new(Skill_Registry, ha)
 	reg.skills = list
 	if !quiet {
 		n_dis := 0
@@ -59,11 +70,12 @@ stop_registry :: proc(reg: ^Skill_Registry) {
 	if reg == nil {
 		return
 	}
+	ha := skills_heap()
 	for &s in reg.skills {
-		destroy_parsed_skill(&s)
+		destroy_parsed_skill(&s, ha)
 	}
 	delete(reg.skills)
-	free(reg)
+	free(reg, ha)
 }
 
 find_by_name :: proc(reg: ^Skill_Registry, name: string) -> ^Parsed_Skill {

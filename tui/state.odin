@@ -359,6 +359,7 @@ Click_Zone :: enum {
 	Header,
 	Body,
 	Status,
+	Slash_Menu, // live slash suggestion popup rows
 	Input,
 	Outside,
 }
@@ -377,11 +378,11 @@ hit_test_click_zone :: proc(y, rows, body_h, input_h: int, menu_h: int = 0) -> C
 	if body_h > 0 && y >= 2 && y <= 1 + body_h {
 		return .Body
 	}
-	// slash menu sits between body and status (treat as Status for click — no body mis-hit)
+	// slash menu sits between body and status
 	menu_start := 2 + body_h
 	menu_end := menu_start + menu_h - 1
 	if menu_h > 0 && y >= menu_start && y <= menu_end {
-		return .Status
+		return .Slash_Menu
 	}
 	status_row := 2 + body_h + menu_h
 	if y == status_row {

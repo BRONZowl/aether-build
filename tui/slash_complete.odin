@@ -368,6 +368,57 @@ slash_menu_accept :: proc(s: ^App_State) -> bool {
 	return ok
 }
 
+// slash_menu_click: mouse hit on suggestion row (1-based screen y).
+// body_h / menu_h match render layout. Header row of the menu is non-select.
+// Returns true if a match was accepted.
+slash_menu_click :: proc(s: ^App_State, y, body_h, menu_h: int) -> bool {
+	if s == nil || menu_h <= 0 {
+		return false
+	}
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) {
+		return false
+	}
+	menu_start := 2 + body_h // first row of menu (header)
+	// row 0 of menu = header; rows 1.. are matches (windowed like write_slash_menu)
+	rel := y - menu_start
+	if rel <= 0 {
+		// clicked header — focus prompt only
+		if s.focus != .Prompt {
+			// keep API local — caller may focus
+		}
+		return false
+	}
+	shown := menu_h - 1
+	if shown > len(ms) {
+		shown = len(ms)
+	}
+	if shown <= 0 {
+		return false
+	}
+	// same scroll window as write_slash_menu
+	start := 0
+	if s.slash_menu_sel >= shown {
+		start = s.slash_menu_sel - shown + 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start + shown > len(ms) {
+		start = max(0, len(ms) - shown)
+	}
+	row := rel - 1 // 0-based among match rows
+	if row < 0 || row >= shown {
+		return false
+	}
+	idx := start + row
+	if idx < 0 || idx >= len(ms) {
+		return false
+	}
+	s.slash_menu_sel = idx
+	return slash_menu_accept(s)
+}
+
 // slash_menu_dismiss: Esc while menu open — clear the slash token (keep prior text).
 // Returns true if dismissed.
 slash_menu_dismiss :: proc(s: ^App_State) -> bool {

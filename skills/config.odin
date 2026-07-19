@@ -13,17 +13,17 @@ Skills_Config :: struct {
 	disabled: [dynamic]string, // skill names
 }
 
-destroy_skills_config :: proc(c: ^Skills_Config) {
+destroy_skills_config :: proc(c: ^Skills_Config, allocator := context.allocator) {
 	for p in c.paths {
-		delete(p)
+		delete(p, allocator)
 	}
 	delete(c.paths)
 	for p in c.ignore {
-		delete(p)
+		delete(p, allocator)
 	}
 	delete(c.ignore)
 	for p in c.disabled {
-		delete(p)
+		delete(p, allocator)
 	}
 	delete(c.disabled)
 }
