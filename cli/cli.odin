@@ -242,14 +242,14 @@ print_help :: proc() {
 	fmt.println("REPL: /help /login /whoami /session /sessions /save /load /new /clear /exit")
 	fmt.println()
 	fmt.println("Other:")
-	fmt.println("  login [args]                 Optional: browser sign-in via host `grok login`")
+	fmt.println("  login [--host]               Device-code sign-in (in-process); --host → grok login")
 	fmt.println("  whoami                       Show signed-in identity (no secrets)")
 	fmt.println("  help, --help, -h             Show this help")
 	fmt.println("  version, --version           Print version")
 	fmt.println()
 	fmt.println("Exit codes: 0 ok, 1 usage/auth, 2 max turns, 3 model/HTTP error, 4 cancelled")
-	fmt.println("Auth (R0-A): set XAI_API_KEY (recommended). Existing ~/.grok/auth.json works.")
-	fmt.println("      Rust `grok` is not required. Optional login: AETHER_GROK_BIN=/path/to/grok")
+	fmt.println("Auth (R0-A): set XAI_API_KEY (recommended). Or `aether login` device flow (M7).")
+	fmt.println("      Existing ~/.grok/auth.json works. Host grok optional: aether login --host")
 }
 
 print_version :: proc() {

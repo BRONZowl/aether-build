@@ -149,16 +149,50 @@ run_host_grok :: proc(args: []string, quiet := false, label := "grok") -> int {
 	return int(state.exit_code)
 }
 
-// run_host_login execs `grok login [extra…]`.
+// run_host_login: M7 default = in-process device-code login.
+// Pass `--host` (or first arg `host`) to use legacy `grok login` bridge.
+// Extra args after `--host` are forwarded to host grok.
 run_host_login :: proc(extra_args: []string = {}, quiet := false) -> int {
-	argv := make([dynamic]string, 0, 1 + len(extra_args), context.temp_allocator)
-	append(&argv, "login")
+	force_host := false
+	host_extra := make([dynamic]string, 0, len(extra_args), context.temp_allocator)
 	for a in extra_args {
+		al := strings.to_lower(strings.trim_space(a), context.temp_allocator)
+		if al == "--host" || al == "host" || al == "--grok" {
+			force_host = true
+			continue
+		}
+		if force_host {
+			append(&host_extra, a)
+		} else if al == "--device" || al == "--device-auth" || al == "device" {
+			// explicit device (default) — ignore
+			continue
+		} else {
+			// unknown flags go to host if we fall back
+			append(&host_extra, a)
+		}
+	}
+
+	if !force_host {
+		code := run_device_login(quiet)
+		if code == 0 {
+			return 0
+		}
+		// Fall back to host grok when device flow unavailable / failed
+		if !quiet {
+			fmt.eprintln(
+				"aether: device login failed or unavailable — trying host `grok login` if installed…",
+			)
+		}
+	}
+
+	argv := make([dynamic]string, 0, 1 + len(host_extra), context.temp_allocator)
+	append(&argv, "login")
+	for a in host_extra {
 		append(&argv, a)
 	}
 	if !quiet {
 		fmt.eprintln(
-			"aether: optional browser login via host `grok` (R0-A: prefer XAI_API_KEY)…",
+			"aether: browser login via host `grok` (optional; prefer device login or XAI_API_KEY)…",
 		)
 	}
 	code := run_host_grok(argv[:], quiet, "browser login")
@@ -188,7 +222,7 @@ run_host_mcp_list :: proc(quiet := false) -> int {
 	return run_host_grok([]string{"mcp", "list"}, quiet, "mcp list")
 }
 
-// auth_sign_in_hint short phrase for resolve_credentials errors (R0-A).
+// auth_sign_in_hint short phrase for resolve_credentials errors (R0-A / M7).
 auth_sign_in_hint :: proc() -> string {
-	return "Set XAI_API_KEY (recommended). Optional: existing ~/.grok/auth.json or `aether login` if host grok is installed."
+	return "Set XAI_API_KEY (recommended), or run `aether login` (in-process device code). Optional: host `grok login` via `aether login --host`."
 }

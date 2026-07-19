@@ -99,7 +99,8 @@ test_run_host_login_with_fake_binary :: proc(t: ^testing.T) {
 		}
 	}
 
-	code := run_host_login(nil, true /* quiet */)
+	// Force host bridge (default is in-process device login).
+	code := run_host_login([]string{"--host"}, true /* quiet */)
 	testing.expect(t, code == 0, fmt.tprintf("exit %d", code))
 }
 

@@ -50,7 +50,7 @@ HELP_CATALOG := [?]Help_Line {
 	{is_section = false, text = "  /model [id]         show or set model (/m)"},
 	{is_section = false, text = "  /effort [level]     reasoning effort: low|medium|high|xhigh|off"},
 	{is_section = false, text = "  /whoami             show auth identity"},
-	{is_section = false, text = "  /login [args]       browser sign-in via host `grok login`"},
+	{is_section = false, text = "  /login [--host]     device-code sign-in (in-process); --host → grok login"},
 	{is_section = true, text = "Permissions & plan"},
 	{is_section = false, text = "  /always-approve [on|off|status]  permission mode (/yolo)"},
 	{is_section = false, text = "  /auto [on|off]      auto-approve file edits; ask for shell"},

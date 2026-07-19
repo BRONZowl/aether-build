@@ -3,9 +3,11 @@ package agent
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
+import "core:path/filepath"
 import "core:strings"
 import "core:time"
 import "core:time/datetime"
+import "aether:core"
 
 API_KEY_SCOPE :: "xai::api_key"
 EARLY_REFRESH_SECS :: i64(300) // 5 minutes
@@ -230,6 +232,103 @@ parse_int_n :: proc(s: string) -> (int, bool) {
 		n = n * 10 + int(ch - '0')
 	}
 	return n, true
+}
+
+// write_auth_session_entry creates or replaces a full OIDC session entry in auth.json.
+// Used by device-code login (M7). scope typically "{issuer}::{client_id}".
+write_auth_session_entry :: proc(
+	path: string,
+	scope: string,
+	access_token: string,
+	refresh_token: string,
+	expires_at: string,
+	oidc_issuer: string,
+	oidc_client_id: string,
+	user_id: string = "",
+	email: string = "",
+) -> string /* err */ {
+	if path == "" || scope == "" || access_token == "" {
+		return "path, scope, and access_token required"
+	}
+	// ensure parent
+	parent := filepath.dir(path)
+	_ = core.ensure_dir(parent)
+
+	obj: json.Object
+	if data, err := os.read_entire_file(path, context.temp_allocator); err == nil && len(data) > 0 {
+		val, perr := json.parse(data, json.DEFAULT_SPECIFICATION, false, context.temp_allocator)
+		if perr == nil {
+			if o, ok := val.(json.Object); ok {
+				obj = o
+			}
+		}
+	}
+	if obj == nil {
+		obj = make(json.Object, context.temp_allocator)
+	}
+
+	entry := make(json.Object, context.temp_allocator)
+	// preserve unknown fields if entry exists
+	if old_v, has := obj[scope]; has {
+		if old_e, is_e := old_v.(json.Object); is_e {
+			for k, v in old_e {
+				entry[k] = v
+			}
+		}
+	}
+	entry[strings.clone("key", context.temp_allocator)] = json.String(
+		strings.clone(access_token, context.temp_allocator),
+	)
+	entry[strings.clone("auth_mode", context.temp_allocator)] = json.String(
+		strings.clone("oidc", context.temp_allocator),
+	)
+	if refresh_token != "" {
+		entry[strings.clone("refresh_token", context.temp_allocator)] = json.String(
+			strings.clone(refresh_token, context.temp_allocator),
+		)
+	}
+	if expires_at != "" {
+		entry[strings.clone("expires_at", context.temp_allocator)] = json.String(
+			strings.clone(expires_at, context.temp_allocator),
+		)
+	}
+	if oidc_issuer != "" {
+		entry[strings.clone("oidc_issuer", context.temp_allocator)] = json.String(
+			strings.clone(oidc_issuer, context.temp_allocator),
+		)
+	}
+	if oidc_client_id != "" {
+		entry[strings.clone("oidc_client_id", context.temp_allocator)] = json.String(
+			strings.clone(oidc_client_id, context.temp_allocator),
+		)
+	}
+	if user_id != "" {
+		entry[strings.clone("user_id", context.temp_allocator)] = json.String(
+			strings.clone(user_id, context.temp_allocator),
+		)
+	}
+	if email != "" {
+		entry[strings.clone("email", context.temp_allocator)] = json.String(
+			strings.clone(email, context.temp_allocator),
+		)
+	}
+
+	obj[strings.clone(scope, context.temp_allocator)] = entry
+
+	out, merr := json.marshal(obj, {}, context.temp_allocator)
+	if merr != nil {
+		return "marshal auth.json failed"
+	}
+	tmp := fmt.tprintf("%s.tmp.%d", path, os.get_pid())
+	if werr := os.write_entire_file(tmp, out); werr != nil {
+		return "write auth.json failed"
+	}
+	_ = os.chmod(tmp, os.perm(0o600))
+	if rerr := os.rename(tmp, path); rerr != nil {
+		_ = os.remove(tmp)
+		return "rename auth.json failed"
+	}
+	return ""
 }
 
 // update_auth_json_entry rewrites one scope's key/refresh/expires in the file.

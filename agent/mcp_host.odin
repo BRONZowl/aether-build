@@ -94,20 +94,22 @@ handle_mcp_slash :: proc(
 		return mcp_status_line(allocator)
 	case "help", "?":
 		return strings.clone(
-			"Usage: /mcp [status|reconnect|auth|set-token|doctor|list-config|help]\n" +
+			"Usage: /mcp [status|reconnect|auth|set-token|enroll|doctor|list-config|help]\n" +
 			"  status              connected servers/tools (default)\n" +
 			"  reconnect           reload config + re-auth (in-process)\n" +
-			"  auth                per-server auth source only (never secrets)\n" +
-			"  set-token <name> <token>  write access_token to ~/.grok/mcp_credentials.json\n" +
+			"  auth [name]         auth source (+ enroll tips for HTTP servers)\n" +
+			"  set-token <name> <token>  write access_token → ~/.grok/mcp_credentials.json + reconnect\n" +
+			"  enroll <name> <token>     alias of set-token (M3 first-class enroll)\n" +
 			"  doctor [server]     in-process health report (config + live; no host grok)\n" +
 			"  list-config         configured servers from aether.toml / ~/.grok\n" +
 			"  host-doctor [s]     optional legacy: shell out to `grok mcp doctor` if present\n" +
-			"Tokens: set-token or existing credentials file; never printed.\n" +
-			"Auth ship mode R0-A: XAI_API_KEY primary (Rust grok not required).",
+			"Browser OAuth DCR: use host `grok` once if the server needs full OAuth dance;\n" +
+			"  then tokens live in mcp_credentials.json and Aether reconnects without host.\n" +
+			"Auth: XAI_API_KEY / aether login for the model; MCP tokens via enroll/set-token.",
 			allocator,
 		)
 	case "auth":
-		return mcp_auth_status(allocator)
+		return mcp_auth_status_and_enroll(rest, allocator)
 	case "reconnect", "reload", "restart":
 		reg := maybe_restart_mcp(no_mcp, quiet)
 		st := mcp_status_line(context.temp_allocator)
@@ -115,8 +117,8 @@ handle_mcp_slash :: proc(
 			return fmt.aprintf("aether: mcp reconnected — no servers\n%s", st, allocator = allocator)
 		}
 		return fmt.aprintf("aether: mcp reconnected\n%s", st, allocator = allocator)
-	case "set-token", "token":
-		return mcp_set_token_cmd(rest, allocator)
+	case "set-token", "token", "enroll":
+		return mcp_set_token_cmd(rest, no_mcp, quiet, allocator)
 	case "doctor":
 		return mcp_doctor_report(rest, no_mcp, quiet, allocator)
 	case "list-config", "config-list", "configured":
@@ -311,15 +313,59 @@ mcp_auth_status :: proc(allocator := context.allocator) -> string {
 	return strings.to_string(b)
 }
 
-// mcp_set_token_cmd: rest = "<server_name> <access_token>"
-mcp_set_token_cmd :: proc(rest: string, allocator := context.allocator) -> string {
+// mcp_auth_status_and_enroll: M3 — auth sources + per-server enroll tips.
+mcp_auth_status_and_enroll :: proc(filter: string, allocator := context.allocator) -> string {
+	want := strings.to_lower(strings.trim_space(filter), context.temp_allocator)
+	base := mcp_auth_status(context.temp_allocator)
+	b := strings.builder_make(allocator)
+	strings.write_string(&b, base)
+	if !strings.has_suffix(base, "\n") {
+		strings.write_byte(&b, '\n')
+	}
+	cfgs := mcp.load_mcp_configs()
+	defer mcp.destroy_server_configs(cfgs)
+	if len(cfgs) == 0 {
+		return strings.to_string(b)
+	}
+	strings.write_string(&b, "enroll tips (M3):\n")
+	for c in cfgs {
+		if want != "" && strings.to_lower(c.name, context.temp_allocator) != want {
+			continue
+		}
+		if c.url == "" {
+			continue
+		}
+		has := mcp.mcp_credential_has_token(c.name, c.url)
+		cred := "credentials:yes" if has else "credentials:no"
+		fmt.sbprintf(
+			&b,
+			"  %s  url=%s  %s\n" +
+			"      → /mcp enroll %s <access_token>   (writes mcp_credentials.json + reconnect)\n" +
+			"      → bearer_token_env_var / headers in config for env-based auth\n" +
+			"      → full browser OAuth DCR: host `grok` once, then Aether reuses the file\n",
+			c.name,
+			c.url,
+			cred,
+			c.name,
+		)
+	}
+	return strings.to_string(b)
+}
+
+// mcp_set_token_cmd: rest = "<server_name> <access_token>"; auto-reconnect (M3).
+mcp_set_token_cmd :: proc(
+	rest: string,
+	no_mcp := false,
+	quiet := true,
+	allocator := context.allocator,
+) -> string {
 	r := strings.trim_space(rest)
 	if r == "" {
 		return strings.clone(
-			"aether: usage: /mcp set-token <server_name> <access_token>\n" +
-			"Writes Grok-compatible ~/.grok/mcp_credentials.json for that server's URL from config.\n" +
-			"Token appears in shell history — prefer offline file write when possible.\n" +
-			"Then: /mcp reconnect",
+			"aether: usage: /mcp set-token|enroll <server_name> <access_token>\n" +
+			"Writes Grok-compatible ~/.grok/mcp_credentials.json for that server's URL from config,\n" +
+			"then reconnects MCP so the token is used immediately.\n" +
+			"Token may appear in shell history — prefer offline file write when possible.",
 			allocator,
 		)
 	}
@@ -330,7 +376,10 @@ mcp_set_token_cmd :: proc(rest: string, allocator := context.allocator) -> strin
 		tok = strings.trim_space(r[sp + 1:])
 	}
 	if name == "" || tok == "" {
-		return strings.clone("aether: usage: /mcp set-token <server_name> <access_token>", allocator)
+		return strings.clone(
+			"aether: usage: /mcp set-token|enroll <server_name> <access_token>",
+			allocator,
+		)
 	}
 	cfgs := mcp.load_mcp_configs()
 	defer mcp.destroy_server_configs(cfgs)
@@ -345,10 +394,14 @@ mcp_set_token_cmd :: proc(rest: string, allocator := context.allocator) -> strin
 	if err := mcp.upsert_mcp_credential(name, url, tok); err != "" {
 		return fmt.aprintf("aether: credentials write failed: %s", err, allocator = allocator)
 	}
+	// Auto-reconnect so enroll is one step
+	_ = maybe_restart_mcp(no_mcp, quiet)
+	st := mcp_status_line(context.temp_allocator)
 	return fmt.aprintf(
-		"aether: stored access_token for %s (url %s)\nRun /mcp reconnect to apply. Never commit credentials files.",
+		"aether: enrolled access_token for %s (url %s) + reconnected\n%s\nNever commit credentials files.",
 		name,
 		url,
+		st,
 		allocator = allocator,
 	)
 }

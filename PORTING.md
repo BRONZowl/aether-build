@@ -190,13 +190,13 @@ make -C aether build vet test smoke-tui
 | Grok / area | Primary crates | Aether | Status | Gaps / notes |
 |-------------|----------------|--------|--------|--------------|
 | Agent loop / sampling | `xai-grok-agent`, sampler | `agent/loop`, `chat`, `http`, `compact` | Full | Manual + auto-compact @ threshold; SSE stream + retry; rich multi-client stream events **N/A** |
-| Auth | `xai-grok-auth` | `agent/auth*` | Full | R0-A: API key + session JSON + OIDC refresh read; host login optional legacy; in-process browser OIDC **N/A** (R0-B deferred) |
+| Auth | `xai-grok-auth` | `agent/auth*` | Full | R0-A API key + session JSON + OIDC refresh; **M7** in-process **device-code** login (R0-B); `aether login --host` legacy bridge; loopback browser OAuth residual N/A |
 | Config | `xai-grok-config*` | `core` + `aether.toml` | Full | Product keys merge (A5.1); marketplace/remote/managed **N/A** |
 | Tools runtime | `xai-grok-tools*` | `tools/`, `agent/*` | Full | See tool matrix (all Full or N/A) |
 | Shell / session actor | `xai-grok-shell*` | `agent/session`, `slash`, `repl` | Full | B2.1–2 lifecycle + soft rewind; multi-client ACP **N/A** |
 | Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; full mermaid layout engine **N/A** (fence labels ship) |
 | Markdown render | `xai-grok-markdown*` | `tui/markdown` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; mermaid chrome only |
-| MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + in-process doctor; browser OAuth **N/A** |
+| MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + doctor; **M3** enroll/set-token auto-reconnect; full browser OAuth DCR still host-assisted N/A |
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
 | Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`); OS sandbox **N/A** until M6 |
@@ -282,7 +282,7 @@ make -C aether build vet test smoke-tui
 | Project rules | AGENTS.md inject | Full | **B4–B5:** root→cwd + `~/.grok` + `.grok/rules` + `.claude`/`.cursor` (home + per-dir); opt out `AETHER_NO_PROJECT_RULES` / `AETHER_NO_CLAUDE_RULES` / `AETHER_NO_CURSOR_RULES` |
 | `/mcp` | yes | Full | status/reconnect/set-token + **in-process doctor**/list-config; browser OAuth N/A |
 | `/skills` `/skill` | yes | Full | list/invoke/reload; marketplace N/A |
-| Browser `grok login` | `aether login` / `/login` | Full | Optional host bridge only (R0-A); `AETHER_GROK_BIN`; in-process OAuth N/A |
+| Browser `grok login` | `aether login` / `/login` | Full | **M7** device-code in-process default; `--host` → host grok; R0-A API key still primary |
 
 ---
 
@@ -416,8 +416,8 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | **M1** | Folder trust + `/hooks trust\|untrust` | **Complete** |
 | **M2** | Goal `--budget` orchestrator residual | **Complete** |
 | **M10** | `/create-skill` scaffold | **Complete** |
-| **M3** | MCP browser OAuth enroll | None |
-| **M7** | In-process login R0-B | None |
+| **M3** | MCP browser OAuth enroll | **Complete** (enroll/set-token + auto-reconnect; DCR still host-assisted) |
+| **M7** | In-process login R0-B | **Complete** (device-code login; `--host` fallback) |
 | **M4** | Plugins / marketplace basics | None |
 | **M9** | Subagent personas | None |
 | **M5** | Hashline optional tool pack | None |
