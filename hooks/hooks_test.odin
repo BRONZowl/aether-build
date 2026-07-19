@@ -6,6 +6,7 @@ import "core:path/filepath"
 import "core:strings"
 import "core:testing"
 import "core:time"
+import "aether:core"
 
 @(test)
 test_tool_name_matches :: proc(t: ^testing.T) {
@@ -542,4 +543,49 @@ test_hooks_paths_add_remove_and_validate :: proc(t: ^testing.T) {
 	paths2 := read_hooks_paths(context.allocator)
 	defer free_hooks_paths(paths2)
 	testing.expect(t, len(paths2) == 0)
+}
+
+// M1: project .grok/hooks load only when folder trusted.
+@(test)
+test_project_hooks_require_folder_trust :: proc(t: ^testing.T) {
+	dir, err := os.make_directory_temp("/tmp", "aether-ht-", context.allocator)
+	testing.expect(t, err == nil)
+	defer os.remove_all(dir)
+
+	prev_h := os.get_env("GROK_HOME", context.temp_allocator)
+	prev_ft := os.get_env("AETHER_NO_FOLDER_TRUST", context.temp_allocator)
+	_ = os.set_env("GROK_HOME", dir)
+	_ = os.unset_env("AETHER_NO_FOLDER_TRUST")
+	defer {
+		if prev_h != "" {
+			_ = os.set_env("GROK_HOME", prev_h)
+		} else {
+			_ = os.unset_env("GROK_HOME")
+		}
+		if prev_ft != "" {
+			_ = os.set_env("AETHER_NO_FOLDER_TRUST", prev_ft)
+		} else {
+			_ = os.unset_env("AETHER_NO_FOLDER_TRUST")
+		}
+	}
+
+	// workspace with project hooks
+	ws, _ := filepath.join({dir, "ws"}, context.temp_allocator)
+	proj_hooks, _ := filepath.join({ws, ".grok", "hooks"}, context.temp_allocator)
+	_ = os.make_directory_all(proj_hooks)
+	body := `{"hooks":{"SessionStart":[{"hooks":[{"type":"command","command":"true"}]}]}}`
+	jpath, _ := filepath.join({proj_hooks, "p.json"}, context.temp_allocator)
+	testing.expect(t, os.write_entire_file(jpath, transmute([]byte)body) == nil)
+
+	// untrusted: no project hooks
+	reg := load_hooks(ws, context.allocator)
+	defer destroy_registry(&reg)
+	testing.expectf(t, len(reg.specs) == 0, "untrusted must gate project hooks, got %d", len(reg.specs))
+
+	// grant trust
+	gerr := core.grant_folder_trust(ws)
+	testing.expectf(t, gerr == "", "grant: %s", gerr)
+	reg2 := load_hooks(ws, context.allocator)
+	defer destroy_registry(&reg2)
+	testing.expectf(t, len(reg2.specs) >= 1, "trusted should load project hooks, got %d", len(reg2.specs))
 }

@@ -85,7 +85,7 @@ vet:
 test:
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test agent -collection:aether=. -define:ODIN_TEST_THREADS=1
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test tools -collection:aether=. -define:ODIN_TEST_THREADS=1
-	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test core -collection:aether=.
+	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test core -collection:aether=. -define:ODIN_TEST_THREADS=1
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test mcp -collection:aether=.
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test skills -collection:aether=.
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test hooks -collection:aether=. -define:ODIN_TEST_THREADS=1

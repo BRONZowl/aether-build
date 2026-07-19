@@ -5,6 +5,7 @@ import "core:fmt"
 import "core:os"
 import "core:path/filepath"
 import "core:strings"
+import "aether:core"
 
 // load_hooks_from_dir parses *.json under dir into out (append).
 load_hooks_from_dir :: proc(dir: string, out: ^[dynamic]Hook_Spec, allocator := context.allocator) {
@@ -180,13 +181,18 @@ load_hooks_from_file :: proc(
 
 // load_hooks discovers user + project hook dirs for cwd, then extra paths
 // listed in $GROK_HOME/hooks-paths (B18 / Grok-shaped).
+// M1: project-local hooks (cwd/.grok/hooks) load only when folder is trusted
+// (or folder-trust feature is off). Global $GROK_HOME/hooks and hooks-paths always load.
 load_hooks :: proc(cwd: string, allocator := context.allocator) -> Hook_Registry {
 	r: Hook_Registry
 	r.specs = make([dynamic]Hook_Spec, 0, 8, allocator)
 	user_dir := hooks_root_user(context.temp_allocator)
 	load_hooks_from_dir(user_dir, &r.specs, allocator)
-	proj := hooks_root_project(cwd, context.temp_allocator)
-	load_hooks_from_dir(proj, &r.specs, allocator)
+	// Project hooks gated by folder trust (M1).
+	if core.project_scope_allowed(cwd) {
+		proj := hooks_root_project(cwd, context.temp_allocator)
+		load_hooks_from_dir(proj, &r.specs, allocator)
+	}
 	// extra paths (file or dir under ~/.grok)
 	extras := read_hooks_paths(context.temp_allocator)
 	for ep in extras {

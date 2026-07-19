@@ -218,6 +218,15 @@ handle_features_slash :: proc(arg: string, allocator := context.allocator) -> st
 		f,
 		&n,
 		&n_on,
+		"folder-trust",
+		core.folder_trust_enabled(),
+		"AETHER_NO_FOLDER_TRUST · gate project hooks until /hooks trust",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
 		"web-fetch",
 		web_fetch_enabled(),
 		"AETHER_NO_WEB_FETCH",

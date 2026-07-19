@@ -199,7 +199,7 @@ make -C aether build vet test smoke-tui
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + in-process doctor; browser OAuth **N/A** |
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; marketplace **N/A** |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
-| Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); OS sandbox **N/A** |
+| Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`); OS sandbox **N/A** until M6 |
 | Plugins / marketplace | plugin crates | — | **N/A** | R3a Drop — not on Odin ship path; reopen as Port if product needs plugins |
 | Sandbox | `xai-grok-sandbox` | workspace path gates | Full | Soft FS + soft bash ship; OS Landlock/Seatbelt **N/A** (R3c) |
 | Workspace / worktree | `xai-grok-workspace*` | `worktree`, tools | Full | Linked worktrees for subagents; full remote workspace services **N/A** |
@@ -260,7 +260,7 @@ make -C aether build vet test smoke-tui
 | `/dream` | `/dream` | Full | consolidate→MEMORY.md + lock; slash bypasses gates; gated auto on exit/new |
 | `/view-plan` | `/view-plan` `/show-plan` `/plan view` | Full | **B32** dump `.grok/plan.md` |
 | `/context` | `/context` | Full | est. tokens (chars/4) + usage bar + session stats |
-| `/hooks-*` | `/hooks` | Full | status/list/reload/**paths/add/remove** (B18 hooks-paths); command + HTTP A4.1–7; **`hooks-trust`/`hooks-untrust` folder-trust N/A** |
+| `/hooks-*` | `/hooks` | Full | status/list/reload/**paths/add/remove** (B18); **trust/untrust (M1)** → `~/.grok/trusted_folders.toml`; command + HTTP A4.1–7 |
 | `/plugins` `/reload-plugins` | — | **N/A** | R3a Drop with marketplace |
 | `/session-info` | `/session-info` `/session` | Full | + context one-liner |
 | `/settings` `/config` | `/config` `/settings` `/preferences` `/prefs` | Full | **B34** effective settings dump (no modal; no secrets) |
@@ -406,6 +406,24 @@ make -C aether build vet test smoke-tui
 
 Telemetry, update, voice, mermaid layout engine, marketplace — **N/A (R3 Drop)** unless reopened as Port.
 
+### Phase M — Ship-hardening max (reopened 2026-07-19)
+
+Product-contract maximum port for peer daily-driver residuals (standalone Aether only).
+Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
+
+| Epic | Title | State |
+|------|--------|--------|
+| **M1** | Folder trust + `/hooks trust\|untrust` | **Complete** |
+| **M2** | Goal `--budget` orchestrator residual | None |
+| **M10** | `/create-skill` scaffold | None |
+| **M3** | MCP browser OAuth enroll | None |
+| **M7** | In-process login R0-B | None |
+| **M4** | Plugins / marketplace basics | None |
+| **M9** | Subagent personas | None |
+| **M5** | Hashline optional tool pack | None |
+| **M6** | OS sandbox (Landlock) | None |
+| **M8** | Mermaid layout upgrade | None |
+
 ### Phase R — Rust retirement
 
 See **[Rust retirement](#rust-retirement-odin-only-endgame)** above (R0–R5).
@@ -497,7 +515,7 @@ No ship-path model tool **Missing**.
 |--------------|--------|--------|
 | compact, always-approve/yolo, flush, dream, memory, context, feedback, goal, loop, session-info | Present | Full |
 | hooks-list/add/remove | `/hooks` | Full |
-| hooks-trust / hooks-untrust | — | **N/A** (folder-trust; hooks still load/run) |
+| hooks-trust / hooks-untrust | `/hooks trust\|untrust` | **Full (M1)** |
 | plugins / reload-plugins | — | **N/A** (R3a marketplace Drop) |
 
 Pager/TUI session, model, effort, plan, sessions, etc. live outside that small
@@ -509,7 +527,7 @@ single-process product).
 | Residual | Notes |
 |----------|--------|
 | Goal `--budget` token orchestrator | Grok goal_tracker budget auto-pause; Aether `/goal` set/status/pause/resume/clear + `update_goal` only |
-| Hooks folder trust | Project trust gate for hooks/plugins |
+| Hooks folder trust | **M1 shipped** — project hooks gated; plugins still M4 |
 | Browser OIDC, plugins, ACP multi-client, Landlock, voice, update, mermaid engine, Mixpanel | Phase D / R3 Drop |
 | Personas, remote workspace services, SQLite memory | Documented N/A in matrices |
 

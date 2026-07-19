@@ -31,6 +31,7 @@ ENV_CATALOG := []Env_Row {
 	{"AETHER_AUTO_COMPACT_PCT", "auto-compact threshold percent override", false},
 	{"AETHER_NO_UI_PERSIST", "do not write UI prefs to config.toml", false},
 	{"AETHER_NO_HOOKS", "disable hooks", false},
+	{"AETHER_NO_FOLDER_TRUST", "disable folder trust (always load project hooks)", false},
 	{"AETHER_NO_MCP", "disable MCP", false},
 	{"AETHER_NO_SKILLS", "disable skills discovery", false},
 	{"AETHER_NO_DESKTOP_NOTIFY", "disable desktop notifications", false},

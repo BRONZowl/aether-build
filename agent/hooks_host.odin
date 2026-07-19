@@ -2,6 +2,7 @@ package agent
 
 import "core:fmt"
 import "core:strings"
+import "aether:core"
 import "aether:hooks"
 
 // g_hooks_cwd for SessionEnd at process teardown.
@@ -60,7 +61,7 @@ allow_user_prompt_notice :: proc(cwd, prompt: string) -> (ok: bool, reason: stri
 	return true, ""
 }
 
-// handle_hooks_slash: status | list | reload | paths | add | remove | help
+// handle_hooks_slash: status | list | reload | paths | add | remove | trust | untrust | help
 handle_hooks_slash :: proc(
 	arg: string,
 	cwd: string,
@@ -70,21 +71,50 @@ handle_hooks_slash :: proc(
 	a_l := strings.to_lower(a, context.temp_allocator)
 	if a_l == "help" || a_l == "?" {
 		return strings.clone(
-			"Usage: /hooks [status|list|reload|paths|add <path>|remove <path>|help]\n" +
+			"Usage: /hooks [status|list|reload|paths|add <path>|remove <path>|trust|untrust|help]\n" +
 			"Local command hooks from $GROK_HOME/hooks, <cwd>/.grok/hooks, and hooks-paths (B18).\n" +
 			"  add/remove  absolute path under ~/.grok (file or dir of *.json)\n" +
 			"  paths       list ~/.grok/hooks-paths entries\n" +
-			"  list|status loaded hooks for this session\n" +
+			"  trust       grant folder trust for this workspace (project hooks may load)\n" +
+			"  untrust     revoke folder trust (project hooks gated; global hooks keep loading)\n" +
+			"  list|status loaded hooks for this session + folder-trust line\n" +
 			"Events: SessionStart/End, Pre/PostToolUse(+Fail), Stop, UserPromptSubmit, PermissionDenied,\n" +
 			"         SubagentStart/Stop, PreCompact/PostCompact, Notification.\n" +
-			"Opt-out: AETHER_NO_HOOKS=1  Fail-open on hook errors (except PreToolUse/UserPromptSubmit deny).",
+			"Opt-out: AETHER_NO_HOOKS=1  AETHER_NO_FOLDER_TRUST=1 (always load project hooks)\n" +
+			"Store: ~/.grok/trusted_folders.toml (Grok-compatible).",
 			allocator,
+		)
+	}
+	// M1: /hooks trust | untrust (Grok hooks-trust / hooks-untrust)
+	if a_l == "trust" || a_l == "hooks-trust" {
+		if err := core.grant_folder_trust(cwd); err != "" {
+			return fmt.aprintf("aether: hooks trust failed: %s", err, allocator = allocator)
+		}
+		maybe_start_hooks(cwd, true)
+		return fmt.aprintf(
+			"aether: folder trusted — project hooks may load\n%s\n%s",
+			core.folder_trust_status_line(cwd, context.temp_allocator),
+			hooks.status_text(hooks.get_registry(), context.temp_allocator),
+			allocator = allocator,
+		)
+	}
+	if a_l == "untrust" || a_l == "hooks-untrust" || a_l == "revoke" {
+		if err := core.revoke_folder_trust(cwd); err != "" {
+			return fmt.aprintf("aether: hooks untrust failed: %s", err, allocator = allocator)
+		}
+		maybe_start_hooks(cwd, true)
+		return fmt.aprintf(
+			"aether: folder untrusted — project hooks gated\n%s\n%s",
+			core.folder_trust_status_line(cwd, context.temp_allocator),
+			hooks.status_text(hooks.get_registry(), context.temp_allocator),
+			allocator = allocator,
 		)
 	}
 	if a_l == "reload" {
 		maybe_start_hooks(cwd, true)
 		return fmt.aprintf(
-			"aether: hooks reloaded\n%s",
+			"aether: hooks reloaded\n%s\n%s",
+			core.folder_trust_status_line(cwd, context.temp_allocator),
 			hooks.status_text(hooks.get_registry(), context.temp_allocator),
 			allocator = allocator,
 		)
@@ -142,7 +172,12 @@ handle_hooks_slash :: proc(
 	}
 	// list / status / bare
 	if a_l == "" || a_l == "status" || a_l == "list" || a_l == "show" || a_l == "info" {
-		return hooks.status_text(hooks.get_registry(), allocator)
+		return fmt.aprintf(
+			"%s\n%s",
+			core.folder_trust_status_line(cwd, context.temp_allocator),
+			hooks.status_text(hooks.get_registry(), context.temp_allocator),
+			allocator = allocator,
+		)
 	}
 	return fmt.aprintf(
 		"aether: unknown /hooks arg %q (try /hooks help)",
