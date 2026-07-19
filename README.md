@@ -44,10 +44,10 @@ No Cargo / Rust source tree is required. No installed Rust `grok` binary is requ
 make bootstrap-odin                 # Odin → ./.tools (or monorepo ../.tools)
 make build test smoke-tui
 ./bin/aether --version              # or: ./out/aether
+./bin/aether                        # fullscreen TUI on a TTY (else line REPL)
+./bin/aether chat                   # multi-turn line REPL
 ./bin/aether -p "say hi in three words"
-./bin/aether                        # multi-turn REPL (brand art + tips)
-./bin/aether tui                    # fullscreen chat (TTY; empty session shows brand art)
-make install                        # PATH: aether-grok-odin, grok-odin (+ aether if free)
+make install                        # PATH: aether-grok (+ aether-grok-odin, grok-odin)
 make smoke                          # live -p check (skips without auth)
 ```
 
@@ -56,7 +56,7 @@ Useful make targets: `build`, `debug`, `vet`, `test`, `run ARGS='-p hi'`, `smoke
 **CI:** `.github/workflows/aether.yml` — Odin-only (no Cargo).
 
 ```bash
-source ./shell-aliases.sh           # aether-grok-odin / grok-odin (+ aether if free) + PATH
+source ./shell-aliases.sh           # aether-grok / aether-grok-odin / grok-odin (+ aether if free)
 ```
 
 Install names all point at the same wrapper and **do not** clobber Rust `grok`.
@@ -64,11 +64,12 @@ Dest defaults to the first writable of `~/.local/bin` or `~/.grok/bin` (override
 
 | Command | Meaning |
 |---------|---------|
-| `aether-grok-odin` | Preferred explicit name (always installed) |
-| `grok-odin` | Explicit Odin product name |
-| `aether` | Short name **only if** it would not shadow a foreign binary (e.g. Arch theme `aether`) |
+| **`aether-grok`** | **Primary** day-to-day name (always installed). No args → **TUI** on a TTY |
+| `aether-grok-odin` | Explicit dual-product name (always installed) |
+| `grok-odin` | Explicit Odin peer name (always installed) |
+| `aether` | Short name **only if free** — **not** installed when `/usr/bin/aether` is Arch’s desktop theme generator |
 
-On hosts where `/usr/bin/aether` is already something else, use `aether-grok-odin` / `grok-odin`. Force short name: `AETHER_INSTALL_SHORT_NAME=1 make install`.
+**Name conflict:** on Arch, plain `aether` is often the [desktop theme app](https://github.com/bjarneo/aether), not this coding agent. Use **`aether-grok`**. Force short name only if you intend to shadow: `AETHER_INSTALL_SHORT_NAME=1 make install`.
 ### Manual build (without make)
 
 ```bash
@@ -90,8 +91,9 @@ odin build . -collection:aether=. -out:out/aether -o:speed
 
 | Flag / command | Meaning |
 |----------------|---------|
-| *(no args)* / `chat` | Multi-turn interactive REPL (brand art + `/about · /help · /keys · /exit`) |
-| `tui` | Fullscreen chat UI (TTY required; empty session shows brand art) |
+| *(no args)* | **TUI** when stdin/stdout are a TTY; otherwise line REPL |
+| `tui` | Fullscreen chat UI (TTY; empty session shows brand art) |
+| `chat` / `repl` | Multi-turn line REPL |
 | `-p` / `--print` / `--single TEXT` | One-shot headless agent |
 | `-m` / `--model ID` | Model override |
 | `--max-turns N` | Tool-loop cap per prompt (default 20) |

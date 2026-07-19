@@ -16,8 +16,10 @@ BIN="${AETHER_ODIN_BIN:-${AETHER_OUT:-$AETHER_DIR/out/aether}}"
 COMP_SRC="$AETHER_DIR/completions/aether.bash"
 COMP_DIR="${BASH_COMPLETION_USER_DIR:-$HOME/.local/share/bash-completion/completions}"
 
-# Primary names — never clobber Rust `grok`.
-NAMES=(aether-grok-odin aether-grok grok-odin)
+# Primary names — never clobber Rust `grok`. Prefer aether-grok as day-to-day name.
+# Short `aether` is optional and skipped when it would hide a foreign binary
+# (e.g. Arch desktop theme generator at /usr/bin/aether).
+NAMES=(aether-grok aether-grok-odin grok-odin)
 
 pick_dest() {
   if [[ -n "${AETHER_INSTALL_BIN:-}" ]]; then
@@ -90,8 +92,13 @@ else
       aether-grok*|Aether-Grok*) ;;
       *)
         if [[ "$_sys" != "$DEST_DIR/aether" ]]; then
-          echo "Note: skipping short name 'aether' — already on PATH as $_sys ($_ver)"
-          echo "  Use aether-grok-odin / grok-odin, or force: AETHER_INSTALL_SHORT_NAME=1"
+          echo "Note: skipping short name 'aether' — already on PATH as $_sys"
+          if [[ -n "$_ver" ]]; then
+            echo "  foreign version: $_ver"
+          fi
+          echo "  (common on Arch: desktop theme generator package 'aether')"
+          echo "  Use primary command: aether-grok   (or aether-grok-odin / grok-odin)"
+          echo "  Force short name only if you intend to shadow: AETHER_INSTALL_SHORT_NAME=1"
           install_short_aether=0
         fi
         ;;
@@ -134,13 +141,14 @@ esac
 
 echo
 echo "Dependencies (runtime): libcurl, ripgrep (rg). Optional: pdftotext, unzip."
-echo "Auth: export XAI_API_KEY=...  or: aether-grok-odin login  (device-code, M7)"
-echo "      Optional legacy: aether-grok-odin login --host  (requires Rust grok on PATH)"
+echo "Auth: export XAI_API_KEY=...  or: aether-grok login  (device-code, M7)"
+echo "      Optional legacy: aether-grok login --host  (requires Rust grok on PATH)"
 echo
-echo "Try: aether-grok-odin --version"
-echo "     aether-grok-odin -p \"say hi\""
-echo "     aether-grok-odin tui"
-echo "     grok-odin --version   # same binary; does not clobber Rust grok"
+echo "Primary command: aether-grok"
+echo "Try: aether-grok              # fullscreen TUI (TTY)"
+echo "     aether-grok chat         # line REPL"
+echo "     aether-grok -p \"say hi\"  # one-shot"
+echo "     aether-grok --version"
+echo "     aether-grok-odin / grok-odin  # same binary"
 echo
-echo "Tip: remove any stale alias like:"
-echo "  alias aether-grok-odin=...   # prefer the PATH install above"
+echo "Tip: remove any stale alias that shadows the PATH install."

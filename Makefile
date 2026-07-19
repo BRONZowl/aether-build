@@ -60,7 +60,7 @@ help:
 	@echo "  make run ARGS='-p hi'"
 	@echo "  make smoke          live -p check (skips without auth)"
 	@echo "  make smoke-tui      scripted TUI smoke (no network)"
-	@echo "  make install        symlink aether / grok-odin into ~/.local/bin"
+	@echo "  make install        symlink aether-grok (+ odin names) into ~/.local/bin"
 	@echo "  make bootstrap-odin Odin toolchain -> .tools/"
 	@echo "  make dist           binary tarball under out/dist/"
 	@echo "  make extract        S4 standalone source export (EXTRACT_ARGS=...)"

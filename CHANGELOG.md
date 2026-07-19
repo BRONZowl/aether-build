@@ -4,6 +4,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Launcher / defaults
+
+- Primary install name **`aether-grok`** (always); short `aether` only when it won’t shadow foreign binaries (e.g. Arch theme package at `/usr/bin/aether`)
+- Bare invoke (no args) starts **TUI** on a TTY; otherwise line REPL; use `chat`/`repl` for explicit REPL
+
 ### Ship readiness (final polish)
 
 - Docs truth-up: README auth/login (device-code M7), slash list, non-goals, standalone-first paths

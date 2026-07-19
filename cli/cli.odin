@@ -6,9 +6,23 @@ import "core:fmt"
 import "core:os"
 import "core:strconv"
 import "core:strings"
+import "core:sys/posix"
 import "aether:agent"
 import "aether:core"
 import "aether:tui"
+
+// stdin_stdout_tty: true when both ends look like a terminal (safe for TUI).
+stdin_stdout_tty :: proc() -> bool {
+	return bool(posix.isatty(posix.STDIN_FILENO)) && bool(posix.isatty(posix.STDOUT_FILENO))
+}
+
+// default_interactive: bare invoke prefers TUI on a TTY, else line REPL.
+default_interactive :: proc() -> Command {
+	if stdin_stdout_tty() {
+		return .Tui
+	}
+	return .Repl
+}
 
 Command :: enum {
 	None,
@@ -60,7 +74,7 @@ parse :: proc() -> Parse_Result {
 		max_turns = 0,
 	}
 	if len(args) == 0 {
-		result.command = .Repl
+		result.command = default_interactive()
 		return result
 	}
 
@@ -138,12 +152,12 @@ parse :: proc() -> Parse_Result {
 			i += 1
 			result.session_ref = strings.clone(args[i])
 			if result.command == .None {
-				result.command = .Repl
+				result.command = default_interactive()
 			}
 		case "--continue", "-c":
 			result.continue_last = true
 			if result.command == .None {
-				result.command = .Repl
+				result.command = default_interactive()
 			}
 		case "--no-autosave":
 			result.no_autosave = true
@@ -179,7 +193,8 @@ parse :: proc() -> Parse_Result {
 				result.unknown = strings.clone(a)
 				return result
 			}
-			if result.command == .None || result.command == .Repl {
+			// bare prompt after optional flags → headless (even if default would be TUI)
+			if result.command == .None || result.command == .Repl || result.command == .Tui {
 				if result.prompt == "" {
 					result.prompt = strings.clone(a)
 					result.command = .Headless
@@ -205,7 +220,7 @@ parse :: proc() -> Parse_Result {
 		if result.prompt != "" {
 			result.command = .Headless
 		} else {
-			result.command = .Repl
+			result.command = default_interactive()
 		}
 	}
 	return result
@@ -214,12 +229,15 @@ parse :: proc() -> Parse_Result {
 print_help :: proc() {
 	fmt.println(core.PROJECT_NAME, "—", core.DESCRIPTION)
 	fmt.println()
-	fmt.println("Usage:")
-	fmt.println("  aether [flags]                 Interactive multi-turn chat")
-	fmt.println("  aether chat [flags]            Same as interactive")
-	fmt.println("  aether tui [flags]             Fullscreen chat UI")
-	fmt.println("  aether [flags] -p \"prompt\"     One-shot headless turn")
-	fmt.println("  aether login | whoami | help | version")
+	fmt.println("Usage (prefer command name aether-grok on PATH):")
+	fmt.println("  aether-grok                    Fullscreen TUI (TTY; else line REPL)")
+	fmt.println("  aether-grok tui [flags]        Fullscreen chat UI")
+	fmt.println("  aether-grok chat|repl [flags]  Multi-turn line REPL")
+	fmt.println("  aether-grok [flags] -p TEXT    One-shot headless turn")
+	fmt.println("  aether-grok login | whoami | help | version")
+	fmt.println()
+	fmt.println("Also installed: aether-grok-odin, grok-odin (same binary).")
+	fmt.println("Note: plain `aether` may be Arch's desktop theme tool (/usr/bin/aether) — not this product.")
 	fmt.println()
 	fmt.println("Agent flags (auth: XAI_API_KEY or ~/.grok/auth.json):")
 	fmt.println("  -p, --print, --single TEXT   One-shot session, print answer, exit")
@@ -239,7 +257,7 @@ print_help :: proc() {
 	fmt.println("  --no-mcp                     Disable MCP server startup")
 	fmt.println("  --sessions-dir DIR           Override session store")
 	fmt.println()
-	fmt.println("REPL: /help /login /whoami /session /sessions /save /load /new /clear /exit")
+	fmt.println("In TUI/REPL: /help /login /whoami /session /sessions /save /load /new /clear /exit")
 	fmt.println()
 	fmt.println("Other:")
 	fmt.println("  login [--host]               Device-code sign-in (in-process); --host → grok login")
@@ -248,8 +266,8 @@ print_help :: proc() {
 	fmt.println("  version, --version           Print version")
 	fmt.println()
 	fmt.println("Exit codes: 0 ok, 1 usage/auth, 2 max turns, 3 model/HTTP error, 4 cancelled")
-	fmt.println("Auth (R0-A): set XAI_API_KEY (recommended). Or `aether login` device flow (M7).")
-	fmt.println("      Existing ~/.grok/auth.json works. Host grok optional: aether login --host")
+	fmt.println("Auth (R0-A): set XAI_API_KEY (recommended). Or `aether-grok login` device flow (M7).")
+	fmt.println("      Existing ~/.grok/auth.json works. Host grok optional: aether-grok login --host")
 }
 
 print_version :: proc() {
@@ -280,6 +298,10 @@ run :: proc() -> int {
 		print_help()
 		return 0
 	case .None:
+		// Should be filled by parse(); default interactive if not
+		if default_interactive() == .Tui {
+			return tui.run(opts)
+		}
 		return agent.run_repl(opts)
 	case .Version:
 		print_version()

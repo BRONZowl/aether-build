@@ -29,12 +29,13 @@ else
   _AETHER_WRAP="$_AETHER_DIR/bin/aether"
 fi
 
-# Product names (safe; do not clobber Rust grok)
+# Product names (safe; do not clobber Rust grok or Arch theme `aether`)
+alias aether-grok="$_AETHER_WRAP"
 alias aether-grok-odin="$_AETHER_WRAP"
 alias grok-odin="$_AETHER_WRAP"
 
 # Short name only if it won't hide a foreign `aether` (e.g. Arch theme tool).
-# Check the existing on-PATH binary (not our wrapper) before aliasing.
+# Prefer aether-grok as the daily command when short name is unavailable.
 if ! command -v aether >/dev/null 2>&1; then
   alias aether="$_AETHER_WRAP"
 else
@@ -42,7 +43,7 @@ else
   _aether_ver="$("$_aether_existing" --version 2>/dev/null | head -1 || true)"
   case "$_aether_ver" in
     aether-grok*|Aether-Grok*) alias aether="$_AETHER_WRAP" ;;
-    *) ;; # leave system/foreign aether alone
+    *) ;; # leave system/foreign aether alone (theme generator, etc.)
   esac
   unset _aether_existing _aether_ver
 fi
