@@ -2,6 +2,7 @@ package agent
 
 import "core:os"
 import "core:strings"
+import "core:sync"
 import "core:testing"
 
 @(test)
@@ -69,6 +70,51 @@ test_goal_slash_status_and_clear :: proc(t: ^testing.T) {
 	defer delete(cl)
 	testing.expect(t, strings.contains(cl, "cleared"))
 	testing.expect(t, goal_chip() == "")
+}
+
+@(test)
+test_parse_goal_budget :: proc(t: ^testing.T) {
+	o, b := parse_goal_budget("implement X --budget 500000")
+	testing.expect(t, o == "implement X")
+	testing.expect(t, b == 500_000)
+	o2, b2 := parse_goal_budget("implement X")
+	testing.expect(t, o2 == "implement X")
+	testing.expect(t, b2 == 0)
+	// not trailing
+	o3, b3 := parse_goal_budget("use --budget 10 carefully")
+	testing.expect(t, b3 == 0)
+	// multi-token tail ignored
+	o4, b4 := parse_goal_budget("obj --budget 10 more")
+	testing.expect(t, b4 == 0)
+	_ = o3
+	_ = o4
+}
+
+@(test)
+test_goal_budget_pause :: proc(t: ^testing.T) {
+	goal_clear()
+	defer goal_clear()
+	goal_activate("tiny", 5) // 5 tokens ≈ 20 chars
+	msgs := make([dynamic]Chat_Message, 0, 4, context.allocator)
+	defer {
+		for m in msgs {
+			delete(m.content)
+		}
+		delete(msgs)
+	}
+	// latch baseline
+	n1 := goal_check_budget(msgs[:])
+	testing.expect(t, n1 == "")
+	// grow past budget
+	append(&msgs, Chat_Message{role = .User, content = strings.clone("xxxxxxxxxxxxxxxxxxxx")}) // 20 chars = 5 tokens
+	append(&msgs, Chat_Message{role = .Assistant, content = strings.clone("yyyyyyyyyyyyyyyyyyyy")}) // +20
+	n2 := goal_check_budget(msgs[:])
+	testing.expect(t, strings.contains(n2, "budget exhausted") || strings.contains(n2, "paused") || n2 != "")
+	// status should be paused if over
+	sync.mutex_lock(&g_goal_mu)
+	st := g_goal.status
+	sync.mutex_unlock(&g_goal_mu)
+	testing.expect(t, st == .Paused || n2 != "")
 }
 
 @(test)

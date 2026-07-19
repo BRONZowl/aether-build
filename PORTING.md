@@ -414,7 +414,7 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | Epic | Title | State |
 |------|--------|--------|
 | **M1** | Folder trust + `/hooks trust\|untrust` | **Complete** |
-| **M2** | Goal `--budget` orchestrator residual | None |
+| **M2** | Goal `--budget` orchestrator residual | **Complete** |
 | **M10** | `/create-skill` scaffold | None |
 | **M3** | MCP browser OAuth enroll | None |
 | **M7** | In-process login R0-B | None |

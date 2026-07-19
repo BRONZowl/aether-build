@@ -7,6 +7,7 @@ import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
 import "core:os"
+import "core:strconv"
 import "core:strings"
 import "core:sync"
 import "aether:tools"
@@ -22,10 +23,14 @@ Goal_Status :: enum {
 }
 
 Goal_State :: struct {
-	status:    Goal_Status,
-	objective: string, // owned (heap)
-	progress:  [dynamic]string, // owned lines
-	blocked:   string, // owned
+	status:         Goal_Status,
+	objective:      string, // owned (heap)
+	progress:       [dynamic]string, // owned lines
+	blocked:        string, // owned
+	// M2: optional token budget (Grok /goal --budget). 0 = no budget.
+	token_budget:   i64,
+	// Tokens (chars/4) at goal set / first check; -1 until latched.
+	token_baseline: i64,
 }
 
 g_goal_mu: sync.Mutex
@@ -110,8 +115,8 @@ goal_append_progress :: proc(msg: string) {
 	}
 }
 
-// goal_activate sets objective and Active status.
-goal_activate :: proc(objective: string) {
+// goal_activate sets objective and Active status. budget 0 = unlimited.
+goal_activate :: proc(objective: string, budget: i64 = 0) {
 	ha := runtime.heap_allocator()
 	sync.mutex_lock(&g_goal_mu)
 	defer sync.mutex_unlock(&g_goal_mu)
@@ -125,6 +130,8 @@ goal_activate :: proc(objective: string) {
 	g_goal.objective = strings.clone(strings.trim_space(objective), ha)
 	g_goal.blocked = ""
 	g_goal.status = .Active
+	g_goal.token_budget = budget if budget > 0 else 0
+	g_goal.token_baseline = -1 // latch on first budget check
 }
 
 goal_clear :: proc() {
@@ -141,6 +148,41 @@ goal_clear :: proc() {
 	g_goal.objective = ""
 	g_goal.blocked = ""
 	g_goal.status = .Inactive
+	g_goal.token_budget = 0
+	g_goal.token_baseline = -1
+}
+
+// parse_goal_budget: trailing `--budget <positive int>` only (Grok rules).
+// Returns cleaned objective + optional budget.
+parse_goal_budget :: proc(trimmed: string) -> (objective: string, budget: i64) {
+	// rsplit once on --budget
+	idx := strings.last_index(trimmed, "--budget")
+	if idx < 0 {
+		return trimmed, 0
+	}
+	head := strings.trim_space(trimmed[:idx])
+	tail := strings.trim_space(trimmed[idx + len("--budget"):])
+	// flag must be own token: whitespace before --budget (or start) and after
+	if idx > 0 && trimmed[idx - 1] != ' ' && trimmed[idx - 1] != '\t' {
+		return trimmed, 0
+	}
+	if head == "" || tail == "" {
+		return trimmed, 0
+	}
+	// tail must be single all-digit token
+	if strings.contains(tail, " ") || strings.contains(tail, "\t") {
+		return trimmed, 0
+	}
+	for i in 0 ..< len(tail) {
+		if tail[i] < '0' || tail[i] > '9' {
+			return trimmed, 0
+		}
+	}
+	n, ok := strconv.parse_i64(tail)
+	if !ok || n <= 0 {
+		return trimmed, 0
+	}
+	return head, n
 }
 
 goal_status_text :: proc(allocator := context.allocator) -> string {
@@ -156,6 +198,16 @@ goal_status_text :: proc(allocator := context.allocator) -> string {
 		goal_status_string(g_goal.status),
 		g_goal.objective,
 	)
+	if g_goal.token_budget > 0 {
+		used: i64 = 0
+		if g_goal.token_baseline >= 0 {
+			// cannot compute without msgs here; show budget limit only
+			fmt.sbprintf(&b, "token_budget: %d (used tracked after agent turns)\n", g_goal.token_budget)
+		} else {
+			fmt.sbprintf(&b, "token_budget: %d (not yet counted)\n", g_goal.token_budget)
+		}
+		_ = used
+	}
 	if g_goal.blocked != "" {
 		fmt.sbprintf(&b, "blocked_reason: %s\n", g_goal.blocked)
 	}
@@ -235,7 +287,11 @@ goal_snapshot_json_object :: proc(allocator := context.allocator) -> string {
 		strings.write_string(&b, goal_json_escape(p, context.temp_allocator))
 		strings.write_byte(&b, '"')
 	}
-	strings.write_string(&b, `]}`)
+	strings.write_string(&b, `],"token_budget":`)
+	fmt.sbprintf(&b, "%d", g_goal.token_budget)
+	strings.write_string(&b, `,"token_baseline":`)
+	fmt.sbprintf(&b, "%d", g_goal.token_baseline)
+	strings.write_string(&b, `}`)
 	return strings.to_string(b)
 }
 
@@ -306,6 +362,83 @@ goal_restore_from_json_object :: proc(obj: json.Object) {
 		delete(g_goal.progress[0], ha)
 		ordered_remove(&g_goal.progress, 0)
 	}
+
+	g_goal.token_budget = 0
+	g_goal.token_baseline = -1
+	if v, has := obj["token_budget"]; has {
+		if n, is_n := v.(json.Integer); is_n && n > 0 {
+			g_goal.token_budget = i64(n)
+		} else if f, is_f := v.(json.Float); is_f && f > 0 {
+			g_goal.token_budget = i64(f)
+		}
+	}
+	if v, has := obj["token_baseline"]; has {
+		if n, is_n := v.(json.Integer); is_n {
+			g_goal.token_baseline = i64(n)
+		} else if f, is_f := v.(json.Float); is_f {
+			g_goal.token_baseline = i64(f)
+		}
+	}
+}
+
+// goal_check_budget: after an agent turn, pause if session token use since
+// baseline exceeds token_budget. Returns system-reminder text or "".
+goal_check_budget :: proc(msgs: []Chat_Message) -> string {
+	if !goal_enabled() {
+		return ""
+	}
+	sync.mutex_lock(&g_goal_mu)
+	defer sync.mutex_unlock(&g_goal_mu)
+	if g_goal.status != .Active || g_goal.token_budget <= 0 {
+		return ""
+	}
+	cur := i64(estimate_tokens(estimate_message_chars(msgs)))
+	if g_goal.token_baseline < 0 {
+		g_goal.token_baseline = cur
+		return ""
+	}
+	used := cur - g_goal.token_baseline
+	if used < 0 {
+		used = 0
+	}
+	if used < g_goal.token_budget {
+		return ""
+	}
+	g_goal.status = .Paused
+	return fmt.tprintf(
+		"<system-reminder>Goal token budget exhausted: used≈%d / budget=%d. Goal paused. Use /goal resume (optionally raise budget by /goal <obj> --budget N) to continue.</system-reminder>",
+		used,
+		g_goal.token_budget,
+	)
+}
+
+// goal_budget_status_line for /goal status with live usage (needs msgs).
+goal_budget_status_extra :: proc(msgs: []Chat_Message, allocator := context.allocator) -> string {
+	sync.mutex_lock(&g_goal_mu)
+	defer sync.mutex_unlock(&g_goal_mu)
+	if g_goal.token_budget <= 0 {
+		return ""
+	}
+	cur := i64(estimate_tokens(estimate_message_chars(msgs)))
+	base := g_goal.token_baseline
+	used: i64 = 0
+	if base >= 0 {
+		used = cur - base
+		if used < 0 {
+			used = 0
+		}
+	}
+	note := " (not yet latched)"
+	if base >= 0 {
+		note = " (baseline latched)"
+	}
+	return fmt.aprintf(
+		"token_budget: used≈%d / %d%s\n",
+		used,
+		g_goal.token_budget,
+		note,
+		allocator = allocator,
+	)
 }
 
 // goal_restore_from_json_text for tests.
@@ -470,10 +603,28 @@ handle_goal_slash :: proc(arg: string, allocator := context.allocator) -> string
 		g_goal.status = .Active
 		return strings.clone("aether: goal resumed", allocator)
 	}
-	// treat as new objective
+	// treat as new objective [ --budget N ]
 	if len(a) < 2 {
-		return strings.clone("aether: usage: /goal <objective> | status | pause | resume | clear", allocator)
+		return strings.clone(
+			"aether: usage: /goal <objective> [--budget <tokens>] | status | pause | resume | clear",
+			allocator,
+		)
 	}
-	goal_activate(a)
-	return fmt.aprintf("aether: goal set — %s", a, allocator = allocator)
+	obj, budget := parse_goal_budget(a)
+	if len(obj) < 2 {
+		return strings.clone(
+			"aether: usage: /goal <objective> [--budget <tokens>] | status | pause | resume | clear",
+			allocator,
+		)
+	}
+	goal_activate(obj, budget)
+	if budget > 0 {
+		return fmt.aprintf(
+			"aether: goal set — %s (token budget %d)",
+			obj,
+			budget,
+			allocator = allocator,
+		)
+	}
+	return fmt.aprintf("aether: goal set — %s", obj, allocator = allocator)
 }

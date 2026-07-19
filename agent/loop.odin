@@ -283,6 +283,11 @@ run_agent_turn :: proc(
 				fmt.println(text)
 			}
 			hooks.run_stop_hooks(opts.workspace, "completed")
+			if note := goal_check_budget(msgs[:]); note != "" {
+				append(msgs, Chat_Message{role = .System, content = strings.clone(note)})
+				emit_history(opts)
+				emit_status(opts, "goal budget exhausted — paused")
+			}
 			finish_plan_mode_turn()
 			return text, 0
 		}
@@ -353,6 +358,11 @@ run_agent_turn :: proc(
 			"aether: max tool iterations (%d); history kept — continue or /clear\n",
 			turns,
 		)
+	}
+	if note := goal_check_budget(msgs[:]); note != "" {
+		append(msgs, Chat_Message{role = .System, content = strings.clone(note)})
+		emit_history(opts)
+		emit_status(opts, "goal budget exhausted — paused")
 	}
 	finish_plan_mode_turn()
 	return "", 2

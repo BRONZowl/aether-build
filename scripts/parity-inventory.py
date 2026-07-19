@@ -88,7 +88,7 @@ SLASH_MAP = [
     ("reload-plugins", [], "N/A — marketplace Drop (R3a)"),
     ("session-info", ["/session", "/session-info", "/status"], "Full"),
     ("feedback", ["/feedback"], "Full — local JSONL; remote API N/A"),
-    ("goal", ["/goal"], "Full — token-budget orchestrator residual N/A"),
+    ("goal", ["/goal"], "Full — --budget N + pause (M2)"),
     ("loop", ["/loop"], "Full"),
 ]
 
