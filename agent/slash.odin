@@ -755,6 +755,10 @@ run_slash :: proc(
 			}
 		}
 		return .Continue
+	case "/create-skill", "/createskill", "/new-skill":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		emit(out, handle_create_skill_slash(arg, ws, context.temp_allocator))
+		return .Continue
 	case "/skills":
 		arg_l := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
 		if arg_l == "reload" || arg_l == "refresh" {

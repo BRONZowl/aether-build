@@ -197,7 +197,7 @@ make -C aether build vet test smoke-tui
 | Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; full mermaid layout engine **N/A** (fence labels ship) |
 | Markdown render | `xai-grok-markdown*` | `tui/markdown` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; mermaid chrome only |
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + in-process doctor; browser OAuth **N/A** |
-| Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; marketplace **N/A** |
+| Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
 | Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`); OS sandbox **N/A** until M6 |
 | Plugins / marketplace | plugin crates | — | **N/A** | R3a Drop — not on Odin ship path; reopen as Port if product needs plugins |
@@ -235,7 +235,7 @@ make -C aether build vet test smoke-tui
 | `lsp` | Full | 7 ops incl. **diagnostics** (B10–B12: multi-file `paths[]`, `timeout_ms`, `errors_only`/`min_severity`, publishDiagnostics cache + pull); hover fence + caps + relative paths; A1.7b |
 | `monitor` | Full | Lines + rate limit + persistent/timeout; session terminal log; sandbox N/A; A1.8b |
 | `scheduler_*` | Full | Durable + fire inject; list missed/relative next_fire; multi-client N/A; A1.11a |
-| `update_goal` | Full | Session-durable goal state; classifier/auto-pause **and** Grok `/goal --budget` token orchestrator **N/A**; A1.10a |
+| `update_goal` | Full | Session-durable goal state; **M2** `/goal --budget` pause; multi-agent classifier residual N/A; A1.10a |
 | `image_gen` / `image_edit` | Full | Compress + `[Image #N]` registry; path/clipboard paste + multimodal chat (M1); A1.9 |
 | `image_to_video` / `reference_to_video` | Full | Token/path resolve via registry; ZDR/tier N/A; A1.9 |
 | `spawn_subagent` / `task` | Full | explore/plan/gp + bg + resume + worktree; `task` alias; personas N/A; A1.11c |
@@ -266,7 +266,7 @@ make -C aether build vet test smoke-tui
 | `/settings` `/config` | `/config` `/settings` `/preferences` `/prefs` | Full | **B34** effective settings dump (no modal; no secrets) |
 | `/feedback` | `/feedback` | Full | local JSONL; remote API N/A |
 | `/btw` | `/btw` | Full | local notice only (not model) |
-| `/goal` | `/goal` | Full | session-durable (status/pause/resume/clear); **token `--budget` orchestrator N/A** |
+| `/goal` | `/goal` | Full | session-durable (status/pause/resume/clear); **M2** trailing `--budget N` + pause on exhaustion |
 | `/loop` | `/loop` | Full | scheduler-backed |
 | `/imagine` | `/imagine` | Full | image_gen |
 | `/imagine-video` | `/imagine-video` | Full | image_to_video host; ref + optional prompt; C1.1 |
@@ -415,7 +415,7 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 |------|--------|--------|
 | **M1** | Folder trust + `/hooks trust\|untrust` | **Complete** |
 | **M2** | Goal `--budget` orchestrator residual | **Complete** |
-| **M10** | `/create-skill` scaffold | None |
+| **M10** | `/create-skill` scaffold | **Complete** |
 | **M3** | MCP browser OAuth enroll | None |
 | **M7** | In-process login R0-B | None |
 | **M4** | Plugins / marketplace basics | None |
