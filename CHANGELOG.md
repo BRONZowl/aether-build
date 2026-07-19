@@ -19,7 +19,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ### Visual parity (V1)
 
-- Grok Build–parity welcome layout; Aether A×X monogram (Avengers A + SpaceX X)
+- Grok Build–parity welcome layout; clean A×X geometric monogram (Avengers A + SpaceX X)
 - Empty TUI welcome, REPL startup banner, `/about` art
 - `AETHER_NO_ASCII_ART` / `AETHER_ASCII_ART`; `/features` row `ascii-art`
 

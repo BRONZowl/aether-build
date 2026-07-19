@@ -44,7 +44,7 @@ test_brand_art_disabled :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_brand_art_unique_a_monogram :: proc(t: ^testing.T) {
+test_brand_art_ax_monogram :: proc(t: ^testing.T) {
 	prev := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator)
 	_ = os.unset_env("AETHER_NO_ASCII_ART")
 	_ = os.unset_env("AETHER_ASCII_ART")
@@ -57,21 +57,22 @@ test_brand_art_unique_a_monogram :: proc(t: ^testing.T) {
 	testing.expect(t, len(full) == BRAND_FULL_CELLS_H)
 	for line in full {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_FULL_CELLS_W)
-		for r in line {
-			testing.expect(t, r >= 0x2800 && r <= 0x28FF)
-		}
 	}
-	// Distinct from Grok logo07
-	testing.expect(t, full[0] != `⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`)
-	// Avengers A × SpaceX X monogram
-	testing.expect(t, full[0] == `⠀⠀⠀⠀⠀⣀⣤⠶⢛⡛⠶⣤⣀⠀⠀⠀⠀⠀`)
+	// Geometric peak A
+	joined := strings.join(full, "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "╱") && strings.contains(joined, "╲"))
+	// SpaceX-style X through the mark
+	testing.expect(t, strings.contains(joined, "╳"))
+	// Not Grok braille logo
+	testing.expect(t, !strings.contains(joined, "⣿"))
 
 	small := brand_art_lines(.Small)
 	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)
 	for line in small {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_SMALL_CELLS_W)
 	}
-	testing.expect(t, small[0] == `⣀⣤⢶⣻⣟⡶⣤⣀`)
+	small_j := strings.join(small, "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(small_j, "╳"))
 }
 
 @(test)

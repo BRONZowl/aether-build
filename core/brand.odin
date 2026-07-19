@@ -1,8 +1,8 @@
 // Package core — Aether brand / welcome art.
 //
 // Welcome *layout* follows Grok Build (stacked / hero, height tiers, menu).
-// Glyph: original Aether monogram — Avengers sharp "A" peak fused with a
-// SpaceX/xAI-style X through the center (clean tech strokes, not Grok's mark).
+// Glyph: clean geometric line monogram — Avengers-style peak "A" with a
+// SpaceX-style X through the center (Unicode strokes; not Braille mud, not Grok).
 package core
 
 import "core:fmt"
@@ -19,10 +19,10 @@ BRAND_FULL_MIN_COLS :: 28
 // Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
 BRAND_HERO_MIN_COLS :: 90
 
-// Monogram canvas (braille cells).
-BRAND_FULL_CELLS_W :: 18
+// Monogram canvas (display columns / rows). All full lines share the same width.
+BRAND_FULL_CELLS_W :: 14
 BRAND_FULL_CELLS_H :: 6
-BRAND_SMALL_CELLS_W :: 8
+BRAND_SMALL_CELLS_W :: 7
 BRAND_SMALL_CELLS_H :: 3
 
 Brand_Tier :: enum {
@@ -32,21 +32,22 @@ Brand_Tier :: enum {
 	Full,
 }
 
-// Full mark — Avengers A × SpaceX X: sharp peak legs + diagonal X through the A.
+// Full mark — Avengers peak A × SpaceX X (clean geometric Unicode).
+// Fixed 14-col lines so centering is even.
 BRAND_ART_FULL := [6]string {
-	`⠀⠀⠀⠀⠀⣀⣤⠶⢛⡛⠶⣤⣀⠀⠀⠀⠀⠀`,
-	`⠀⣀⣤⠶⢛⣩⡴⠞⠋⠙⠳⢦⣍⡛⠶⣤⣀⠀`,
-	`⣿⣿⢴⣾⡋⠁⠀⠀⠀⠀⠀⠀⠈⢙⣷⡦⣿⣿`,
-	`⣿⣿⠀⠈⠙⠳⢦⣄⡀⢀⣠⡴⠞⠋⠁⠀⣿⣿`,
-	`⣿⣿⠀⠀⠀⠀⠀⠈⠙⠛⠃⠀⠀⠀⠀⠀⣿⣿`,
-	`⣿⣿⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣿⣿`,
+	`      ╱╲      `,
+	`     ╱╳ ╲     `,
+	`    ╱ ╳  ╲    `,
+	`   ╱  ╳   ╲   `,
+	`  ╱────╳────╲ `,
+	` ╱          ╲ `,
 }
 
-// Small mark — compact A×X monogram.
+// Small mark — compact A×X (fixed 7-col).
 BRAND_ART_SMALL := [3]string {
-	`⣀⣤⢶⣻⣟⡶⣤⣀`,
-	`⣿⡗⠿⣭⣀⢉⣿⡿`,
-	`⣿⡇⠀⠀⠉⠛⣿⣤`,
+	`  ╱╲   `,
+	` ╱╳ ╲  `,
+	`╱──╳──╲`,
 }
 
 BRAND_ART_CHIP :: "◇ aether · odin"
