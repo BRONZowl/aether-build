@@ -17,13 +17,15 @@ composer_use_box :: proc(cols: int) -> bool {
 	return !core.compact_mode_enabled() && cols >= 28
 }
 
-// composer_frame_rows: top/bottom border rows around the prompt (0 in compact).
+// composer_frame_rows: chrome rows around the prompt text.
+// Boxed: blank pad + top border + bottom border (Grok vpad + rails).
+// Compact: none. Narrow non-compact: dim info line only under field.
 composer_frame_rows :: proc(s: ^App_State, cols: int) -> (top, bottom: int) {
 	_ = s
 	if composer_use_box(cols) {
-		return 1, 1
+		// 1 blank gap above box + 1 top rail; 1 bottom rail with caption
+		return 2, 1
 	}
-	// compact / narrow: keep a single dim info line under the field
 	if core.compact_mode_enabled() {
 		return 0, 0
 	}
@@ -208,41 +210,69 @@ format_composer_info :: proc(s: ^App_State) -> string {
 	return fmt.tprintf("%s · %s", model, mode)
 }
 
-// format_composer_top_border: ╭────╮ for cols width.
-format_composer_top_border :: proc(cols: int) -> string {
+// format_composer_top_border: ╭──── title ─╮ with title right-aligned (2 cells before ╮).
+// Matches Grok chrome caption placement on the top rail.
+format_composer_top_border :: proc(cols: int, title: string = "") -> string {
 	w := max(4, cols)
-	b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&b, "╭")
-	for i in 0 ..< (w - 2) {
-		_ = i
-		strings.write_string(&b, "─")
-	}
-	strings.write_string(&b, "╮")
-	return strings.to_string(b)
+	return format_box_rail(w, "╭", "╮", title, .Right)
 }
 
-// format_composer_bottom_border: ╰─ caption ───╯ (Grok bottom divider with model · flags).
+// format_composer_bottom_border: ╰──── caption ─╯ with caption right-aligned.
+// Matches Grok bottom divider (model · mode near the right end).
 format_composer_bottom_border :: proc(cols: int, caption: string) -> string {
 	w := max(4, cols)
+	return format_box_rail(w, "╰", "╯", caption, .Right)
+}
+
+Rail_Align :: enum {
+	Left,
+	Right,
+}
+
+// format_box_rail: open + dashes + optional " label " + dashes + close, total width cols.
+// Label is right-aligned with 2 cells of border before the close corner (Grok).
+format_box_rail :: proc(
+	cols: int,
+	open, close: string,
+	caption: string,
+	align: Rail_Align,
+) -> string {
+	w := max(4, cols)
+	avail := w - 2 // between corners
 	cap := strings.trim_space(caption)
 	b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&b, "╰")
-	avail := w - 2 // corners ╰ ╯
+	strings.write_string(&b, open)
 	if cap == "" {
 		for i in 0 ..< avail {
 			_ = i
 			strings.write_string(&b, "─")
 		}
-		strings.write_string(&b, "╯")
+		strings.write_string(&b, close)
 		return strings.to_string(b)
 	}
 	label := fmt.tprintf(" %s ", cap)
-	if utf8.rune_count(label) + 1 > avail {
-		label = fmt.tprintf(" %s ", truncate_runes(cap, max(1, avail - 3)))
+	// Keep ≥2 dash cells at the trailing end before ╮/╯ (Grok inset).
+	max_label := avail - 2
+	if max_label < 3 {
+		max_label = max(1, avail - 1)
+	}
+	if utf8.rune_count(label) > max_label {
+		// truncate caption body inside spaces
+		inner_max := max(1, max_label - 2)
+		label = fmt.tprintf(" %s ", truncate_runes(cap, inner_max))
 	}
 	lw := utf8.rune_count(label)
-	dashes_left := 1
-	dashes_right := max(0, avail - dashes_left - lw)
+	dashes_total := max(0, avail - lw)
+	dashes_left, dashes_right: int
+	switch align {
+	case .Right:
+		// right-align: most dashes left, 2 (or remaining) right of label
+		dashes_right = min(2, dashes_total)
+		dashes_left = dashes_total - dashes_right
+	case .Left:
+		dashes_left = min(1, dashes_total)
+		dashes_right = dashes_total - dashes_left
+	}
 	for i in 0 ..< dashes_left {
 		_ = i
 		strings.write_string(&b, "─")
@@ -252,8 +282,37 @@ format_composer_bottom_border :: proc(cols: int, caption: string) -> string {
 		_ = i
 		strings.write_string(&b, "─")
 	}
-	strings.write_string(&b, "╯")
+	strings.write_string(&b, close)
 	return strings.to_string(b)
+}
+
+// composer_session_title: short title for top rail (empty if untitled).
+composer_session_title :: proc(s: ^App_State) -> string {
+	t := strings.trim_space(s.session_title)
+	if t == "" {
+		return ""
+	}
+	// keep rail readable
+	if utf8.rune_count(t) > 32 {
+		return truncate_runes(t, 32)
+	}
+	return t
+}
+
+// composer_border_ansi: stronger when prompt focused, dim when scrollback-focused.
+composer_border_ansi :: proc(focused: bool, th: Theme) -> string {
+	if focused {
+		// bold + user accent when available
+		if th.user != "" {
+			return strings.concatenate({th.bold if th.bold != "" else "\x1b[1m", th.user}, context.temp_allocator)
+		}
+		return th.bold if th.bold != "" else "\x1b[1m"
+	}
+	// unfocused: muted
+	if th.dim != "" {
+		return th.dim
+	}
+	return "\x1b[2m"
 }
 
 // format_composer_side_row: "│ " + content padded + "│" to cols (tests / helpers).

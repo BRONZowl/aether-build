@@ -613,9 +613,10 @@ write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: 
 }
 
 // write_input paints the Grok-shaped composer:
-//   ╭────────────╮          (optional box top)
+//   (blank pad)
+//   ╭──── title ─╮
 //   │  ❯ text…   │
-//   ╰─ model · mode ─╯      (optional box bottom with caption)
+//   ╰──── model · mode ─╯   (caption right-aligned)
 // Compact / narrow: plain ❯ lines + optional dim info under.
 write_input :: proc(
 	b: ^strings.Builder,
@@ -626,7 +627,8 @@ write_input :: proc(
 	frame_bot: int,
 	screen_rows: int,
 ) {
-	use_box := frame_top > 0 && frame_bot > 0
+	// Boxed when we have a bottom rail and at least one top chrome row
+	use_box := frame_bot > 0 && frame_top > 0 && composer_use_box(cols)
 	// Inner content width for text wrapping
 	// box: "│ " + content + " │" → content cols-4; first line uses "❯ " (2) inside content
 	// plain: full width for "❯ " + text
@@ -709,21 +711,29 @@ write_input :: proc(
 		cur_col = prefix_cols
 	}
 
-	// Theme accents
+	// Theme accents — stronger border when prompt focused
 	th := active_theme()
 	focus_on := s.focus == .Prompt
 	prefix_ansi := th.user if th.user != "" else th.bold
 	if prefix_ansi == "" {
 		prefix_ansi = "\x1b[1m"
 	}
-	border_ansi := th.dim if th.dim != "" else "\x1b[2m"
-	if focus_on && th.user != "" {
-		border_ansi = th.user
-	}
+	border_ansi := composer_border_ansi(focus_on, th)
 
-	// --- top border ---
+	// --- vertical pad + top border (frame_top: 2 = blank + rail, 1 = rail only) ---
 	if frame_top > 0 {
-		top := format_composer_top_border(cols)
+		pad_rows := frame_top - 1 // blank lines above the rail
+		for pi in 0 ..< pad_rows {
+			_ = pi
+			// empty gap above the box (Grok vpad)
+			for i in 0 ..< cols {
+				_ = i
+				strings.write_byte(b, ' ')
+			}
+			strings.write_string(b, "\r\n")
+		}
+		title := composer_session_title(s)
+		top := format_composer_top_border(cols, title)
 		strings.write_string(b, border_ansi)
 		n := write_fit(b, top, cols)
 		strings.write_string(b, "\x1b[0m")
