@@ -2297,19 +2297,85 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 }
 
 // peek_is_shift_tab recognizes common Shift+Tab CSI sequences in a raw buffer.
+// Classic: ESC [ Z  / ESC [ 1 ; 2 Z
+// Kitty CSI-u (keyboard enhancement): ESC [ 9 ; 2 u  (Tab + shift)
+// modifyOtherKeys: ESC [ 27 ; 2 ; 9 ~
 peek_is_shift_tab :: proc(buf: []u8) -> bool {
-	// ESC [ Z
-	if len(buf) >= 3 && buf[0] == 0x1b && buf[1] == '[' && buf[len(buf) - 1] == 'Z' {
-		return true
+	if len(buf) < 3 || buf[0] != 0x1b {
+		return false
 	}
-	// Kitty / CSI-u Tab with shift: ESC [ 9 ; 2 u  (optional future)
-	// Also bare Z after partial — only accept full CSI starting with ESC
-	if len(buf) >= 3 && buf[0] == 0x1b {
-		// any ESC [ ... Z
-		if buf[1] == '[' {
-			for i in 2 ..< len(buf) {
-				if buf[i] == 'Z' {
+	// SS3 form is not used for Shift+Tab
+	if buf[1] != '[' {
+		return false
+	}
+	// any ESC [ ... Z (classic backtab)
+	for i in 2 ..< len(buf) {
+		if buf[i] == 'Z' {
+			return true
+		}
+	}
+	// CSI-u: ... 9 ; <mods> u with shift bit in mods (mods-1 & 1)
+	// Minimal: ends with 'u' and contains "9;" with shift-like second field
+	if buf[len(buf) - 1] == 'u' {
+		// scan for "9;" then a mods number that includes shift
+		for i in 2 ..< len(buf) - 1 {
+			if buf[i] == '9' && i + 1 < len(buf) && buf[i + 1] == ';' {
+				// parse mods until 'u' or non-digit
+				mods := 0
+				j := i + 2
+				for j < len(buf) && buf[j] >= '0' && buf[j] <= '9' {
+					mods = mods * 10 + int(buf[j] - '0')
+					j += 1
+				}
+				// expect final 'u' (possibly more params after mods; rare for Tab)
+				if mods > 0 && ((mods - 1) & 1) != 0 {
 					return true
+				}
+				// also accept ESC [ 9 ; 2 u exactly when j lands on 'u'
+				if j < len(buf) && buf[j] == 'u' && mods > 0 && ((mods - 1) & 1) != 0 {
+					return true
+				}
+			}
+		}
+		// bare ESC [ 9 u is Tab, not Shift+Tab
+	}
+	// modifyOtherKeys: ESC [ 27 ; 2 ; 9 ~
+	if buf[len(buf) - 1] == '~' {
+		// look for 27;...;9~
+		// simple substring check on the CSI body
+		body := string(buf[2:len(buf) - 1]) // between [ and ~
+		// "27;2;9" or "27;3;9" etc. with shift bit
+		if len(body) >= 6 && body[0] == '2' && body[1] == '7' {
+			// parse 27;mods;code
+			// naive: ends with ";9"
+			if len(body) >= 2 && body[len(body) - 2] == ';' && body[len(body) - 1] == '9' {
+				// find mods between first and second ;
+				// body = "27;MODS;9"
+				semi1 := -1
+				semi2 := -1
+				for i in 0 ..< len(body) {
+					if body[i] == ';' {
+						if semi1 < 0 {
+							semi1 = i
+						} else {
+							semi2 = i
+							break
+						}
+					}
+				}
+				if semi1 > 0 && semi2 > semi1 {
+					mods := 0
+					ok := true
+					for i in semi1 + 1 ..< semi2 {
+						if body[i] < '0' || body[i] > '9' {
+							ok = false
+							break
+						}
+						mods = mods * 10 + int(body[i] - '0')
+					}
+					if ok && mods > 0 && ((mods - 1) & 1) != 0 {
+						return true
+					}
 				}
 			}
 		}

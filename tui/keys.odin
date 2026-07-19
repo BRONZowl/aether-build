@@ -437,6 +437,8 @@ csi_arrow_shift :: proc(params: string) -> bool {
 
 // decode_csi_u: "13" or "13;2" or "109;5" → key
 // mods: 1=none, 2=shift, 3=alt, 4=shift+alt, 5=ctrl, ...
+// Kitty progressive enhancement (term_enter pushes \x1b[=1u) reports modified
+// keys as CSI-u — Shift+Tab is typically ESC [ 9 ; 2 u (not classic CSI Z).
 decode_csi_u :: proc(params: string) -> Key {
 	code, mods := parse_two_params(params)
 	shift := (mods > 0) && ((mods - 1) & 1) != 0
@@ -457,6 +459,14 @@ decode_csi_u :: proc(params: string) -> Key {
 			return Key{kind = .Enter}
 		}
 		return Key{kind = .Enter}
+	}
+	// Tab = 9 — bare Tab or Shift+Tab (Grok mode cycle)
+	if code == 9 {
+		if shift {
+			return Key{kind = .Shift_Tab}
+		}
+		// Ctrl/Alt+Tab unused — treat as Tab
+		return Key{kind = .Tab}
 	}
 	if code == 27 {
 		return Key{kind = .Esc}
@@ -605,7 +615,7 @@ decode_csi_tilde :: proc(params: string) -> Key {
 			return Key{kind = .Unknown}
 		}
 	}
-	// 27 ; mods ; keycode ~
+	// 27 ; mods ; keycode ~  (xterm modifyOtherKeys)
 	if len(parts) >= 3 && parts[0] == 27 {
 		mods := parts[1]
 		code := parts[2]
@@ -617,6 +627,13 @@ decode_csi_tilde :: proc(params: string) -> Key {
 				return Key{kind = .Mod_Enter}
 			}
 			return Key{kind = .Enter}
+		}
+		// Tab = 9 (Shift+Tab when shift bit set)
+		if code == 9 {
+			if shift {
+				return Key{kind = .Shift_Tab}
+			}
+			return Key{kind = .Tab}
 		}
 		if ctrl && (code == 109 || code == 77) {
 			return Key{kind = .Ctrl_M}
