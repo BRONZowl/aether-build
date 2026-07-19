@@ -243,60 +243,17 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 // B91: infracost estimate (breakdown/diff/output; not configure/auth/upload/comment).
 bash_infracost_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-v" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
 	// --out-file report
 	if bash_infracost_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// inspect
-		if sub == "breakdown" ||
-		   sub == "diff" ||
-		   sub == "output" ||
-		   sub == "estimate" ||
-		   sub == "validate" ||
-		   sub == "completion" ||
-		   sub == "version" ||
-		   sub == "help" {
-			if sub == "completion" {
-				return false
-			}
-			return true
-		}
-		// mutators / auth / PR side effects
-		if sub == "configure" ||
-		   sub == "auth" ||
-		   sub == "upload" ||
-		   sub == "comment" ||
-		   sub == "register" ||
-		   sub == "login" ||
-		   sub == "logout" {
-			return false
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {"breakdown", "diff", "output", "estimate", "validate", "version", "help"},
+		deny = {
+			"completion", "configure", "auth", "upload", "comment", "register", "login", "logout",
+		},
+	)
 }
 
 bash_infracost_writes_file :: proc(args: string) -> bool {
@@ -871,83 +828,18 @@ bash_kubeconform_is_readonly :: proc(args: string) -> bool {
 
 // B88: buildah inspect (images/containers/inspect/version; not bud/from/commit/push).
 bash_buildah_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// inspect
-		if sub == "images" ||
-		   sub == "image" || // image list alias paths
-		   sub == "containers" ||
-		   sub == "ps" ||
-		   sub == "ls" ||
-		   sub == "list" ||
-		   sub == "inspect" ||
-		   sub == "info" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "mount" || // list mounts when bare-ish; still can mount — fail-closed if extra writey
-		   sub == "umount" ||
-		   sub == "unmount" {
-			// mount/umount mutate mount table
-			if sub == "mount" || sub == "umount" || sub == "unmount" {
-				return false
-			}
-			if sub == "image" {
-				// buildah image (noop) / rare; image list-ish only if second is list
-				return true
-			}
-			return true
-		}
-		// mutators
-		if sub == "from" ||
-		   sub == "bud" ||
-		   sub == "build" ||
-		   sub == "build-using-dockerfile" ||
-		   sub == "commit" ||
-		   sub == "push" ||
-		   sub == "pull" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "rm" ||
-		   sub == "rmi" ||
-		   sub == "run" ||
-		   sub == "config" ||
-		   sub == "copy" ||
-		   sub == "add" ||
-		   sub == "tag" ||
-		   sub == "untag" ||
-		   sub == "rename" ||
-		   sub == "manifest" || // can mutate; fail-closed (inspect via inspect cmd)
-		   sub == "mkcw" ||
-		   sub == "prune" ||
-		   sub == "source" ||
-		   sub == "unshare" ||
-		   sub == "completion" {
-			return false
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"images", "image", "containers", "ps", "ls", "list", "inspect", "info", "version", "help",
+		},
+		deny = {
+			"from", "bud", "build", "build-using-dockerfile", "commit", "push", "pull",
+			"login", "logout", "rm", "rmi", "run", "config", "copy", "add", "tag", "untag",
+			"rename", "manifest", "mkcw", "prune", "source", "unshare", "completion",
+			"mount", "umount", "unmount",
+		},
+	)
 }
 
 // B88: nerdctl inspect (docker-compatible ps/images/logs; not run/build/push).
@@ -1919,74 +1811,28 @@ bash_syft_is_readonly :: proc(args: string) -> bool {
 // B86: grype vuln scan (scan/version/db status; not db delete/update login).
 bash_grype_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	if bash_is_help_or_version(a) {
 		return true
 	}
 	if bash_syft_grype_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "login" || sub == "completion" {
-			return false
-		}
-		if sub == "explain" {
-			// local vulnerability docs
-			return true
-		}
-		if sub == "db" {
-			// grype db status|list|check inspect; update/delete mutates local DB
-			db_rest := rem
-			for {
-				dt, drem := first_shell_token(db_rest)
-				if dt == "" {
-					return true
-				}
-				if strings.has_prefix(dt, "-") {
-					db_rest = drem
-					continue
-				}
-				dsub := strings.to_lower(dt, context.temp_allocator)
-				if dsub == "status" ||
-				   dsub == "list" ||
-				   dsub == "check" ||
-				   dsub == "providers" ||
-				   dsub == "help" {
-					return true
-				}
-				if dsub == "update" ||
-				   dsub == "delete" ||
-				   dsub == "import" ||
-				   dsub == "export" {
-					return false
-				}
-				return false
-			}
-		}
-		if sub == "version" || sub == "help" {
-			return true
-		}
-		// bare target scan: grype alpine:3
+	sub, rem, ok := bash_peel_to_sub(a)
+	if !ok {
 		return true
 	}
+	if bash_token_in(sub, []string{"login", "completion"}) {
+		return false
+	}
+	if sub == "explain" || sub == "version" || sub == "help" {
+		return true
+	}
+	if sub == "db" {
+		// grype db status|list|check inspect; update/delete mutates local DB
+		return bash_nested_allow(rem, []string{"status", "list", "check", "providers"})
+	}
+	// bare target scan: grype alpine:3
+	return true
 }
 
 // B86: trivy scan (image/fs/config/repo/sbom/k8s/version; not server/plugin/login/clean).

@@ -6,7 +6,8 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ### Cleanup (E1–E3)
 
-- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container (docker, helm, cargo, k3d/kind/tilt, crane/skopeo, kubectx/ns, terraform, …)
+- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container (docker, helm, k3d/kind/tilt, argo/flux/istio/vault, packer/vagrant, crane/skopeo/buildah, …)
+- Shared helpers: `bash_nested_allow` for nested list/get subcommands
 - `new_session`: own `aether_sessions_dir` once (no double-clone leak)
 - Slash: shared `slash_ui_bool` for `/vim-mode`, `/timestamps`, `/compact-mode`
 

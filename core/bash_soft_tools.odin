@@ -571,64 +571,51 @@ bash_bun_is_readonly :: proc(args: string) -> bool {
 
 // B38: deno inspect (not run/test/install/compile/cache).
 bash_deno_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "--version" ||
-	   sub == "-V" ||
-	   sub == "--help" ||
-	   sub == "-h" ||
-	   sub == "help" ||
-	   sub == "version" {
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	switch sub {
-	case "info", "doc", "lint", "check", "types", "coverage", "bench":
-		// bench executes code — fail closed
-		if sub == "bench" || sub == "coverage" {
-			return false
-		}
-		return true
-	case "fmt":
-		// only --check
-		if strings.contains(rest, "--check") {
-			return true
-		}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
 		return false
-	case "task":
+	}
+	if sub == "fmt" {
+		return strings.contains(rest, "--check")
+	}
+	if sub == "task" {
 		// task list is inspect; bare task / task NAME runs
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || sub2 == "--help" || sub2 == "help" || sub2 == "list"
-	case "jupyter":
+		return bash_nested_allow(rest, []string{"list"})
+	}
+	if bash_token_in(sub, []string{"bench", "coverage", "jupyter"}) {
 		return false
 	}
-	return false
+	return bash_token_in(sub, []string{"info", "doc", "lint", "check", "types", "version", "help"})
 }
 
 // B38: poetry inspect (not install/add/run/update).
 bash_poetry_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "--version" ||
-	   sub == "-V" ||
-	   sub == "--help" ||
-	   sub == "-h" ||
-	   sub == "help" ||
-	   sub == "version" ||
-	   sub == "about" {
+	if a == "about" || bash_is_help_or_version(a) {
 		return true
 	}
-	switch sub {
-	case "show", "check", "list", "search", "export":
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
+	}
+	if sub == "export" {
 		// export writes to stdout by default — allow (no file write unless -o)
-		if sub == "export" && (strings.contains(rest, " -o ") || strings.contains(rest, "--output")) {
+		if strings.contains(rest, " -o ") || strings.contains(rest, "--output") {
 			return false
 		}
 		return true
-	case "config":
+	}
+	if sub == "config" {
 		// config --list / get only; config set mutates
 		if rest == "" ||
 		   strings.contains(rest, "--list") ||
@@ -647,19 +634,18 @@ bash_poetry_is_readonly :: proc(args: string) -> bool {
 		}
 		// single key get
 		return tok1 != ""
-	case "env":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"info", "list"})
-	case "debug":
-		return true
-	case "lock":
+	}
+	if sub == "env" {
+		return bash_nested_allow(rest, []string{"info", "list"})
+	}
+	if sub == "lock" {
 		// lock --check is inspect; bare lock may rewrite
 		return strings.contains(rest, "--check")
 	}
-	return false
+	return bash_token_in(
+		sub,
+		[]string{"show", "check", "list", "search", "debug", "version", "help", "about"},
+	)
 }
 
 // uv inspection (not sync/add/run/build/venv).

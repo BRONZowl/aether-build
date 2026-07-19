@@ -349,6 +349,16 @@ bash_sub_readonly :: proc(
 	return false
 }
 
+// bash_nested_allow: after a top-level sub, next token empty/help or in allow.
+bash_nested_allow :: proc(rest: string, allow: []string) -> bool {
+	next, _ := first_shell_token(rest)
+	n := strings.to_lower(next, context.temp_allocator)
+	if n == "" || n == "help" || n == "--help" || n == "-h" {
+		return true
+	}
+	return bash_token_in(n, allow)
+}
+
 // first_shell_token: whitespace-split first token (no quote handling).
 first_shell_token :: proc(s: string) -> (tok, rest: string) {
 	t := strings.trim_left_space(s)

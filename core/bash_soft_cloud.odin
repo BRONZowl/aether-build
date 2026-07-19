@@ -316,64 +316,16 @@ bash_skaffold_is_readonly :: proc(args: string) -> bool {
 // B81: kustomize inspect (build/cfg/version; not edit/create to disk).
 bash_kustomize_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
 	// -o/--output to a path writes files — fail closed (anywhere in args)
 	if bash_kustomize_writes_output(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			// peel flags (value-taking already handled for -o)
-			if tok == "-f" ||
-			   tok == "--filename" ||
-			   tok == "--load-restrictor" ||
-			   tok == "--enable-helm" {
-				// some take values
-				if tok == "-f" || tok == "--filename" || tok == "--load-restrictor" {
-					_, rest2 := first_shell_token(rem)
-					rest = rest2
-					continue
-				}
-				rest = rem
-				continue
-			}
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "edit" ||
-		   sub == "create" ||
-		   sub == "localize" ||
-		   sub == "fix" ||
-		   sub == "completion" {
-			return false
-		}
-		if sub == "build" ||
-		   sub == "cfg" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "openapi" {
-			// remaining tokens are paths/flags — already checked -o
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {"build", "cfg", "version", "help", "openapi"},
+		deny = {"edit", "create", "localize", "fix", "completion"},
+		value_flags = {"-f", "--filename", "--load-restrictor"},
+	)
 }
 
 // bash_kustomize_writes_output: true if -o/--output targets a non-stdout path.
@@ -428,360 +380,133 @@ bash_kubens_is_readonly :: proc(args: string) -> bool {
 
 // B79: istioctl inspect (version/proxy-status/analyze/proxy-config; not install/apply).
 bash_istioctl_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string {
+		"--kubeconfig", "--context", "--namespace", "-n", "--istioNamespace", "-i",
+	}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "--kubeconfig" ||
-		   tok == "--context" ||
-		   tok == "--namespace" ||
-		   tok == "-n" ||
-		   tok == "--istioNamespace" ||
-		   tok == "-i" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--kubeconfig=") ||
-		   strings.has_prefix(tok, "--context=") ||
-		   strings.has_prefix(tok, "--namespace=") ||
-		   strings.has_prefix(tok, "--istioNamespace=") ||
-		   (strings.has_prefix(tok, "-n") && len(tok) > 2) {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / writers
-		if sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "upgrade" ||
-		   sub == "apply" ||
-		   sub == "delete" ||
-		   sub == "create" ||
-		   sub == "replace" ||
-		   sub == "experimental" ||
-		   sub == "x" ||
-		   sub == "dashboard" ||
-		   sub == "kube-inject" ||
-		   sub == "admin" ||
-		   sub == "bug-report" ||
-		   sub == "tag" ||
-		   sub == "waypoint" {
-			return false
-		}
-		// inspect
-		if sub == "version" ||
-		   sub == "help" ||
-		   sub == "proxy-status" ||
-		   sub == "ps" ||
-		   sub == "analyze" ||
-		   sub == "validate" ||
-		   sub == "proxy-config" ||
-		   sub == "pc" ||
-		   sub == "ztunnel-config" ||
-		   sub == "wait" {
-			return true
-		}
-		if sub == "remote" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
+	if sub == "remote" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	if bash_token_in(
+		sub,
+		[]string{
+			"install", "uninstall", "upgrade", "apply", "delete", "create", "replace",
+			"experimental", "x", "dashboard", "kube-inject", "admin", "bug-report", "tag", "waypoint",
+		},
+	) {
 		return false
 	}
+	return bash_token_in(
+		sub,
+		[]string{
+			"version", "help", "proxy-status", "ps", "analyze", "validate",
+			"proxy-config", "pc", "ztunnel-config", "wait",
+		},
+	)
 }
 
 // B78: Flux CLI inspect (get/export/tree/logs; not create/delete/reconcile/bootstrap).
 bash_flux_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
+	if a == "check" || strings.has_prefix(a, "check ") {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "check" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") ||
-	   strings.has_prefix(a, "check ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// kubeconfig globals
-		if tok == "--kubeconfig" ||
-		   tok == "--context" ||
-		   tok == "--namespace" ||
-		   tok == "-n" ||
-		   tok == "--kube-api-burst" ||
-		   tok == "--kube-api-qps" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--kubeconfig=") ||
-		   strings.has_prefix(tok, "--context=") ||
-		   strings.has_prefix(tok, "--namespace=") ||
-		   (strings.has_prefix(tok, "-n") && len(tok) > 2) {
-			rest = rem
-			continue
-		}
-		if tok == "--verbose" || tok == "-v" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "bootstrap" ||
-		   sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "create" ||
-		   sub == "delete" ||
-		   sub == "suspend" ||
-		   sub == "resume" ||
-		   sub == "reconcile" ||
-		   sub == "migrate" ||
-		   sub == "push" ||
-		   sub == "pull" ||
-		   sub == "build" ||
-		   sub == "trace" ||
-		   sub == "events" ||
-		   sub == "stats" ||
-		   sub == "completion" ||
-		   sub == "envsubst" {
-			// build is kustomize-ish local; still may write — fail closed
-			// events/stats/trace are inspect
-			if sub == "events" || sub == "stats" || sub == "trace" {
-				return true
-			}
-			return false
-		}
-		// get / export / tree / logs / diff — inspect families
-		if sub == "get" ||
-		   sub == "export" ||
-		   sub == "tree" ||
-		   sub == "logs" ||
-		   sub == "diff" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "check" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"get", "export", "tree", "logs", "diff", "version", "help", "check",
+			"events", "stats", "trace",
+		},
+		deny = {
+			"bootstrap", "install", "uninstall", "create", "delete", "suspend", "resume",
+			"reconcile", "migrate", "push", "pull", "build", "completion", "envsubst",
+		},
+		value_flags = {
+			"--kubeconfig", "--context", "--namespace", "-n",
+			"--kube-api-burst", "--kube-api-qps",
+		},
+	)
 }
 
 // B77: Argo CD CLI inspect (app list/get/diff; not sync/delete/login).
 bash_argocd_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string {
+		"--server", "--auth-token", "--grpc-web-root-path", "--header", "-H",
+		"--loglevel", "--logformat",
+	}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "--server" ||
-		   tok == "--auth-token" ||
-		   tok == "--grpc-web-root-path" ||
-		   tok == "--header" ||
-		   tok == "-H" ||
-		   tok == "--loglevel" ||
-		   tok == "--logformat" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--server=") ||
-		   strings.has_prefix(tok, "--auth-token=") ||
-		   strings.has_prefix(tok, "--loglevel=") {
-			rest = rem
-			continue
-		}
-		if tok == "--grpc-web" ||
-		   tok == "--plaintext" ||
-		   tok == "--insecure" ||
-		   tok == "--core" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-
-		if sub == "login" ||
-		   sub == "logout" ||
-		   sub == "account" ||
-		   sub == "gpg" ||
-		   sub == "cert" ||
-		   sub == "admin" {
-			return false
-		}
-		if sub == "cluster" || sub == "repo" || sub == "proj" || sub == "project" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "get" || n == "help" || n == "--help"
-		}
-		if sub == "app" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			// inspect
-			if n == "" ||
-			   n == "list" ||
-			   n == "get" ||
-			   n == "diff" ||
-			   n == "history" ||
-			   n == "manifests" ||
-			   n == "resources" ||
-			   n == "logs" ||
-			   n == "help" ||
-			   n == "--help" {
-				return true
-			}
-			// sync/create/delete/set/patch/wait/edit/rollback
-			return false
-		}
-		if sub == "applicationset" || sub == "appset" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "get" || n == "help" || n == "--help"
-		}
-		if sub == "context" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		if sub == "version" || sub == "help" {
-			return true
-		}
+	if bash_token_in(sub, []string{"login", "logout", "account", "gpg", "cert", "admin"}) {
 		return false
 	}
+	if sub == "cluster" || sub == "repo" || sub == "proj" || sub == "project" {
+		return bash_nested_allow(rem, []string{"list", "get"})
+	}
+	if sub == "app" {
+		return bash_nested_allow(
+			rem,
+			[]string{"list", "get", "diff", "history", "manifests", "resources", "logs"},
+		)
+	}
+	if sub == "applicationset" || sub == "appset" {
+		return bash_nested_allow(rem, []string{"list", "get"})
+	}
+	if sub == "context" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	return bash_token_in(sub, []string{"version", "help"})
 }
 
 // B76: Vault inspect — status/version/list metadata only.
 // Never auto-allow read/kv get (secret exfil) or write/delete/login.
 bash_vault_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
+	if a == "status" || strings.has_prefix(a, "status ") {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "status" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") ||
-	   strings.has_prefix(a, "status ") {
+	value_flags := []string {
+		"-address", "-namespace", "-ca-cert", "-client-cert", "-client-key", "-token",
+	}
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "-address" ||
-		   tok == "-namespace" ||
-		   tok == "-ca-cert" ||
-		   tok == "-client-cert" ||
-		   tok == "-client-key" ||
-		   tok == "-token" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-address=") ||
-		   strings.has_prefix(tok, "-namespace=") ||
-		   strings.has_prefix(tok, "-token=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-
-		if sub == "status" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "print" ||
-		   sub == "path-help" {
-			return true
-		}
-		// mount / auth method listing only
-		if sub == "secrets" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		if sub == "auth" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		if sub == "policy" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		if sub == "operator" {
-			next, nrem := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			if n == "raft" {
-				n2, _ := first_shell_token(nrem)
-				n2l := strings.to_lower(n2, context.temp_allocator)
-				return n2l == "" || n2l == "list-peers" || n2l == "help" || n2l == "--help"
-			}
-			return n == "members" || n == "key-status" || n == "help" || n == "--help"
-		}
-		// everything else (read/write/kv/login/token/…) asks
-		return false
+	sub, rem, ok := bash_peel_to_sub(a, value_flags)
+	if !ok {
+		return true
 	}
+	if bash_token_in(sub, []string{"status", "version", "help", "print", "path-help"}) {
+		return true
+	}
+	// mount / auth method listing only
+	if sub == "secrets" || sub == "auth" || sub == "policy" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	if sub == "operator" {
+		next, nrem := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		if n == "raft" {
+			return bash_nested_allow(nrem, []string{"list-peers"})
+		}
+		return n == "" ||
+			n == "members" ||
+			n == "key-status" ||
+			n == "help" ||
+			n == "--help" ||
+			n == "-h"
+	}
+	// everything else (read/write/kv/login/token/…) asks
+	return false
 }
 
 // B75: Consul inspect (members/catalog/kv get/info; not put/delete/join).
@@ -1032,191 +757,78 @@ bash_nomad_is_readonly :: proc(args: string) -> bool {
 // B74: Packer inspect (validate/inspect/version/fmt -check; not build/init).
 bash_packer_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// value-taking globals
-		if tok == "-var" ||
-		   tok == "-var-file" ||
-		   tok == "-except" ||
-		   tok == "-only" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "-var=") ||
-		   strings.has_prefix(tok, "-var-file=") ||
-		   strings.has_prefix(tok, "-except=") ||
-		   strings.has_prefix(tok, "-only=") {
-			rest = rem
-			continue
-		}
-		if tok == "-color" ||
-		   tok == "-machine-readable" ||
-		   tok == "-check" ||
-		   tok == "-diff" ||
-		   tok == "-write=false" {
-			rest = rem
-			continue
-		}
-		if tok == "-write" || tok == "-write=true" {
-			return false
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "build" ||
-		   sub == "init" ||
-		   sub == "console" ||
-		   sub == "fix" ||
-		   sub == "hcl2_upgrade" ||
-		   sub == "plugins" ||
-		   sub == "plugin" {
-			return false
-		}
-		// fmt: only with -check (no write)
-		if sub == "fmt" {
-			r2 := rem
-			has_check := false
-			for {
-				t2, r3 := first_shell_token(r2)
-				if t2 == "" {
-					break
-				}
-				if t2 == "-check" || strings.has_prefix(t2, "-check=") {
-					has_check = true
-				}
-				if t2 == "-write=true" || t2 == "-write" {
-					return false
-				}
-				r2 = r3
+	// bare -write / -write=true rewrites files (-write=false is ok)
+	{
+		r := a
+		for {
+			tok, rem := first_shell_token(r)
+			if tok == "" {
+				break
 			}
-			return has_check
+			if tok == "-write" || tok == "-write=true" {
+				return false
+			}
+			r = rem
 		}
-		// inspect
-		if sub == "validate" ||
-		   sub == "inspect" ||
-		   sub == "version" ||
-		   sub == "help" {
-			return true
-		}
+	}
+	if bash_is_help_or_version(a) {
+		return true
+	}
+	sub, rem, ok := bash_peel_to_sub(
+		a,
+		[]string{"-var", "-var-file", "-except", "-only"},
+	)
+	if !ok {
+		return true
+	}
+	if bash_token_in(
+		sub,
+		[]string{"build", "init", "console", "fix", "hcl2_upgrade", "plugins", "plugin"},
+	) {
 		return false
 	}
+	if sub == "fmt" {
+		// only with -check (no write)
+		return strings.contains(rem, "-check")
+	}
+	return bash_token_in(sub, []string{"validate", "inspect", "version", "help"})
 }
 
 // B73: vagrant inspect (status/global-status/box list/validate; not up/destroy).
 bash_vagrant_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
+	sub, rem, ok := bash_peel_to_sub(args)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if tok == "--machine-readable" ||
-		   tok == "--color" ||
-		   tok == "--no-color" ||
-		   tok == "--debug" ||
-		   tok == "-v" ||
-		   tok == "--verbose" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// box: list/outdated/info only
-		if sub == "box" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "list" ||
-				n == "outdated" ||
-				n == "info" ||
-				n == "help" ||
-				n == "--help"
-		}
-		// plugin: list only
-		if sub == "plugin" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "license" || n == "help" || n == "--help"
-		}
-		// snapshot: list only
-		if sub == "snapshot" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "help" || n == "--help"
-		}
-		// mutators
-		if sub == "up" ||
-		   sub == "destroy" ||
-		   sub == "halt" ||
-		   sub == "suspend" ||
-		   sub == "resume" ||
-		   sub == "reload" ||
-		   sub == "provision" ||
-		   sub == "ssh" ||
-		   sub == "rdp" ||
-		   sub == "winrm" ||
-		   sub == "push" ||
-		   sub == "package" ||
-		   sub == "init" ||
-		   sub == "cloud" ||
-		   sub == "rsync" ||
-		   sub == "rsync-auto" ||
-		   sub == "share" ||
-		   sub == "login" ||
-		   sub == "upload" ||
-		   sub == "download" ||
-		   sub == "powershell" {
-			return false
-		}
-		// inspect
-		if sub == "status" ||
-		   sub == "global-status" ||
-		   sub == "validate" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "list-commands" ||
-		   sub == "ssh-config" ||
-		   sub == "port" {
-			return true
-		}
+	if sub == "box" {
+		return bash_nested_allow(rem, []string{"list", "outdated", "info"})
+	}
+	if sub == "plugin" {
+		return bash_nested_allow(rem, []string{"list", "license"})
+	}
+	if sub == "snapshot" {
+		return bash_nested_allow(rem, []string{"list"})
+	}
+	if bash_token_in(
+		sub,
+		[]string{
+			"up", "destroy", "halt", "suspend", "resume", "reload", "provision",
+			"ssh", "rdp", "winrm", "push", "package", "init", "cloud", "rsync",
+			"rsync-auto", "share", "login", "upload", "download", "powershell",
+		},
+	) {
 		return false
 	}
+	return bash_token_in(
+		sub,
+		[]string{
+			"status", "global-status", "validate", "version", "help",
+			"list-commands", "ssh-config", "port",
+		},
+	)
 }
 
 // B72: ansible ad-hoc — list-hosts/version only (not -m module runs).
