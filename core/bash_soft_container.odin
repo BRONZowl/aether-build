@@ -1170,7 +1170,7 @@ bash_nerdctl_is_readonly :: proc(args: string) -> bool {
 			return true
 		}
 		// classic inspect (mirror docker)
-		if bash_sub_in(
+		if bash_token_in(
 			   sub,
 			   []string{"ps", "images", "image", "logs", "inspect", "top", "stats", "port", "diff", "system"},
 		   ) {
@@ -1212,7 +1212,7 @@ bash_nerdctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				csub := strings.to_lower(ct, context.temp_allocator)
-				return bash_sub_in(
+				return bash_token_in(
 					csub,
 					[]string{"ls", "list", "ps", "inspect", "logs", "top", "stats", "port", "diff"},
 				)
@@ -1363,7 +1363,7 @@ bash_ctr_listish_or_mutate :: proc(args: string, allowed: []string) -> bool {
 			rest = rem
 			continue
 		}
-		return bash_sub_in(strings.to_lower(tok, context.temp_allocator), allowed)
+		return bash_token_in(strings.to_lower(tok, context.temp_allocator), allowed)
 	}
 }
 

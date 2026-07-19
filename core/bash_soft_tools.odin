@@ -6,87 +6,32 @@ import "core:strings"
 
 // B66: Bundler inspect (list/show/check/outdated/env; not install/exec/update).
 bash_bundle_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		// bare bundle — help-ish / version depending on install; treat as inspect
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "--version" || a == "-v" || a == "--help" || a == "-h" || a == "help" {
+	sub, rem, ok := bash_peel_to_sub(args, []string{"--gemfile", "--path", "--binstubs"})
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// peel globals that take values
-		if tok == "--gemfile" || tok == "--path" || tok == "--binstubs" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--gemfile=") ||
-		   strings.has_prefix(tok, "--path=") ||
-		   strings.has_prefix(tok, "--binstubs=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "update" ||
-		   sub == "exec" ||
-		   sub == "add" ||
-		   sub == "remove" ||
-		   sub == "clean" ||
-		   sub == "package" ||
-		   sub == "pack" ||
-		   sub == "binstubs" ||
-		   sub == "init" ||
-		   sub == "inject" ||
-		   sub == "open" ||
-		   sub == "console" ||
-		   sub == "lock" ||
-		   sub == "cache" ||
-		   sub == "pristine" ||
-		   sub == "plugin" ||
-		   sub == "fund" ||
-		   sub == "issue" {
-			return false
-		}
-		// config: get/list only
-		if sub == "config" {
-			next, nrem := first_shell_token(rem)
-			_ = nrem
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "list" ||
-				n == "get" ||
-				n == "help" ||
-				n == "--help" ||
-				n == "-h"
-		}
-		if sub == "list" ||
-		   sub == "show" ||
-		   sub == "info" ||
-		   sub == "check" ||
-		   sub == "outdated" ||
-		   sub == "env" ||
-		   sub == "platform" ||
-		   sub == "doctor" ||
-		   sub == "help" ||
-		   sub == "version" ||
-		   sub == "viz" ||
-		   sub == "licenses" ||
-		   sub == "why" {
-			return true
-		}
+	// config: get/list only
+	if sub == "config" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "" || n == "list" || n == "get" || n == "help" || n == "--help" || n == "-h"
+	}
+	deny := []string {
+		"install", "update", "exec", "add", "remove", "clean", "package", "pack",
+		"binstubs", "init", "inject", "open", "console", "lock", "cache", "pristine",
+		"plugin", "fund", "issue",
+	}
+	allow := []string {
+		"list", "show", "info", "check", "outdated", "env", "platform", "doctor",
+		"help", "version", "viz", "licenses", "why",
+	}
+	if bash_token_in(sub, deny) {
 		return false
 	}
+	return bash_token_in(sub, allow)
 }
 
 // B66: rake task listing only (-T/-D/-P/…); bare rake runs default task → ask.
@@ -170,77 +115,24 @@ bash_rake_is_readonly :: proc(args: string) -> bool {
 // B64: Composer inspect (show/search/outdated/validate; not install/require).
 bash_composer_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
+	if a == "about" {
 		return true
 	}
-	if a == "--version" || a == "-V" || a == "--help" || a == "-h" || a == "help" || a == "about" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// peel globals that take values
-		if tok == "--working-dir" || tok == "-d" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--working-dir=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "update" ||
-		   sub == "require" ||
-		   sub == "remove" ||
-		   sub == "create-project" ||
-		   sub == "dump-autoload" ||
-		   sub == "dumpautoload" ||
-		   sub == "clear-cache" ||
-		   sub == "clearcache" ||
-		   sub == "self-update" ||
-		   sub == "selfupdate" ||
-		   sub == "exec" ||
-		   sub == "run-script" ||
-		   sub == "run" ||
-		   sub == "global" || // global install etc — fail closed
-		   sub == "config" || // can write
-		   sub == "init" ||
-		   sub == "archive" ||
-		   sub == "fund" ||
-		   sub == "bump" ||
-		   sub == "reinstall" {
-			return false
-		}
-		if sub == "show" ||
-		   sub == "list" ||
-		   sub == "search" ||
-		   sub == "depends" ||
-		   sub == "prohibits" ||
-		   sub == "validate" ||
-		   sub == "check-platform-reqs" ||
-		   sub == "outdated" ||
-		   sub == "why" ||
-		   sub == "why-not" ||
-		   sub == "licenses" ||
-		   sub == "status" ||
-		   sub == "about" ||
-		   sub == "diagnose" ||
-		   sub == "help" ||
-		   sub == "suggests" ||
-		   sub == "browse" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"show", "list", "search", "depends", "prohibits", "validate",
+			"check-platform-reqs", "outdated", "why", "why-not", "licenses",
+			"status", "about", "diagnose", "help", "suggests", "browse",
+		},
+		deny = {
+			"install", "update", "require", "remove", "create-project",
+			"dump-autoload", "dumpautoload", "clear-cache", "clearcache",
+			"self-update", "selfupdate", "exec", "run-script", "run",
+			"global", "config", "init", "archive", "fund", "bump", "reinstall",
+		},
+		value_flags = {"--working-dir", "-d"},
+	)
 }
 
 // B58: Homebrew inspect (list/info/search/outdated; not install/upgrade/update).
@@ -397,7 +289,7 @@ bash_kubectl_is_readonly :: proc(args: string) -> bool {
 	if sub == "" || sub == "--help" || sub == "-h" || sub == "help" || sub == "version" {
 		return true
 	}
-	if bash_sub_in(
+	if bash_token_in(
 		   sub,
 		   []string{
 			   "get",
@@ -420,7 +312,7 @@ bash_kubectl_is_readonly :: proc(args: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(
+		return bash_token_in(
 			sub2,
 			[]string{
 				"view",
@@ -483,204 +375,102 @@ bash_terraform_is_readonly :: proc(args: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "show", "pull"})
+		return bash_token_in(sub2, []string{"list", "show", "pull"})
 	case "workspace":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "show"})
+		return bash_token_in(sub2, []string{"list", "show"})
 	}
 	return false
 }
 
 // B36: helm list/status/get/template/lint (not install/upgrade/uninstall).
 bash_helm_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" || sub == "--help" || sub == "-h" || sub == "help" || sub == "version" ||
-	   sub == "env" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	switch sub {
-	case "list", "ls", "status", "history", "get", "show", "search", "lint", "template",
-	     "dependency", "deps":
-		if sub == "dependency" || sub == "deps" {
-			sub2, _ := first_shell_token(rest)
-			// list/build? build writes charts — only list
-			if sub2 == "" || sub2 == "list" || sub2 == "ls" || sub2 == "--help" || sub2 == "help" {
-				return true
-			}
-			return false
-		}
-		if sub == "get" || sub == "show" {
-			// get all|hooks|manifest|notes|values — all read
-			return true
-		}
-		if sub == "search" {
-			return true
-		}
+	sub, rest, ok := bash_peel_to_sub(args)
+	if !ok || sub == "env" {
 		return true
-	case "repo":
+	}
+	// nested: dependency/repo/plugin/registry inspect only
+	if sub == "dependency" || sub == "deps" {
 		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		// list only — add/remove/update mutate
-		return sub2 == "list" || sub2 == "ls"
-	case "plugin":
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
+	}
+	if sub == "repo" {
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "ls" || sub2 == "" || sub2 == "--help" || sub2 == "help"
-	case "registry":
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
+	}
+	if sub == "plugin" {
+		sub2, _ := first_shell_token(rest)
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
+	}
+	if sub == "registry" {
 		// login mutates credentials — fail closed except help
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || sub2 == "--help" || sub2 == "help"
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || n == "--help" || n == "help" || n == "-h"
 	}
-	return false
+	return bash_token_in(
+		sub,
+		[]string{
+			"list", "ls", "status", "history", "get", "show", "search", "lint", "template",
+		},
+	)
 }
 
 // B35: docker inspect + compose inspect (not run/up/build/exec).
 bash_docker_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
-		// bare docker — help-ish
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if sub == "--help" || sub == "-h" || sub == "--version" || sub == "version" || sub == "help" ||
-	   sub == "info" {
+	sub, rest, ok := bash_peel_to_sub(args)
+	if !ok {
+		return true
+	}
+	if sub == "info" {
 		return true
 	}
 	// plugin-style: docker compose …
 	if sub == "compose" {
 		return bash_docker_compose_is_readonly(rest)
 	}
-	// classic inspect
-	return bash_sub_in(sub, []string{"ps", "images", "logs", "inspect", "top", "stats", "port", "diff"})
+	return bash_token_in(
+		sub,
+		[]string{"ps", "images", "logs", "inspect", "top", "stats", "port", "diff"},
+	)
 }
 
 // docker compose / docker-compose: list/config/ps/logs/images/top/version only.
 bash_docker_compose_is_readonly :: proc(args: string) -> bool {
-	rest := args
-	// peel common global flags that take a value
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			// bare compose — prints help
-			return true
-		}
-		if tok == "-f" ||
-		   tok == "--file" ||
-		   tok == "-p" ||
-		   tok == "--project-name" ||
-		   tok == "--profile" ||
-		   tok == "--project-directory" ||
-		   tok == "--env-file" ||
-		   tok == "--ansi" ||
-		   tok == "--progress" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--file=") ||
-		   strings.has_prefix(tok, "--project-name=") ||
-		   strings.has_prefix(tok, "--profile=") ||
-		   strings.has_prefix(tok, "--project-directory=") ||
-		   strings.has_prefix(tok, "--env-file=") ||
-		   strings.has_prefix(tok, "--ansi=") ||
-		   strings.has_prefix(tok, "--progress=") ||
-		   (strings.has_prefix(tok, "-f") && len(tok) > 2) ||
-		   (strings.has_prefix(tok, "-p") && len(tok) > 2) {
-			rest = rem
-			continue
-		}
-		if tok == "--help" || tok == "-h" || tok == "--version" || tok == "version" || tok == "help" {
-			return true
-		}
-		// first real subcommand
-		return bash_sub_in(
-			tok,
-			[]string{
-				"ps",
-				"ls",
-				"list",
-				"config",
-				"images",
-				"logs",
-				"top",
-				"port",
-				"events",
-				"wait", // wait for healthy — read-ish; still no mutate
-			},
-		)
-	}
-}
-
-// token_in: exact match of sub against allowed readonly subcommands.
-bash_sub_in :: proc(sub: string, allowed: []string) -> bool {
-	if sub == "" {
-		return false
-	}
-	for a in allowed {
-		if sub == a {
-			return true
-		}
-	}
-	return false
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"ps", "ls", "list", "config", "images", "logs", "top", "port", "events", "wait",
+		},
+		value_flags = {
+			"-f", "--file", "-p", "--project-name", "--profile", "--project-directory",
+			"--env-file", "--ansi", "--progress",
+		},
+	)
 }
 
 // B16: cargo read-only / non-mutating inspection (no build/test/run).
 bash_cargo_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	// peel global flags that take a value: -C, --manifest-path, --config, -Z, --color
-	for {
-		if sub == "" {
-			return true
-		}
-		if sub == "-C" ||
-		   sub == "--manifest-path" ||
-		   sub == "--config" ||
-		   sub == "--color" ||
-		   sub == "-Z" ||
-		   sub == "--target-dir" {
-			_, rest2 := first_shell_token(rest)
-			sub, rest = first_shell_token(rest2)
-			continue
-		}
-		if strings.has_prefix(sub, "-") &&
-		   (strings.has_prefix(sub, "--quiet") ||
-			   sub == "-q" ||
-			   sub == "-v" ||
-			   sub == "-vv" ||
-			   sub == "--verbose" ||
-			   sub == "--offline" ||
-			   sub == "--locked" ||
-			   sub == "--frozen" ||
-			   sub == "--version" ||
-			   sub == "-V" ||
-			   sub == "--help" ||
-			   sub == "-h") {
-			// bare --version/-V without subcommand
-			if sub == "--version" || sub == "-V" || sub == "--help" || sub == "-h" {
-				return true
-			}
-			sub, rest = first_shell_token(rest)
-			continue
-		}
-		break
-	}
-	return bash_sub_in(
-		sub,
-		[]string{
-			"check",
-			"metadata",
-			"tree",
-			"search",
-			"help",
-			"version",
-			"locate-project",
-			"verify-project",
-			"pkgid",
-			"info",
-			"fetch",
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"check", "metadata", "tree", "search", "help", "version",
+			"locate-project", "verify-project", "pkgid", "info", "fetch",
+		},
+		value_flags = {
+			"-C", "--manifest-path", "--config", "--color", "-Z", "--target-dir",
 		},
 	)
 }
@@ -724,7 +514,7 @@ bash_npm_family_is_readonly :: proc(args: string) -> bool {
 		sub2, _ := first_shell_token(rest)
 		return sub2 == "get" || sub2 == "list" || sub2 == "ls" || sub2 == ""
 	}
-	return bash_sub_in(
+	return bash_token_in(
 		sub,
 		[]string{
 			"list",
@@ -776,13 +566,13 @@ bash_bun_is_readonly :: proc(args: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(
+		return bash_token_in(
 			sub2,
 			[]string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"},
 		)
 	}
 	// top-level inspect-ish
-	if bash_sub_in(sub, []string{"pm", "outdated", "why", "info", "x"}) {
+	if bash_token_in(sub, []string{"pm", "outdated", "why", "info", "x"}) {
 		// bun x runs packages — fail closed
 		if sub == "x" {
 			return false
@@ -875,7 +665,7 @@ bash_poetry_is_readonly :: proc(args: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"info", "list"})
+		return bash_token_in(sub2, []string{"info", "list"})
 	case "debug":
 		return true
 	case "lock":
@@ -887,61 +677,71 @@ bash_poetry_is_readonly :: proc(args: string) -> bool {
 
 // uv inspection (not sync/add/run/build/venv).
 bash_uv_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "--version" || sub == "-V" || sub == "--help" || sub == "-h" {
+	if bash_is_help_or_version(a) {
 		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
 	}
 	if sub == "pip" {
 		sub2, _ := first_shell_token(rest)
-		return bash_sub_in(sub2, []string{"list", "show", "freeze", "check", "tree", "help"})
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return bash_token_in(n, []string{"list", "show", "freeze", "check", "tree", "help"})
 	}
 	if sub == "python" {
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || bash_sub_in(sub2, []string{"list", "find", "dir", "help"})
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || bash_token_in(n, []string{"list", "find", "dir", "help"})
 	}
 	if sub == "cache" {
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || bash_sub_in(sub2, []string{"dir", "size", "help"})
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || bash_token_in(n, []string{"dir", "size", "help"})
 	}
 	if sub == "self" {
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || bash_sub_in(sub2, []string{"version", "help"})
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "" || bash_token_in(n, []string{"version", "help"})
 	}
-	return bash_sub_in(sub, []string{"tree", "version", "help"})
+	return bash_token_in(sub, []string{"tree", "version", "help"})
 }
 
 // rustup inspection / list (not update/default that mutates toolchain install — update mutates).
 // Keep only show/which/doc/help and list-style under toolchain/target/component.
 bash_rustup_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
-		return false
+	a := strings.trim_space(args)
+	if a == "" {
+		return false // bare rustup may prompt / not pure inspect
 	}
-	if sub == "--version" || sub == "-V" || sub == "--help" || sub == "-h" {
+	if bash_is_help_or_version(a) {
 		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
 	}
 	if sub == "toolchain" || sub == "target" || sub == "component" || sub == "override" {
 		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "" || sub2 == "help"
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return n == "list" || n == "" || n == "help" || n == "--help" || n == "-h"
 	}
-	return bash_sub_in(sub, []string{"show", "which", "doc", "help", "completions"})
+	return bash_token_in(sub, []string{"show", "which", "doc", "help", "completions"})
 }
 
 // pip inspection only.
 bash_pip_is_readonly :: proc(args: string) -> bool {
-	sub, _ := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "--version" || sub == "-V" || sub == "--help" || sub == "-h" {
-		return true
-	}
-	return bash_sub_in(
-		sub,
-		[]string{"list", "show", "freeze", "check", "index", "help", "debug", "hash", "inspect"},
+	return bash_sub_readonly(
+		a,
+		allow = {"list", "show", "freeze", "check", "index", "help", "debug", "hash", "inspect"},
 	)
 }
 
@@ -974,18 +774,23 @@ bash_python_is_readonly :: proc(args: string) -> bool {
 
 // go: version / env / list / help / doc / mod graph|why|verify.
 bash_go_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	if sub == "version" || sub == "env" || sub == "help" || sub == "doc" || sub == "list" {
+	if bash_is_help_or_version(a) {
 		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a)
+	if !ok {
+		return false
 	}
 	if sub == "mod" {
 		sub2, _ := first_shell_token(rest)
-		return bash_sub_in(sub2, []string{"graph", "why", "verify"})
+		n := strings.to_lower(sub2, context.temp_allocator)
+		return bash_token_in(n, []string{"graph", "why", "verify"})
 	}
-	return false
+	return bash_token_in(sub, []string{"version", "env", "help", "doc", "list"})
 }
 
 // B25: make help / dry-run / version only (not build targets).
@@ -1036,42 +841,33 @@ bash_make_is_readonly :: proc(args: string) -> bool {
 
 // B25: odin version/help only (not build/run/test).
 bash_odin_is_readonly :: proc(args: string) -> bool {
-	sub, _ := first_shell_token(args)
-	if sub == "" {
+	a := strings.trim_space(args)
+	if a == "" {
 		return false
 	}
-	return sub == "version" ||
-		sub == "--version" ||
-		sub == "help" ||
-		sub == "--help" ||
-		sub == "-h" ||
-		sub == "doc"
+	return bash_sub_readonly(
+		a,
+		allow = {"version", "help", "doc"},
+	)
 }
 
 // B40: zig version/env/ast-check/fmt --check (not build/run/test).
 bash_zig_is_readonly :: proc(args: string) -> bool {
-	sub, rest := first_shell_token(args)
-	if sub == "" {
-		// bare zig prints help-ish — allow
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if sub == "version" ||
-	   sub == "--version" ||
-	   sub == "help" ||
-	   sub == "--help" ||
-	   sub == "-h" ||
-	   sub == "env" ||
-	   sub == "targets" ||
-	   sub == "libc" ||
-	   sub == "std-docs" ||
-	   sub == "ast-check" {
-		return true
+	sub, rest, ok := bash_peel_to_sub(args)
+	if !ok {
+		return true // bare zig prints help-ish
 	}
 	if sub == "fmt" {
 		// only --check; bare fmt rewrites
 		return strings.contains(rest, "--check")
 	}
-	return false
+	return bash_token_in(
+		sub,
+		[]string{"version", "help", "env", "targets", "libc", "std-docs", "ast-check"},
+	)
 }
 
 // B42: swift package inspect (not build/run/test/package resolve).
@@ -1094,7 +890,7 @@ bash_swift_is_readonly :: proc(args: string) -> bool {
 			return true
 		}
 		// inspect-ish package subcommands
-		if bash_sub_in(
+		if bash_token_in(
 			   sub2,
 			   []string{
 				   "describe",
@@ -1280,7 +1076,7 @@ bash_redis_cli_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		cmd := strings.to_lower(tok, context.temp_allocator)
-		if !bash_sub_in(
+		if !bash_token_in(
 			   cmd,
 			   []string{
 				   "ping",
@@ -1329,11 +1125,11 @@ bash_redis_subcmd_readonly :: proc(cmd, rest: string) -> bool {
 	sub_l := strings.to_lower(sub, context.temp_allocator)
 	switch cmd {
 	case "client":
-		return sub_l == "" || bash_sub_in(sub_l, []string{"list", "info", "id", "getname", "help"})
+		return sub_l == "" || bash_token_in(sub_l, []string{"list", "info", "id", "getname", "help"})
 	case "config":
 		return sub_l == "get" || sub_l == "" || sub_l == "help"
 	case "memory":
-		return sub_l == "" || bash_sub_in(sub_l, []string{"usage", "stats", "doctor", "help"})
+		return sub_l == "" || bash_token_in(sub_l, []string{"usage", "stats", "doctor", "help"})
 	case "slowlog":
 		return sub_l == "get" || sub_l == "len" || sub_l == "" || sub_l == "help"
 	}
@@ -1847,7 +1643,7 @@ bash_nix_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 			return true
 		}
 		// show/metadata/check/info are inspect; update/lock/init mutate
-		return bash_sub_in(
+		return bash_token_in(
 			sub2,
 			[]string{"show", "metadata", "check", "info", "archive", "prefetch"},
 		)
@@ -1862,7 +1658,7 @@ bash_nix_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 			return true
 		}
 		// delete/gc/optimise mutate; ls/ping/diff-closures inspect
-		return bash_sub_in(
+		return bash_token_in(
 			sub2,
 			[]string{"ls", "path-from-hash-part", "ping", "diff-closures"},
 		)
@@ -2393,7 +2189,7 @@ bash_cmake_is_readonly :: proc(args: string) -> bool {
 				sub2, rem2 := first_shell_token(rest)
 				rest = rem2
 				// safe -E commands: capabilities, echo, env, cat, compare_files, …
-				if bash_sub_in(
+				if bash_token_in(
 					   sub2,
 					   []string{
 						   "capabilities",
@@ -2463,7 +2259,7 @@ bash_ninja_is_readonly :: proc(args: string) -> bool {
 			// tool mode: list, targets, commands, query, graph, …
 			sub2, rem2 := first_shell_token(rest)
 			rest = rem2
-			if bash_sub_in(
+			if bash_token_in(
 				   sub2,
 				   []string{
 					   "list",
@@ -2565,45 +2361,45 @@ bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view", "status", "checks", "diff"})
+		return bash_token_in(sub2, []string{"list", "view", "status", "checks", "diff"})
 	case "issue":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
 		// develop can create branches — not readonly
-		return bash_sub_in(sub2, []string{"list", "view", "status"})
+		return bash_token_in(sub2, []string{"list", "view", "status"})
 	case "repo":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"view", "list"})
+		return bash_token_in(sub2, []string{"view", "list"})
 	case "run":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view"})
+		return bash_token_in(sub2, []string{"list", "view"})
 	case "workflow":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view"})
+		return bash_token_in(sub2, []string{"list", "view"})
 	case "release":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
 		// download writes files
-		return bash_sub_in(sub2, []string{"list", "view"})
+		return bash_token_in(sub2, []string{"list", "view"})
 	case "gist":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view"})
+		return bash_token_in(sub2, []string{"list", "view"})
 	case "auth":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
@@ -2615,7 +2411,7 @@ bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "get"})
+		return bash_token_in(sub2, []string{"list", "get"})
 	case "label":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
@@ -2627,7 +2423,7 @@ bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view", "check"})
+		return bash_token_in(sub2, []string{"list", "view", "check"})
 	case "org":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
@@ -2644,13 +2440,13 @@ bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view", "field-list", "item-list"})
+		return bash_token_in(sub2, []string{"list", "view", "field-list", "item-list"})
 	case "discussion":
 		sub2, _ := first_shell_token(rest)
 		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
 			return true
 		}
-		return bash_sub_in(sub2, []string{"list", "view"})
+		return bash_token_in(sub2, []string{"list", "view"})
 	case "ssh-key", "gpg-key":
 		sub2, _ := first_shell_token(rest)
 		return sub2 == "list" || sub2 == "" || sub2 == "--help" || sub2 == "help"

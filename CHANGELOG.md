@@ -4,6 +4,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Cleanup (E1/E2)
+
+- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive more matchers (pipx, gem, composer, bundle, cargo, docker/compose, helm, pip, rustup, go, uv, odin, zig, ansible-config/galaxy)
+- `new_session`: own `aether_sessions_dir` once (no double-clone leak)
+
 ### Launcher / defaults
 
 - Primary install name **`aether-grok`** (always); short `aether` only when it won’t shadow foreign binaries (e.g. Arch theme package at `/usr/bin/aether`)

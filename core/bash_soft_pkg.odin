@@ -269,127 +269,55 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 
 // B64: pipx inspect (list/version/environment; not install/run/upgrade).
 bash_pipx_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "--version" || a == "-V" || a == "--help" || a == "-h" || a == "help" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "upgrade" ||
-		   sub == "upgrade-all" ||
-		   sub == "reinstall" ||
-		   sub == "reinstall-all" ||
-		   sub == "inject" ||
-		   sub == "uninject" ||
-		   sub == "run" ||
-		   sub == "runpip" ||
-		   sub == "ensurepath" ||
-		   sub == "completions" {
-			// completions may write shell files — fail closed
-			return false
-		}
-		if sub == "list" ||
-		   sub == "version" ||
-		   sub == "environment" ||
-		   sub == "help" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {"list", "version", "environment", "help"},
+		deny = {
+			"install", "uninstall", "upgrade", "upgrade-all", "reinstall", "reinstall-all",
+			"inject", "uninject", "run", "runpip", "ensurepath", "completions",
+		},
+	)
 }
 
 // B64: RubyGems inspect (list/search/env/outdated; not install/update).
 bash_gem_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "--version" || a == "-v" || a == "--help" || a == "-h" || a == "help" {
+	sub, rem, ok := bash_peel_to_sub(args)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "update" ||
-		   sub == "cleanup" ||
-		   sub == "build" ||
-		   sub == "push" ||
-		   sub == "yank" ||
-		   sub == "signout" ||
-		   sub == "signin" ||
-		   sub == "owner" ||
-		   sub == "cert" ||
-		   sub == "pristine" ||
-		   sub == "lock" ||
-		   sub == "unpack" ||
-		   sub == "generate_index" ||
-		   sub == "server" ||
-		   sub == "mirror" ||
-		   sub == "fetch" ||
-		   sub == "open" ||
-		   sub == "rdoc" ||
-		   sub == "stale" {
-			return false
-		}
-		// sources --add/--remove mutates; bare sources lists
-		if sub == "sources" {
-			r2 := rem
-			for {
-				t2, r3 := first_shell_token(r2)
-				if t2 == "" {
-					return true
-				}
-				if t2 == "--add" ||
-				   t2 == "--remove" ||
-				   t2 == "--clear-all" ||
-				   t2 == "-a" ||
-				   t2 == "-r" {
-					return false
-				}
-				r2 = r3
+	// sources --add/--remove mutates; bare sources lists
+	if sub == "sources" {
+		r2 := rem
+		for {
+			t2, r3 := first_shell_token(r2)
+			if t2 == "" {
+				return true
 			}
+			if t2 == "--add" ||
+			   t2 == "--remove" ||
+			   t2 == "--clear-all" ||
+			   t2 == "-a" ||
+			   t2 == "-r" {
+				return false
+			}
+			r2 = r3
 		}
-		if sub == "list" ||
-		   sub == "search" ||
-		   sub == "query" ||
-		   sub == "specification" ||
-		   sub == "spec" ||
-		   sub == "environment" ||
-		   sub == "env" ||
-		   sub == "which" ||
-		   sub == "outdated" ||
-		   sub == "contents" ||
-		   sub == "dependency" ||
-		   sub == "info" ||
-		   sub == "help" ||
-		   sub == "check" {
-			return true
-		}
+	}
+	deny := []string {
+		"install", "uninstall", "update", "cleanup", "build", "push", "yank",
+		"signout", "signin", "owner", "cert", "pristine", "lock", "unpack",
+		"generate_index", "server", "mirror", "fetch", "open", "rdoc", "stale",
+	}
+	allow := []string {
+		"list", "search", "query", "specification", "spec", "environment", "env",
+		"which", "outdated", "contents", "dependency", "info", "help", "check",
+	}
+	if bash_token_in(sub, deny) {
 		return false
 	}
+	return bash_token_in(sub, allow)
 }
 

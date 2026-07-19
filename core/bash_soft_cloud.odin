@@ -1589,77 +1589,50 @@ bash_ansible_doc_is_readonly :: proc(args: string) -> bool {
 
 // B72: ansible-config view/list/dump only (not init).
 bash_ansible_config_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" || a == "--help" || a == "-h" || a == "help" {
-		return true
-	}
-	sub, _ := first_shell_token(a)
-	sub_l := strings.to_lower(sub, context.temp_allocator)
-	return sub_l == "list" ||
-		sub_l == "dump" ||
-		sub_l == "view" ||
-		sub_l == "help" ||
-		sub_l == "--help" ||
-		sub_l == "-h" ||
-		sub_l == "--version"
+	return bash_sub_readonly(
+		args,
+		allow = {"list", "dump", "view", "help"},
+		deny = {"init"},
+	)
 }
 
 // B72: ansible-galaxy list/search/info only (not install/remove).
 bash_ansible_galaxy_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" || a == "--help" || a == "-h" || a == "--version" {
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// collection / role groups
-		if sub == "collection" || sub == "role" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			if n == "install" ||
-			   n == "remove" ||
-			   n == "download" ||
-			   n == "init" ||
-			   n == "build" ||
-			   n == "publish" ||
-			   n == "verify" {
-				return false
-			}
-			return n == "" ||
-				n == "list" ||
-				n == "search" ||
-				n == "info" ||
-				n == "help" ||
-				n == "--help"
-		}
-		if sub == "install" ||
-		   sub == "remove" ||
-		   sub == "delete" ||
-		   sub == "init" ||
-		   sub == "build" ||
-		   sub == "publish" ||
-		   sub == "import" ||
-		   sub == "setup" {
+	sub, rem, ok := bash_peel_to_sub(args)
+	if !ok {
+		return true
+	}
+	// collection / role groups
+	if sub == "collection" || sub == "role" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		if n == "install" ||
+		   n == "remove" ||
+		   n == "download" ||
+		   n == "init" ||
+		   n == "build" ||
+		   n == "publish" ||
+		   n == "verify" {
 			return false
 		}
-		if sub == "list" ||
-		   sub == "search" ||
-		   sub == "info" ||
-		   sub == "help" ||
-		   sub == "--version" {
-			return true
-		}
+		return n == "" ||
+			n == "list" ||
+			n == "search" ||
+			n == "info" ||
+			n == "help" ||
+			n == "--help" ||
+			n == "-h"
+	}
+	if bash_token_in(
+		sub,
+		[]string{"install", "remove", "delete", "init", "build", "publish", "import", "setup"},
+	) {
 		return false
 	}
+	return bash_token_in(sub, []string{"list", "search", "info", "help"})
 }
 
 // B71: Pulumi inspect (stack ls/output, config get, about; not up/destroy/preview).

@@ -61,6 +61,7 @@ new_session :: proc(
 	allocator := context.allocator,
 	skills_catalog := "",
 ) -> Session {
+	// aether_sessions_dir allocates; Session owns that string (no second clone).
 	dir := core.aether_sessions_dir(sessions_dir, allocator)
 	_ = core.ensure_dir(dir)
 	id := generate_session_id(allocator)
@@ -75,7 +76,7 @@ new_session :: proc(
 		created_at   = now,
 		updated_at   = strings.clone(now, allocator),
 		auto_save    = auto_save,
-		sessions_dir = strings.clone(dir, allocator),
+		sessions_dir = dir,
 	}
 	s.msgs = make([dynamic]Chat_Message, 0, 32, allocator)
 	append(
