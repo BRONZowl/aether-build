@@ -92,6 +92,12 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			dirty = false
 		}
 
+		// Window resize (SIGWINCH and/or size re-query): reflow without a keypress.
+		if term_poll_resize(&term) {
+			dirty = true
+			continue
+		}
+
 		// Idle auto-wake: when safe, surface finished bg tasks without a user prompt
 		if tui_can_auto_wake(&st) && agent.auto_wake_enabled() && agent.bg_has_undelivered() {
 			if tui_run_auto_wake(
@@ -111,19 +117,22 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 		}
 
-		// When auto-wake may fire, use a short timed wait so we re-check without a key
+		// Timed wait so SIGWINCH / size changes are noticed while idle.
+		// (Blocking read would leave the layout stale until the next key.)
+		// Auto-wake path uses 500ms; otherwise 200ms is snappy enough for resize.
 		key: Key
-		if tui_can_auto_wake(&st) && agent.auto_wake_enabled() {
-			b, ok := read_byte_timeout(5) // 500ms
-			if !ok {
-				continue
+		wait_ds: u8 = 5 if (tui_can_auto_wake(&st) && agent.auto_wake_enabled()) else 2
+		b, ok := read_byte_timeout(wait_ds)
+		if !ok {
+			// timeout: check resize again and loop
+			if term_poll_resize(&term) {
+				dirty = true
 			}
-			one := [1]u8{b}
-			push_bytes(one[:])
-			key = read_key()
-		} else {
-			key = read_key()
+			continue
 		}
+		one := [1]u8{b}
+		push_bytes(one[:])
+		key = read_key()
 		now := time.now()._nsec
 
 		if st.esc_first_ns != 0 && now - st.esc_first_ns > ESC_CLEAR_NS {

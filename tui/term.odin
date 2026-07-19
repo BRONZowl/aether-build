@@ -36,6 +36,7 @@ term_enter :: proc(t: ^Term_State) -> bool {
 	// Mouse: button tracking (1000) + SGR extended (1006) for wheel (C2.2).
 	// Bracketed paste (2004): multi-line paste as one event (C2.6 / M1).
 	fmt.print("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u\x1b[?1000h\x1b[?1006h\x1b[?2004h")
+	term_install_resize_handler()
 	term_update_size(t)
 	return true
 }
@@ -44,6 +45,7 @@ term_leave :: proc(t: ^Term_State) {
 	if !t.active {
 		return
 	}
+	term_uninstall_resize_handler()
 	// disable bracketed paste, mouse, pop keyboard mode, show cursor, leave alt screen
 	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
 	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &t.orig)
