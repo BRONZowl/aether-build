@@ -12,6 +12,18 @@ g_test_slash_lines: ^[dynamic]string
 
 @(test)
 test_slash_help_and_unknown :: proc(t: ^testing.T) {
+	// Isolate global skills registry (other tests may install/free it).
+	defer maybe_stop_skills(nil)
+	prev_sk := os.get_env("AETHER_NO_SKILLS", context.temp_allocator)
+	_ = os.set_env("AETHER_NO_SKILLS", "1")
+	defer {
+		if prev_sk != "" {
+			_ = os.set_env("AETHER_NO_SKILLS", prev_sk)
+		} else {
+			_ = os.unset_env("AETHER_NO_SKILLS")
+		}
+	}
+
 	dir := fmt.tprintf("/tmp/aether-slash-test-%d", os.get_pid())
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
@@ -186,6 +198,17 @@ test_slash_always_approve_and_btw :: proc(t: ^testing.T) {
 
 @(test)
 test_slash_new_session_changed :: proc(t: ^testing.T) {
+	defer maybe_stop_skills(nil)
+	prev_sk := os.get_env("AETHER_NO_SKILLS", context.temp_allocator)
+	_ = os.set_env("AETHER_NO_SKILLS", "1")
+	defer {
+		if prev_sk != "" {
+			_ = os.set_env("AETHER_NO_SKILLS", prev_sk)
+		} else {
+			_ = os.unset_env("AETHER_NO_SKILLS")
+		}
+	}
+
 	dir := fmt.tprintf("/tmp/aether-slash-new-%d", os.get_pid())
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)

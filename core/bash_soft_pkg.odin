@@ -6,472 +6,133 @@ import "core:strings"
 
 // B60: flatpak inspect (list/info/search/remotes; not install/update/run).
 bash_flatpak_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string{"--columns", "--arch", "--installation"}
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if bash_is_help_or_version(strings.trim_space(args)) || !ok {
 		return true
 	}
-	if a == "--version" || a == "--help" || a == "-h" || a == "help" {
-		return true
+	if sub == "config" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "" || n == "--list" || n == "get" || n == "--help" || n == "-h" || n == "list"
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			// peel flags (user/system, columns, …)
-			if tok == "--user" ||
-			   tok == "--system" ||
-			   tok == "--columns" ||
-			   tok == "--arch" ||
-			   tok == "--installation" {
-				if tok == "--columns" || tok == "--arch" || tok == "--installation" {
-					_, rest2 := first_shell_token(rem)
-					rest = rest2
-					continue
-				}
-				rest = rem
-				continue
-			}
-			if strings.has_prefix(tok, "--columns=") ||
-			   strings.has_prefix(tok, "--arch=") ||
-			   strings.has_prefix(tok, "--installation=") {
-				rest = rem
-				continue
-			}
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "update" ||
-		   sub == "upgrade" ||
-		   sub == "run" ||
-		   sub == "override" ||
-		   sub == "make-current" ||
-		   sub == "enter" ||
-		   sub == "permission-set" ||
-		   sub == "permission-reset" ||
-		   sub == "permission-remove" ||
-		   sub == "repair" ||
-		   sub == "create-usb" ||
-		   sub == "build" ||
-		   sub == "build-export" ||
-		   sub == "build-bundle" ||
-		   sub == "build-import-bundle" ||
-		   sub == "build-sign" ||
-		   sub == "build-update-repo" ||
-		   sub == "build-commit-from" ||
-		   sub == "repo" ||
-		   sub == "document-export" ||
-		   sub == "document-unexport" ||
-		   sub == "kill" ||
-		   sub == "spawn" {
-			return false
-		}
-		// remote-add / remote-delete mutate; remote-list/remote-ls/remote-info inspect
-		if sub == "remote-add" ||
-		   sub == "remote-delete" ||
-		   sub == "remote-modify" ||
-		   sub == "mask" ||
-		   sub == "unmask" {
-			return false
-		}
-		if sub == "config" {
-			// config set mutates; list/get only
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "--list" || n == "get" || n == "--help" || n == "-h" || n == "list"
-		}
-		if sub == "list" ||
-		   sub == "info" ||
-		   sub == "search" ||
-		   sub == "remote-list" ||
-		   sub == "remotes" ||
-		   sub == "remote-ls" ||
-		   sub == "remote-info" ||
-		   sub == "history" ||
-		   sub == "ps" ||
-		   sub == "permission-show" ||
-		   sub == "permission-list" ||
-		   sub == "document-list" ||
-		   sub == "document-info" ||
-		   sub == "help" ||
-		   sub == "--version" {
-			return true
-		}
+	deny := []string {
+		"install", "uninstall", "update", "upgrade", "run", "override", "make-current",
+		"enter", "permission-set", "permission-reset", "permission-remove", "repair",
+		"create-usb", "build", "build-export", "build-bundle", "build-import-bundle",
+		"build-sign", "build-update-repo", "build-commit-from", "repo",
+		"document-export", "document-unexport", "kill", "spawn",
+		"remote-add", "remote-delete", "remote-modify", "mask", "unmask",
+	}
+	allow := []string {
+		"list", "info", "search", "remote-list", "remotes", "remote-ls", "remote-info",
+		"history", "ps", "permission-show", "permission-list", "document-list",
+		"document-info", "help", "--version",
+	}
+	if bash_token_in(sub, deny) {
 		return false
 	}
+	return bash_token_in(sub, allow)
 }
 
 // B60: snap inspect (list/info/find; not install/remove/refresh).
 bash_snap_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" || a == "--version" || a == "--help" || a == "-h" || a == "help" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "remove" ||
-		   sub == "refresh" ||
-		   sub == "try" ||
-		   sub == "download" ||
-		   sub == "pack" ||
-		   sub == "start" ||
-		   sub == "stop" ||
-		   sub == "restart" ||
-		   sub == "enable" ||
-		   sub == "disable" ||
-		   sub == "set" ||
-		   sub == "unset" ||
-		   sub == "connect" ||
-		   sub == "disconnect" ||
-		   sub == "alias" ||
-		   sub == "unalias" ||
-		   sub == "prefer" ||
-		   sub == "switch" ||
-		   sub == "create-cohort" ||
-		   sub == "ack" ||
-		   sub == "sign" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "buy" ||
-		   sub == "abort" ||
-		   sub == "watch" ||
-		   sub == "wait" ||
-		   sub == "run" ||
-		   sub == "routine" ||
-		   sub == "prepare-image" ||
-		   sub == "remodel" ||
-		   sub == "reboot" ||
-		   sub == "recovery" ||
-		   sub == "debug" {
-			return false
-		}
-		if sub == "list" ||
-		   sub == "info" ||
-		   sub == "find" ||
-		   sub == "search" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "known" ||
-		   sub == "connections" ||
-		   sub == "interface" ||
-		   sub == "interfaces" ||
-		   sub == "model" ||
-		   sub == "changes" ||
-		   sub == "tasks" ||
-		   sub == "warnings" ||
-		   sub == "get" ||
-		   sub == "services" ||
-		   sub == "logs" ||
-		   sub == "whoami" ||
-		   sub == "ok" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"list", "info", "find", "search", "version", "help", "known", "connections",
+			"interface", "interfaces", "model", "changes", "tasks", "warnings", "get",
+			"services", "logs", "whoami", "ok",
+		},
+		deny = {
+			"install", "remove", "refresh", "try", "download", "pack", "start", "stop",
+			"restart", "enable", "disable", "set", "unset", "connect", "disconnect",
+			"alias", "unalias", "prefer", "switch", "create-cohort", "ack", "sign",
+			"login", "logout", "buy", "abort", "watch", "wait", "run", "routine",
+			"prepare-image", "remodel", "reboot", "recovery", "debug",
+		},
+	)
 }
 
 // B60: Alpine apk inspect (info/search/list/version; not add/del/upgrade).
 bash_apk_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "--version" || a == "--help" || a == "-h" || a == "help" || a == "version" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// globals that take values
-		if tok == "--repository" || tok == "-X" || tok == "--root" || tok == "--keys-dir" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if strings.has_prefix(tok, "--repository=") ||
-		   strings.has_prefix(tok, "--root=") ||
-		   strings.has_prefix(tok, "--keys-dir=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "add" ||
-		   sub == "del" ||
-		   sub == "delete" ||
-		   sub == "fix" ||
-		   sub == "upgrade" ||
-		   sub == "update" ||
-		   sub == "fetch" ||
-		   sub == "manifest" ||
-		   sub == "dot" ||
-		   sub == "cache" ||
-		   sub == "index" {
-			return false
-		}
-		if sub == "info" ||
-		   sub == "search" ||
-		   sub == "list" ||
-		   sub == "version" ||
-		   sub == "policy" ||
-		   sub == "stats" ||
-		   sub == "audit" ||
-		   sub == "verify" ||
-		   sub == "help" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"info", "search", "list", "version", "policy", "stats", "audit", "verify", "help",
+		},
+		deny = {
+			"add", "del", "delete", "fix", "upgrade", "update", "fetch", "manifest",
+			"dot", "cache", "index",
+		},
+		value_flags = {"--repository", "-X", "--root", "--keys-dir"},
+	)
 }
 
 // B59: apt / apt-get inspect (list/search/show/policy; not install/update/upgrade).
 bash_apt_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "--version" ||
-	   a == "-v" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "help" {
-		return true
-	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// common globals
-		if tok == "-y" ||
-		   tok == "--yes" ||
-		   tok == "--assume-yes" ||
-		   tok == "-qq" ||
-		   tok == "-q" ||
-		   tok == "--quiet" ||
-		   tok == "-o" ||
-		   tok == "--option" {
-			if tok == "-o" || tok == "--option" {
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				continue
-			}
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-o") && len(tok) > 2 {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if sub == "install" ||
-		   sub == "remove" ||
-		   sub == "purge" ||
-		   sub == "update" ||
-		   sub == "upgrade" ||
-		   sub == "full-upgrade" ||
-		   sub == "dist-upgrade" ||
-		   sub == "autoremove" ||
-		   sub == "autopurge" ||
-		   sub == "clean" ||
-		   sub == "autoclean" ||
-		   sub == "source" ||
-		   sub == "build-dep" ||
-		   sub == "download" ||
-		   sub == "reinstall" ||
-		   sub == "mark" ||
-		   sub == "hold" ||
-		   sub == "unhold" {
-			return false
-		}
-		// inspect
-		if sub == "list" ||
-		   sub == "search" ||
-		   sub == "show" ||
-		   sub == "showsrc" ||
-		   sub == "policy" ||
-		   sub == "depends" ||
-		   sub == "rdepends" ||
-		   sub == "changelog" ||
-		   sub == "check" ||
-		   sub == "help" ||
-		   sub == "moo" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"list", "search", "show", "showsrc", "policy", "depends", "rdepends",
+			"changelog", "check", "help", "moo",
+		},
+		deny = {
+			"install", "remove", "purge", "update", "upgrade", "full-upgrade",
+			"dist-upgrade", "autoremove", "autopurge", "clean", "autoclean",
+			"source", "build-dep", "download", "reinstall", "mark", "hold", "unhold",
+		},
+		value_flags = {"-o", "--option"},
+	)
 }
 
 // B59: apt-cache is read-only package metadata (no install path).
 bash_apt_cache_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" || a == "--help" || a == "-h" || a == "help" {
-		return true
-	}
-	// gencaches writes — deny; most other ops are inspect
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "gencaches" {
-			return false
-		}
-		if sub == "search" ||
-		   sub == "show" ||
-		   sub == "showpkg" ||
-		   sub == "showsrc" ||
-		   sub == "policy" ||
-		   sub == "depends" ||
-		   sub == "rdepends" ||
-		   sub == "pkgnames" ||
-		   sub == "dotty" ||
-		   sub == "xvcg" ||
-		   sub == "unmet" ||
-		   sub == "dump" ||
-		   sub == "dumpavail" ||
-		   sub == "stats" ||
-		   sub == "madison" ||
-		   sub == "help" {
-			return true
-		}
-		return false
-	}
+	return bash_sub_readonly(
+		args,
+		allow = {
+			"search", "show", "showpkg", "showsrc", "policy", "depends", "rdepends",
+			"pkgnames", "dotty", "xvcg", "unmet", "dump", "dumpavail", "stats",
+			"madison", "help",
+		},
+		deny = {"gencaches"},
+	)
 }
 
 // B59: dnf / yum inspect (list/info/search/repolist; not install/remove/upgrade).
 bash_dnf_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
+	value_flags := []string{"--enablerepo", "--disablerepo", "--repoid", "--setopt"}
+	if bash_is_help_or_version(strings.trim_space(args)) {
 		return true
 	}
-	if a == "--version" || a == "--help" || a == "-h" || a == "help" {
+	sub, rem, ok := bash_peel_to_sub(args, value_flags)
+	if !ok {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// peel common globals
-		if tok == "-y" ||
-		   tok == "--assumeyes" ||
-		   tok == "-q" ||
-		   tok == "--quiet" ||
-		   tok == "-v" ||
-		   tok == "--verbose" ||
-		   tok == "--enablerepo" ||
-		   tok == "--disablerepo" ||
-		   tok == "--repoid" ||
-		   tok == "--setopt" {
-			if tok == "--enablerepo" ||
-			   tok == "--disablerepo" ||
-			   tok == "--repoid" ||
-			   tok == "--setopt" {
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				continue
-			}
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "--enablerepo=") ||
-		   strings.has_prefix(tok, "--disablerepo=") ||
-		   strings.has_prefix(tok, "--repoid=") ||
-		   strings.has_prefix(tok, "--setopt=") {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "install" ||
-		   sub == "remove" ||
-		   sub == "erase" ||
-		   sub == "upgrade" ||
-		   sub == "update" ||
-		   sub == "downgrade" ||
-		   sub == "reinstall" ||
-		   sub == "distro-sync" ||
-		   sub == "makecache" ||
-		   sub == "clean" ||
-		   sub == "autoremove" ||
-		   sub == "groupinstall" ||
-		   sub == "groupremove" ||
-		   sub == "mark" {
-			// mark install/remove mutates; fail closed
-			return false
-		}
-		// module enable/install still mutates — only list/info under module
-		if sub == "module" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "list" || n == "info" || n == "provides" || n == "" || n == "help"
-		}
-		if sub == "group" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "list" || n == "info" || n == "summary" || n == "" || n == "help"
-		}
-		if sub == "list" ||
-		   sub == "info" ||
-		   sub == "search" ||
-		   sub == "repolist" ||
-		   sub == "repoinfo" ||
-		   sub == "check-update" ||
-		   sub == "check-upgrade" ||
-		   sub == "provides" ||
-		   sub == "whatprovides" ||
-		   sub == "repoquery" ||
-		   sub == "history" ||
-		   sub == "help" ||
-		   sub == "check" ||
-		   sub == "deplist" ||
-		   sub == "changelog" ||
-		   sub == "leaves" {
-			return true
-		}
+	// nested: module/group inspect only
+	if sub == "module" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "list" || n == "info" || n == "provides" || n == "" || n == "help"
+	}
+	if sub == "group" {
+		next, _ := first_shell_token(rem)
+		n := strings.to_lower(next, context.temp_allocator)
+		return n == "list" || n == "info" || n == "summary" || n == "" || n == "help"
+	}
+	deny := []string {
+		"install", "remove", "erase", "upgrade", "update", "downgrade", "reinstall",
+		"distro-sync", "makecache", "clean", "autoremove", "groupinstall", "groupremove", "mark",
+	}
+	allow := []string {
+		"list", "info", "search", "repolist", "repoinfo", "check-update", "check-upgrade",
+		"provides", "whatprovides", "repoquery", "history", "help", "check", "deplist",
+		"changelog", "leaves",
+	}
+	if bash_token_in(sub, deny) {
 		return false
 	}
+	return bash_token_in(sub, allow)
 }
 
 // B59: pacman query/search only (-Q/-S query forms; not -S install / -R / -Syu).

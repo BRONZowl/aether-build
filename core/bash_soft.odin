@@ -242,6 +242,113 @@ bash_segment_is_readonly :: proc(seg: string) -> bool {
 	}
 }
 
+// --- Shared readonly matchers (Wave C) --------------------------------------
+// Peel leading flags, match first subcommand against allow/deny lists.
+// Fail-closed: unknown sub → false (same as most existing helpers).
+
+// bash_is_help_or_version: bare/help/version whole-arg forms.
+bash_is_help_or_version :: proc(a: string) -> bool {
+	if a == "" {
+		return true
+	}
+	switch a {
+	case "--version", "-v", "-V", "--help", "-h", "help", "version":
+		return true
+	}
+	return false
+}
+
+// bash_token_in: case-sensitive membership (callers lower-case first).
+bash_token_in :: proc(tok: string, list: []string) -> bool {
+	for x in list {
+		if tok == x {
+			return true
+		}
+	}
+	return false
+}
+
+// bash_peel_to_sub: skip leading -flags; optional value_flags consume next token.
+// Returns first non-flag token (lowercased into temp allocator) and remaining args.
+bash_peel_to_sub :: proc(
+	args: string,
+	value_flags: []string = {},
+) -> (
+	sub: string,
+	rest: string,
+	ok: bool,
+) {
+	rest = strings.trim_space(args)
+	if rest == "" {
+		return "", "", false
+	}
+	for {
+		tok, rem := first_shell_token(rest)
+		if tok == "" {
+			return "", "", false
+		}
+		// long/short flags
+		if strings.has_prefix(tok, "-") {
+			// value flags: exact match or --flag=value
+			consume_val := false
+			for vf in value_flags {
+				if tok == vf {
+					consume_val = true
+					break
+				}
+				// --flag=value form already includes value (no extra token)
+				if strings.has_prefix(vf, "--") &&
+				   strings.has_prefix(tok, vf) &&
+				   len(tok) > len(vf) &&
+				   tok[len(vf)] == '=' {
+					consume_val = false
+					break
+				}
+			}
+			if consume_val {
+				_, rest2 := first_shell_token(rem)
+				rest = rest2
+				continue
+			}
+			rest = rem
+			continue
+		}
+		// first subcommand
+		sub = strings.to_lower(tok, context.temp_allocator)
+		return sub, rem, true
+	}
+}
+
+// bash_sub_readonly: peel flags → first sub in allow (true) or deny (false).
+// Special nested pairs handled by caller after peel (e.g. dnf module list).
+// If no subcommand found after peel → true (bare/help only).
+bash_sub_readonly :: proc(
+	args: string,
+	allow: []string,
+	deny: []string = {},
+	value_flags: []string = {},
+) -> bool {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
+		return true
+	}
+	sub, _, ok := bash_peel_to_sub(a, value_flags)
+	if !ok {
+		return true
+	}
+	if len(deny) > 0 && bash_token_in(sub, deny) {
+		return false
+	}
+	if len(allow) > 0 {
+		return bash_token_in(sub, allow)
+	}
+	// deny-only: anything not denied is allowed
+	if len(deny) > 0 {
+		return true
+	}
+	return false
+}
+
 // first_shell_token: whitespace-split first token (no quote handling).
 first_shell_token :: proc(s: string) -> (tok, rest: string) {
 	t := strings.trim_left_space(s)
