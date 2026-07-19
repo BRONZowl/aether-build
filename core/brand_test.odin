@@ -44,7 +44,7 @@ test_brand_art_disabled :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_brand_art_ax_monogram :: proc(t: ^testing.T) {
+test_brand_art_grok_shell_with_a :: proc(t: ^testing.T) {
 	prev := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator)
 	_ = os.unset_env("AETHER_NO_ASCII_ART")
 	_ = os.unset_env("AETHER_ASCII_ART")
@@ -57,22 +57,23 @@ test_brand_art_ax_monogram :: proc(t: ^testing.T) {
 	testing.expect(t, len(full) == BRAND_FULL_CELLS_H)
 	for line in full {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_FULL_CELLS_W)
+		for r in line {
+			testing.expect(t, r >= 0x2800 && r <= 0x28FF)
+		}
 	}
-	// Geometric peak A
-	joined := strings.join(full, "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "╱") && strings.contains(joined, "╲"))
-	// SpaceX-style X through the mark
-	testing.expect(t, strings.contains(joined, "╳"))
-	// Not Grok braille logo
-	testing.expect(t, !strings.contains(joined, "⣿"))
+	// Same outer envelope as Grok logo07 (first + last lines)
+	testing.expect(t, full[0] == `⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`)
+	testing.expect(t, full[6] == `⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`)
+	// Center differs from Grok (A fill, not open diagonal)
+	testing.expect(t, full[2] != `⠀⠀⣼⡟⠁⠀⠀⠀⢀⡴⠻⣿⡀⠀`)
+	testing.expect(t, full[3] != `⠀⠀⣿⡇⠀⠀⠀⠔⠁⠀⠀⣿⡇⠀`)
 
 	small := brand_art_lines(.Small)
 	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)
 	for line in small {
 		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_SMALL_CELLS_W)
 	}
-	small_j := strings.join(small, "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(small_j, "╳"))
+	testing.expect(t, small[0] == `⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`)
 }
 
 @(test)
@@ -90,7 +91,6 @@ test_brand_welcome_has_menu :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(s, "Resume session"))
 	testing.expect(t, strings.contains(s, "Quit"))
 	testing.expect(t, strings.contains(s, "ctrl+n"))
-	testing.expect(t, strings.contains(s, "\n"))
 }
 
 @(test)

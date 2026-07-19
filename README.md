@@ -136,7 +136,7 @@ Tool failures (`error:…` results) show as **fail:** in the status bar and as `
 
 ## Brand / welcome art (V1)
 
-Empty TUI sessions open with a **Grok Build–parity welcome layout** and a clean geometric **A×X** monogram (Avengers peak A + SpaceX X, Unicode line art): **stacked** menu or **hero box** when width ≥ 90.
+Empty TUI sessions open with a **Grok Build–parity welcome layout** and a **Grok-style Braille mark with “A” in the center**: **stacked** menu or **hero box** when width ≥ 90.
 
 - Off: `AETHER_NO_ASCII_ART=1` or `AETHER_ASCII_ART=off`
 - `/features` row: `ascii-art`

@@ -1,8 +1,8 @@
 // Package core — Aether brand / welcome art.
 //
 // Welcome *layout* follows Grok Build (stacked / hero, height tiers, menu).
-// Glyph: clean geometric line monogram — Avengers-style peak "A" with a
-// SpaceX-style X through the center (Unicode strokes; not Braille mud, not Grok).
+// Glyph: Grok-style Braille shell (logo07/logo05 canvas + flourishes) with a
+// solid letter "A" in the open center — Aether mark, not a Grok clone.
 package core
 
 import "core:fmt"
@@ -19,11 +19,11 @@ BRAND_FULL_MIN_COLS :: 28
 // Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
 BRAND_HERO_MIN_COLS :: 90
 
-// Monogram canvas (display columns / rows). All full lines share the same width.
+// Canvas matches Grok logo07 / logo05 (braille cells).
 BRAND_FULL_CELLS_W :: 14
-BRAND_FULL_CELLS_H :: 6
-BRAND_SMALL_CELLS_W :: 7
-BRAND_SMALL_CELLS_H :: 3
+BRAND_FULL_CELLS_H :: 7
+BRAND_SMALL_CELLS_W :: 10
+BRAND_SMALL_CELLS_H :: 5
 
 Brand_Tier :: enum {
 	None,
@@ -32,25 +32,27 @@ Brand_Tier :: enum {
 	Full,
 }
 
-// Full mark — Avengers peak A × SpaceX X (clean geometric Unicode).
-// Fixed 14-col lines so centering is even.
-BRAND_ART_FULL := [6]string {
-	`      ╱╲      `,
-	`     ╱╳ ╲     `,
-	`    ╱ ╳  ╲    `,
-	`   ╱  ╳   ╲   `,
-	`  ╱────╳────╲ `,
-	` ╱          ╲ `,
+// Full mark — Grok logo07 shell + "A" in the middle (14×7 braille).
+BRAND_ART_FULL := [7]string {
+	`⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`,
+	`⠀⠀⠀⣠⣾⢿⣿⣟⠛⠛⢀⡴⠁⠀`,
+	`⠀⠀⣼⡟⢁⣼⣿⣿⣄⠐⠻⣿⡀⠀`,
+	`⠀⠀⣿⡇⣿⡿⠿⠿⣿⡇⠀⣿⡇⠀`,
+	`⠀⠀⢹⣷⡿⠃⠀⠀⠻⣷⣴⡿⠀⠀`,
+	`⠀⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋⠀⠀⠀`,
+	`⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`,
 }
 
-// Small mark — compact A×X (fixed 7-col).
-BRAND_ART_SMALL := [3]string {
-	`  ╱╲   `,
-	` ╱╳ ╲  `,
-	`╱──╳──╲`,
+// Small mark — Grok logo05 shell + "A" in the middle (10×5).
+BRAND_ART_SMALL := [5]string {
+	`⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`,
+	`⠀⢀⡾⢻⣿⣷⠁⢴⡎⠀`,
+	`⠀⢸⣷⣿⠿⢿⣷⢀⣿⠀`,
+	`⠀⢈⠿⢋⣀⣈⣻⡿⠃⠀`,
+	`⠐⠁⠀⠈⠉⠉⠉⠀⠀⠀`,
 }
 
-BRAND_ART_CHIP :: "◇ aether · odin"
+BRAND_ART_CHIP :: "⣿ aether · odin"
 
 // Welcome menu (stacked + hero) — Grok layout: label left, shortcut right.
 // Keys match Aether TUI bindings (Ctrl+N / Ctrl+S / Ctrl+Q).

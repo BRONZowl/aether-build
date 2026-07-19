@@ -430,7 +430,7 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 
 | Surface | Status | Residual |
 |---------|--------|----------|
-| Welcome / brand art | **Full (V1)** — clean A×X geometric monogram + stacked/hero | Grok Braille logo + hero/stacked; shimmer N/A |
+| Welcome / brand art | **Full (V1)** — Grok-style Braille shell + center “A” + stacked/hero | Grok Braille logo + hero/stacked; shimmer N/A |
 | Mermaid Unicode layout | **Full (M8)** | PNG/SVG N/A |
 | GFM tables box-drawing | **Full** | — |
 | Themes / compact chrome | **Full** | — |
@@ -543,7 +543,7 @@ single-process product).
 |----------|--------|
 | Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, Mixpanel | Phase D / residual N/A |
 | Mermaid PNG/SVG raster pipeline | **M8** ships Unicode art; Grok PNG affordance residual N/A |
-| Grok Braille welcome logo + shimmer | **V1** A×X geometric monogram + stacked/hero (no shimmer) |
+| Grok Braille welcome logo + shimmer | **V1** Grok-style shell + center A + stacked/hero (no shimmer) |
 | In-process Landlock apply | **M6** uses bwrap when available; LSM probe only |
 | Remote workspace services, SQLite memory | Documented N/A in matrices |
 

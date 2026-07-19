@@ -2,7 +2,7 @@
 //
 // Stacked layout (narrow): centered logo → gap → menu → flex → tip
 // Hero layout (cols ≥ 90): bordered box, logo left, version+menu right
-// Logo: Aether A×X geometric monogram — Avengers A + SpaceX X (core.brand).
+// Logo: Grok-style Braille shell with "A" in the center (core.brand).
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
@@ -267,14 +267,14 @@ hero_left_cell :: proc(
 	}
 	if row < len(logo) {
 		strings.write_string(&b, logo[row])
-		// pad to logo_w columns if short
+		// pad to logo_w with braille blank
 		lw := utf8.rune_count_in_string(logo[row])
 		for i := lw; i < logo_w; i += 1 {
-			strings.write_byte(&b, ' ')
+			strings.write_string(&b, "⠀")
 		}
 	} else {
 		for i := 0; i < logo_w; i += 1 {
-			strings.write_byte(&b, ' ')
+			strings.write_string(&b, "⠀")
 		}
 	}
 	for i := 0; i < right_pad; i += 1 {
