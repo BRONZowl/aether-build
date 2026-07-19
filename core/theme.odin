@@ -9,9 +9,20 @@ import "core:strings"
 // Canonical theme keys (first alias is the stable name).
 UI_THEME_NAMES :: [5]string{"dark", "light", "tokyonight", "rosepine", "oscura"}
 
-// g_ui_theme_name process-global; empty → "dark". Owned string or static.
+// g_ui_theme_name process-global; empty → "dark".
+// Always points at a static/canonical name (never heap-owned) so tests and
+// config loaders can set/reset without tracking-allocator bad frees.
 g_ui_theme_name: string
-g_ui_theme_owned: bool
+
+// intern_theme_name returns a stable string from UI_THEME_NAMES (or "dark").
+intern_theme_name :: proc(canon: string) -> string {
+	for n in UI_THEME_NAMES {
+		if n == canon {
+			return n
+		}
+	}
+	return "dark"
+}
 
 // normalize_theme_name maps Grok aliases → canonical key; ok=false if unknown.
 normalize_theme_name :: proc(raw: string) -> (string, bool) {
@@ -43,11 +54,7 @@ set_ui_theme_name :: proc(raw: string) -> bool {
 	if !ok {
 		return false
 	}
-	if g_ui_theme_owned && g_ui_theme_name != "" {
-		delete(g_ui_theme_name)
-	}
-	g_ui_theme_name = strings.clone(canon)
-	g_ui_theme_owned = true
+	g_ui_theme_name = intern_theme_name(canon)
 	return true
 }
 
@@ -98,11 +105,7 @@ ui_color_disabled :: proc() -> bool {
 	return false
 }
 
-// reset_ui_theme for tests.
+// reset_ui_theme for tests (static names — no free).
 reset_ui_theme :: proc() {
-	if g_ui_theme_owned && g_ui_theme_name != "" {
-		delete(g_ui_theme_name)
-	}
 	g_ui_theme_name = ""
-	g_ui_theme_owned = false
 }

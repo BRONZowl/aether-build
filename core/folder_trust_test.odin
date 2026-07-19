@@ -45,7 +45,10 @@ test_is_unsafe_trust_root :: proc(t: ^testing.T) {
 test_folder_trust_grant_revoke_round_trip :: proc(t: ^testing.T) {
 	dir, err := os.make_directory_temp("/tmp", "aether-ft-", context.allocator)
 	testing.expect(t, err == nil)
-	defer os.remove_all(dir)
+	defer {
+		os.remove_all(dir)
+		delete(dir) // path string owned by tracking allocator
+	}
 
 	prev_h := os.get_env("GROK_HOME", context.temp_allocator)
 	prev_ft := os.get_env("AETHER_NO_FOLDER_TRUST", context.temp_allocator)

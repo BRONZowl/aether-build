@@ -95,12 +95,15 @@ stream_notice_slash :: proc(msg: string) {
 	}
 }
 
-// stream_status_cb: Turn_Options.on_status — updates status line + optional live clear.
+// stream_status_cb: Turn_Options.on_status — peek keys, status line, live clear.
+// Single path for agent turns (handle_submit + auto-wake).
 stream_status_cb :: proc(text: string) {
+	peek_turn_keys()
 	if g_rt.status_st == nil {
 		return
 	}
-	if text == "" || text == "ready" {
+	// When tools start, drop live stream so it doesn't double with history
+	if text == "" || text == "ready" || strings.has_prefix(text, "tool:") {
 		strings.builder_reset(&g_rt.status_st.live_assist)
 	}
 	state_set_status(g_rt.status_st, text)
@@ -109,8 +112,9 @@ stream_status_cb :: proc(text: string) {
 	}
 }
 
-// stream_tool_done_cb: rebuild blocks after a tool finishes mid-turn.
+// stream_tool_done_cb: Turn_Options.on_history — rebuild blocks after tool finish.
 stream_tool_done_cb :: proc() {
+	peek_turn_keys()
 	if g_rt.st == nil || g_rt.sess == nil {
 		return
 	}
