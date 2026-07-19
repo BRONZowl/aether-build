@@ -36,41 +36,41 @@ Optional `--git-history` preserves `aether/` git history via `git subtree split`
 No Cargo / Rust source tree is required. No installed Rust `grok` binary is required for normal use (R0-A). Shared `~/.grok` files are optional **interop** with an existing Grok install.
 
 ```bash
-# from aether/ or monorepo root
-make -C aether bootstrap-odin       # Odin → aether/.tools or monorepo .tools
-make -C aether build test smoke-tui
-./aether/bin/aether --version       # or: ./aether/out/aether
-./aether/bin/aether -p "say hi in three words"
-./aether/bin/aether                 # multi-turn REPL
-./aether/bin/aether tui             # fullscreen chat (TTY)
-make -C aether install              # ~/.local/bin: aether, grok-odin, aether-grok-odin
-make -C aether smoke                # live -p check (skips without auth)
+# from this tree (standalone) — or monorepo: make -C aether …
+make bootstrap-odin                 # Odin → ./.tools (or monorepo ../.tools)
+make build test smoke-tui
+./bin/aether --version              # or: ./out/aether
+./bin/aether -p "say hi in three words"
+./bin/aether                        # multi-turn REPL
+./bin/aether tui                    # fullscreen chat (TTY)
+make install                        # PATH: aether-grok-odin, grok-odin (+ aether if free)
+make smoke                          # live -p check (skips without auth)
 ```
 
 Useful make targets: `build`, `debug`, `vet`, `test`, `run ARGS='-p hi'`, `smoke`, `smoke-tui`, `install`, `bootstrap-odin`, `dist`, `extract` (S4), `inventory-rust`, `clean`.
 
-**CI:** `.github/workflows/aether.yml` — Odin only on `aether/**` changes (no Cargo).
+**CI:** `.github/workflows/aether.yml` — Odin-only (no Cargo).
 
 ```bash
-source aether/shell-aliases.sh      # aether / grok-odin / aether-grok-odin + PATH
+source ./shell-aliases.sh           # aether-grok-odin / grok-odin (+ aether if free) + PATH
 ```
 
-Install names all point at the same wrapper and **do not** clobber Rust `grok`:
+Install names all point at the same wrapper and **do not** clobber Rust `grok`.
+Dest defaults to the first writable of `~/.local/bin` or `~/.grok/bin` (override: `AETHER_INSTALL_BIN`).
 
 | Command | Meaning |
 |---------|---------|
-| `aether` | Preferred short name after `make install` |
+| `aether-grok-odin` | Preferred explicit name (always installed) |
 | `grok-odin` | Explicit Odin product name |
-| `aether-grok-odin` | Compat name (root `bin/` shim → `aether/bin/aether`) |
+| `aether` | Short name **only if** it would not shadow a foreign binary (e.g. Arch theme `aether`) |
 
+On hosts where `/usr/bin/aether` is already something else, use `aether-grok-odin` / `grok-odin`. Force short name: `AETHER_INSTALL_SHORT_NAME=1 make install`.
 ### Manual build (without make)
 
 ```bash
-# tools from bootstrap (aether/.tools or monorepo .tools)
-export PATH="$PWD/aether/.tools/bin:$PWD/.tools/bin:$PATH"
-export ODIN_ROOT="${ODIN_ROOT:-$PWD/aether/.tools/odin}"
-# fallback: ODIN_ROOT=$PWD/.tools/odin
-cd aether
+# tools from bootstrap (./.tools or monorepo ../.tools)
+export PATH="$PWD/.tools/bin:${PATH}"
+export ODIN_ROOT="${ODIN_ROOT:-$PWD/.tools/odin}"
 odin build . -collection:aether=. -out:out/aether -o:speed
 ```
 
@@ -380,13 +380,12 @@ enabled = true
 ## Tests
 
 ```bash
-# from repo root
-make -C aether build test smoke-tui
+# from this tree (standalone) or monorepo root via make -C aether …
+make build test smoke-tui
 
 # or manually
 export PATH="$PWD/.tools/bin:$PATH"
 export ODIN_ROOT="$PWD/.tools/odin"
-cd aether
 odin test agent -collection:aether=.
 odin test tools -collection:aether=.
 odin test core -collection:aether=.

@@ -100,7 +100,9 @@ smoke: build
 smoke-tui: build
 	@bash scripts/tui-smoke.sh
 
-install: build
+# Install wrappers; rebuild only if out binary is missing (odin not required when already built).
+install:
+	@if [[ ! -x "$(OUT)" ]]; then $(MAKE) build; fi
 	@bash scripts/install-local.sh
 
 bootstrap-odin:

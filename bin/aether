@@ -5,11 +5,11 @@ set -euo pipefail
 
 SOURCE="${BASH_SOURCE[0]}"
 while [[ -L "$SOURCE" ]]; do
-  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  DIR="$(builtin cd -P "$(dirname "$SOURCE")" && pwd)"
   SOURCE="$(readlink "$SOURCE")"
   [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
-AETHER_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+AETHER_DIR="$(builtin cd -P "$(dirname "$SOURCE")/.." && pwd)"
 
 # S1: default output under aether/out/aether (override with AETHER_OUT / AETHER_ODIN_BIN)
 BIN="${AETHER_ODIN_BIN:-${AETHER_OUT:-$AETHER_DIR/out/aether}}"
