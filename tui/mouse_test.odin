@@ -18,6 +18,34 @@ test_hit_test_click_zone_layout :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_hit_test_with_slash_menu :: proc(t: ^testing.T) {
+	// header=1, body=2..4 (body_h=3), menu=5..7 (menu_h=3), status=8, input=9..10
+	rows, body_h, input_h, menu_h := 10, 3, 2, 3
+	testing.expect(t, hit_test_click_zone(1, rows, body_h, input_h, menu_h) == .Header)
+	testing.expect(t, hit_test_click_zone(4, rows, body_h, input_h, menu_h) == .Body)
+	testing.expect(t, hit_test_click_zone(5, rows, body_h, input_h, menu_h) == .Status) // menu
+	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, menu_h) == .Status)
+	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, menu_h) == .Status)
+	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h, menu_h) == .Input)
+}
+
+@(test)
+test_slash_menu_height_caps_to_terminal :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.focus = .Prompt
+	input_set_text(&st, "/")
+	st.cursor = 1
+	// tall enough → menu shows
+	h := slash_menu_height(&st, 40, 1)
+	testing.expect(t, h >= 2)
+	// tiny terminal → no menu or very small
+	h2 := slash_menu_height(&st, 4, 1)
+	testing.expect(t, h2 == 0 || h2 <= 2)
+}
+
+@(test)
 test_body_line_index :: proc(t: ^testing.T) {
 	// start=10, body_h=5 → y=2 → line 10, y=6 → line 14
 	testing.expect(t, body_line_index(2, 5, 10, 20) == 10)

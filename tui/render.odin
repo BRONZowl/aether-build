@@ -352,12 +352,19 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	s.last_cols = cols
 
 	input_h := input_line_count(s, cols)
-	// Live slash suggestion menu (between body and status)
-	menu_h := slash_menu_height(s)
+	// Live slash suggestion menu (between body and status); capped to fit terminal
+	menu_h := slash_menu_height(s, rows, input_h)
 	// header + status + input [+ slash menu]
 	body_h := rows - 2 - input_h - menu_h
 	if body_h < 1 {
 		body_h = 1
+	}
+	// Re-cap if body clamp pushed total over rows (tiny terminals)
+	for body_h + menu_h + 2 + input_h > rows && menu_h > 0 {
+		menu_h -= 1
+	}
+	if body_h + menu_h + 2 + input_h > rows {
+		body_h = max(1, rows - 2 - input_h - menu_h)
 	}
 
 	lines := make([dynamic]string, 0, 128, context.temp_allocator)

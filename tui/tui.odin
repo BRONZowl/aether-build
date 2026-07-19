@@ -291,6 +291,10 @@ run :: proc(opts: agent.Headless_Options) -> int {
 				focus_prompt(&st)
 				state_set_status(&st, "ready")
 				dirty = true
+			} else if st.focus == .Prompt && slash_menu_dismiss(&st) {
+				// First Esc closes live slash menu / clears slash token
+				st.esc_first_ns = 0
+				dirty = true
 			} else if len(st.input) > 0 {
 				if st.esc_first_ns != 0 && now - st.esc_first_ns <= ESC_CLEAR_NS {
 					input_clear(&st)
@@ -958,11 +962,15 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 	rows := max(6, term.rows)
 	cols := max(20, term.cols)
 	input_h := input_line_count(st, cols)
-	body_h := rows - 2 - input_h
+	menu_h := slash_menu_height(st, rows, input_h)
+	body_h := rows - 2 - input_h - menu_h
 	if body_h < 1 {
 		body_h = 1
 	}
-	zone := hit_test_click_zone(my, rows, body_h, input_h)
+	for body_h + menu_h + 2 + input_h > rows && menu_h > 0 {
+		menu_h -= 1
+	}
+	zone := hit_test_click_zone(my, rows, body_h, input_h, menu_h)
 	switch zone {
 	case .Input:
 		if st.focus != .Prompt {

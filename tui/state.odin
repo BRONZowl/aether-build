@@ -364,8 +364,9 @@ Click_Zone :: enum {
 }
 
 // hit_test_click_zone maps screen row y (1-based) to chrome region.
-// Layout matches render: 1 header + body_h body + 1 status + input_h input.
-hit_test_click_zone :: proc(y, rows, body_h, input_h: int) -> Click_Zone {
+// Layout matches render: 1 header + body_h body + menu_h slash menu + 1 status + input_h input.
+// menu_h is the live slash suggestion popup (0 when closed).
+hit_test_click_zone :: proc(y, rows, body_h, input_h: int, menu_h: int = 0) -> Click_Zone {
 	if y < 1 || y > rows {
 		return .Outside
 	}
@@ -376,7 +377,13 @@ hit_test_click_zone :: proc(y, rows, body_h, input_h: int) -> Click_Zone {
 	if body_h > 0 && y >= 2 && y <= 1 + body_h {
 		return .Body
 	}
-	status_row := 2 + body_h
+	// slash menu sits between body and status (treat as Status for click — no body mis-hit)
+	menu_start := 2 + body_h
+	menu_end := menu_start + menu_h - 1
+	if menu_h > 0 && y >= menu_start && y <= menu_end {
+		return .Status
+	}
+	status_row := 2 + body_h + menu_h
 	if y == status_row {
 		return .Status
 	}

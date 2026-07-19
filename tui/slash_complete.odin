@@ -242,56 +242,16 @@ try_slash_tab_complete :: proc(s: ^App_State) -> bool {
 		return true
 	}
 
-	// First Tab on this prefix: expand LCP if useful, else accept selection
-	if s.slash_comp_prefix != prefix {
-		if s.slash_comp_prefix != "" {
-			delete(s.slash_comp_prefix)
-		}
-		s.slash_comp_prefix = strings.clone(prefix)
-		s.slash_comp_idx = 0
-		lcp := common_slash_prefix(matches[:])
-		if len(lcp) > len(prefix) {
-			_ = apply_slash_completion(s, lcp, false)
-			delete(s.slash_comp_prefix)
-			s.slash_comp_prefix = strings.clone(lcp)
-			// re-collect after LCP (narrower list)
-			clear(&matches)
-			collect_slash_matches(lcp, &matches)
-			if len(matches) == 1 {
-				_ = apply_slash_completion(s, matches[0], true)
-				state_set_status(s, matches[0])
-				slash_complete_reset(s)
-				return true
-			}
-			state_set_status(
-				s,
-				fmt.tprintf("%d matches · ↑↓ · Tab accept", len(matches)),
-			)
-			return true
-		}
+	// Live menu: Tab always accepts the highlighted row (visible list UX).
+	idx := s.slash_menu_sel
+	if idx < 0 || idx >= len(matches) {
+		idx = 0
 	}
-
-	// Accept highlighted menu row (live popup)
-	if s.slash_menu_sel >= 0 && s.slash_menu_sel < len(matches) {
-		chosen := matches[s.slash_menu_sel]
-		_ = apply_slash_completion(s, chosen, true)
-		state_set_status(s, fmt.tprintf("%s  (%d/%d)", chosen, s.slash_menu_sel + 1, len(matches)))
-		// advance highlight for next Tab if they backspace
-		s.slash_comp_idx = (s.slash_menu_sel + 1) % len(matches)
-		s.slash_menu_sel = s.slash_comp_idx
-		return true
-	}
-
-	// Fallback cycle
-	idx := s.slash_comp_idx % len(matches)
 	chosen := matches[idx]
-	s.slash_comp_idx = (idx + 1) % len(matches)
-	s.slash_menu_sel = s.slash_comp_idx
 	_ = apply_slash_completion(s, chosen, true)
-	state_set_status(
-		s,
-		fmt.tprintf("%s  (%d/%d)", chosen, idx + 1, len(matches)),
-	)
+	state_set_status(s, fmt.tprintf("%s  (%d/%d)", chosen, idx + 1, len(matches)))
+	slash_complete_reset(s)
+	s.slash_menu_sel = 0
 	return true
 }
 
@@ -342,7 +302,8 @@ slash_menu_matches :: proc(
 }
 
 // slash_menu_height: rows reserved above status for the suggestion list.
-slash_menu_height :: proc(s: ^App_State) -> int {
+// term_rows / input_h cap the menu so header+body(1)+menu+status+input fit.
+slash_menu_height :: proc(s: ^App_State, term_rows: int = 0, input_h: int = 1) -> int {
 	ms := make([dynamic]string, 0, 16, context.temp_allocator)
 	if !slash_menu_matches(s, &ms) {
 		return 0
@@ -352,7 +313,23 @@ slash_menu_height :: proc(s: ^App_State) -> int {
 		n = SLASH_MENU_MAX
 	}
 	// +1 for header "slash commands"
-	return n + 1
+	want := n + 1
+	if term_rows > 0 {
+		// chrome: header(1) + min body(1) + status(1) + input_h
+		ih := input_h if input_h > 0 else 1
+		budget := term_rows - 1 - 1 - 1 - ih // remaining for menu
+		if budget < 2 {
+			// still show at least header + 1 match if possible
+			budget = max(0, term_rows - 1 - 1 - ih) // drop min body reserve if tiny
+		}
+		if budget < 2 {
+			return 0 // terminal too short for a useful menu
+		}
+		if want > budget {
+			want = budget
+		}
+	}
+	return want
 }
 
 // slash_menu_navigate: ↑/↓ while menu open. Returns true if consumed.
@@ -389,4 +366,34 @@ slash_menu_accept :: proc(s: ^App_State) -> bool {
 		s.slash_menu_sel = 0
 	}
 	return ok
+}
+
+// slash_menu_dismiss: Esc while menu open — clear the slash token (keep prior text).
+// Returns true if dismissed.
+slash_menu_dismiss :: proc(s: ^App_State) -> bool {
+	if s == nil || s.focus != .Prompt {
+		return false
+	}
+	ms := make([dynamic]string, 0, 4, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) {
+		return false
+	}
+	text := input_text(s)
+	prefix, ok := slash_token_prefix(text, s.cursor)
+	if !ok {
+		return false
+	}
+	start := s.cursor - len(prefix)
+	if start < 0 {
+		return false
+	}
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, text[:start])
+	strings.write_string(&b, text[s.cursor:])
+	input_set_text(s, strings.to_string(b))
+	s.cursor = start
+	slash_complete_reset(s)
+	s.slash_menu_sel = 0
+	state_set_status(s, "ready")
+	return true
 }

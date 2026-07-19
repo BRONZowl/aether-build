@@ -78,7 +78,7 @@ test_slash_menu_matches_live :: proc(t: ^testing.T) {
 		}
 	}
 	testing.expect(t, found)
-	testing.expect(t, slash_menu_height(&st) >= 2)
+	testing.expect(t, slash_menu_height(&st, 40, 1) >= 2)
 }
 
 @(test)
@@ -95,4 +95,20 @@ test_slash_menu_navigate_and_accept :: proc(t: ^testing.T) {
 	got := input_text(&st)
 	testing.expect(t, strings.has_prefix(got, "/"))
 	testing.expect(t, strings.contains(got, " ") || len(got) > 1)
+}
+
+@(test)
+test_slash_menu_dismiss_clears_token :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.focus = .Prompt
+	input_set_text(&st, "note\n/hel")
+	st.cursor = len(st.input)
+	testing.expect(t, slash_menu_dismiss(&st))
+	got := input_text(&st)
+	testing.expect(t, got == "note\n", got)
+	// no longer a slash token
+	ms := make([dynamic]string, 0, 4, context.temp_allocator)
+	testing.expect(t, !slash_menu_matches(&st, &ms))
 }
