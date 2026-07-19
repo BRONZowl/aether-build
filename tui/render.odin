@@ -341,21 +341,22 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	s.last_cols = cols
 
 	input_h := input_line_count(s, cols)
-	info_h := composer_info_rows(s)
+	frame_top, frame_bot := composer_frame_rows(s, cols)
+	block_h := frame_top + input_h + frame_bot // full composer block (box + text)
 	// Live slash suggestion menu (between body and status); capped to fit terminal
-	menu_h := slash_menu_height(s, rows, input_h+info_h)
-	// header + status + input [+ info] [+ slash menu]
-	fixed := chrome_fixed_rows(s) // header + status [+ info]
-	body_h := rows - fixed - input_h - menu_h
+	menu_h := slash_menu_height(s, rows, block_h)
+	// header + status + composer block [+ slash menu]
+	fixed := chrome_fixed_rows(s) // header + hints status
+	body_h := rows - fixed - block_h - menu_h
 	if body_h < 1 {
 		body_h = 1
 	}
 	// Re-cap if body clamp pushed total over rows (tiny terminals)
-	for body_h + menu_h + fixed + input_h > rows && menu_h > 0 {
+	for body_h + menu_h + fixed + block_h > rows && menu_h > 0 {
 		menu_h -= 1
 	}
-	if body_h + menu_h + fixed + input_h > rows {
-		body_h = max(1, rows - fixed - input_h - menu_h)
+	if body_h + menu_h + fixed + block_h > rows {
+		body_h = max(1, rows - fixed - block_h - menu_h)
 	}
 
 	lines := make([dynamic]string, 0, 128, context.temp_allocator)
@@ -493,8 +494,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	}
 	write_row(&b, status, cols, .Bar_Dim, true)
 
-	// input region + optional model/mode info line + cursor
-	write_input(&b, s, cols, input_h, info_h, rows)
+	// composer block (optional box + text + bottom caption) + cursor
+	write_input(&b, s, cols, input_h, frame_top, frame_bot, rows)
 
 	fmt.print(strings.to_string(b))
 }
@@ -611,124 +612,199 @@ write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: 
 	}
 }
 
+// write_input paints the Grok-shaped composer:
+//   ╭────────────╮          (optional box top)
+//   │  ❯ text…   │
+//   ╰─ model · mode ─╯      (optional box bottom with caption)
+// Compact / narrow: plain ❯ lines + optional dim info under.
 write_input :: proc(
 	b: ^strings.Builder,
 	s: ^App_State,
 	cols: int,
 	input_h: int,
-	info_h: int,
+	frame_top: int,
+	frame_bot: int,
 	screen_rows: int,
 ) {
-	prefix := INPUT_PREFIX // "❯ "
-	// Empty focused prompt: Grok-shaped placeholder (not submitted)
+	use_box := frame_top > 0 && frame_bot > 0
+	// Inner content width for text wrapping
+	// box: "│ " + content + " │" → content cols-4; first line uses "❯ " (2) inside content
+	// plain: full width for "❯ " + text
+	inner_w: int
+	prefix_cols := 2 // "❯ "
+	cont_indent := 2 // spaces under continuation
+	if use_box {
+		inner_w = max(8, cols - 4) // inside side borders + one pad space each side
+	} else {
+		inner_w = max(8, cols)
+	}
+	text_w := max(4, inner_w - prefix_cols) // wrap width for body after prefix
+
 	text := input_text(s)
 	show_placeholder := text == "" && s.focus == .Prompt && !s.streaming
-	full_b := strings.builder_make(context.temp_allocator)
-	strings.write_string(&full_b, prefix)
+	body := text
 	if show_placeholder {
-		strings.write_string(&full_b, "Type a message…")
-	} else {
-		strings.write_string(&full_b, text)
-	}
-	full := strings.to_string(full_b)
-	// cursor is in input bytes; absolute in full = prefix + cursor
-	cur_abs := len(prefix) + s.cursor
-	if show_placeholder {
-		cur_abs = len(prefix) // caret at start of empty field
+		body = "Type a message…"
 	}
 
-	Row :: struct {
-		start, end: int, // byte range in full
-	}
-	rows_v := make([dynamic]Row, 0, 16, context.temp_allocator)
-	start := 0
-	for start <= len(full) {
-		if start == len(full) {
-			if len(full) > 0 && full[len(full) - 1] == '\n' {
-				append(&rows_v, Row{start = start, end = start})
-			} else if len(rows_v) == 0 {
-				append(&rows_v, Row{start = 0, end = 0})
-			}
-			break
-		}
-		end := start
-		col := 0
-		for end < len(full) && col < cols {
-			if full[end] == '\n' {
+	// Build display lines: first has ❯ , continuations indented
+	disp_lines := make([dynamic]string, 0, 8, context.temp_allocator)
+	// Wrap body into text_w columns, then attach prefix/indent
+	wrap_body := make([dynamic]string, 0, 8, context.temp_allocator)
+	{
+		start := 0
+		for start <= len(body) {
+			if start == len(body) {
+				if len(body) > 0 && body[len(body) - 1] == '\n' {
+					append(&wrap_body, "")
+				} else if len(wrap_body) == 0 {
+					append(&wrap_body, "")
+				}
 				break
 			}
-			_, sz := utf8.decode_rune(full[end:])
-			if sz <= 0 {
-				sz = 1
+			end := start
+			col := 0
+			for end < len(body) && col < text_w {
+				if body[end] == '\n' {
+					break
+				}
+				_, sz := utf8.decode_rune(body[end:])
+				if sz <= 0 {
+					sz = 1
+				}
+				end += sz
+				col += 1
 			}
-			end += sz
-			col += 1
+			append(&wrap_body, body[start:end])
+			if end < len(body) && body[end] == '\n' {
+				start = end + 1
+			} else if end >= len(body) {
+				break
+			} else {
+				start = end
+			}
+			if len(wrap_body) > 64 {
+				break
+			}
 		}
-		append(&rows_v, Row{start = start, end = end})
-		if end < len(full) && full[end] == '\n' {
-			start = end + 1
-		} else if end >= len(full) {
-			break
+		if len(wrap_body) == 0 {
+			append(&wrap_body, "")
+		}
+	}
+	for i in 0 ..< len(wrap_body) {
+		if i == 0 {
+			append(&disp_lines, fmt.tprintf("%s%s", INPUT_PREFIX, wrap_body[i]))
 		} else {
-			start = end
-		}
-		if len(rows_v) > 64 {
-			break
-		}
-	}
-	if len(rows_v) == 0 {
-		append(&rows_v, Row{start = 0, end = 0})
-	}
-
-	// which visual row holds the cursor
-	cur_row := 0
-	cur_col := 0
-	for i in 0 ..< len(rows_v) {
-		r := rows_v[i]
-		if cur_abs >= r.start && cur_abs <= r.end {
-			cur_row = i
-			cur_col = utf8.rune_count(full[r.start:min(cur_abs, r.end)])
-			break
-		}
-		if cur_abs > r.end {
-			cur_row = i
-			cur_col = utf8.rune_count(full[r.start:r.end])
+			// indent continuation under text (same width as prefix)
+			ind := "  "
+			append(&disp_lines, fmt.tprintf("%s%s", ind, wrap_body[i]))
 		}
 	}
 
-	from := max(0, len(rows_v) - input_h)
-	total_composer := input_h + info_h
-	for hi in 0 ..< input_h {
-		ri := from + hi
-		line := ""
-		if ri < len(rows_v) {
-			r := rows_v[ri]
-			line = full[r.start:r.end]
-		}
-		// last physical row of the whole paint is input last only when no info line
-		is_last := hi == input_h - 1 && info_h == 0
-		if show_placeholder {
-			strings.write_string(b, "\x1b[2m") // dim placeholder
-		} else {
-			strings.write_string(b, "\x1b[1m") // bold input
-		}
-		n := write_fit(b, line, cols)
+	// Cursor: byte index in first-line coordinates of "❯ "+text (or indent+text)
+	// Map s.cursor within body to display line/col
+	cur_row, cur_col := map_cursor_to_display(body, s.cursor, text_w, prefix_cols, cont_indent)
+	if show_placeholder {
+		cur_row = 0
+		cur_col = prefix_cols
+	}
+
+	// Theme accents
+	th := active_theme()
+	focus_on := s.focus == .Prompt
+	prefix_ansi := th.user if th.user != "" else th.bold
+	if prefix_ansi == "" {
+		prefix_ansi = "\x1b[1m"
+	}
+	border_ansi := th.dim if th.dim != "" else "\x1b[2m"
+	if focus_on && th.user != "" {
+		border_ansi = th.user
+	}
+
+	// --- top border ---
+	if frame_top > 0 {
+		top := format_composer_top_border(cols)
+		strings.write_string(b, border_ansi)
+		n := write_fit(b, top, cols)
 		strings.write_string(b, "\x1b[0m")
 		for i := n; i < cols; i += 1 {
 			strings.write_byte(b, ' ')
 		}
-		// omit trailing NL on last screen row to avoid scroll off alt-screen bottom
+		strings.write_string(b, "\r\n")
+	}
+
+	// --- text rows ---
+	from := max(0, len(disp_lines) - input_h)
+	for hi in 0 ..< input_h {
+		ri := from + hi
+		line := ""
+		if ri < len(disp_lines) {
+			line = disp_lines[ri]
+		}
+		is_last := hi == input_h - 1 && frame_bot == 0
+		row_s: string
+		if use_box {
+			row_s = format_composer_side_row(line, cols)
+		} else {
+			row_s = line
+		}
+		// paint: bold/dim content; keep border dim/accent already in string for box via re-style
+		if use_box {
+			// rewrite with styled borders: paint row_s with border on │ and content styled
+			write_composer_content_row(b, line, cols, show_placeholder, focus_on, th, border_ansi)
+		} else {
+			if show_placeholder {
+				strings.write_string(b, "\x1b[2m")
+			} else {
+				// accent the chevron on first visible row when it's the logical first line
+				if ri == 0 && strings.has_prefix(line, INPUT_PREFIX) {
+					strings.write_string(b, prefix_ansi)
+					strings.write_string(b, INPUT_PREFIX)
+					strings.write_string(b, "\x1b[0m\x1b[1m")
+					rest := line[len(INPUT_PREFIX):]
+					n := write_fit(b, rest, max(0, cols - prefix_cols))
+					strings.write_string(b, "\x1b[0m")
+					for i := n + prefix_cols; i < cols; i += 1 {
+						strings.write_byte(b, ' ')
+					}
+					if !is_last {
+						strings.write_string(b, "\r\n")
+					}
+					continue
+				}
+				strings.write_string(b, "\x1b[1m")
+			}
+			n := write_fit(b, row_s, cols)
+			strings.write_string(b, "\x1b[0m")
+			for i := n; i < cols; i += 1 {
+				strings.write_byte(b, ' ')
+			}
+		}
 		if !is_last {
 			strings.write_string(b, "\r\n")
 		}
 	}
-	// Grok-shaped info line under composer: model · mode [· multi]
-	if info_h > 0 {
-		info := format_composer_info(s)
-		write_row(b, info, cols, .Bar_Dim, false) // last row — no trailing NL
-		_ = total_composer
+
+	// --- bottom border / dim info ---
+	if frame_bot > 0 {
+		cap := format_composer_info(s)
+		if use_box {
+			bot := format_composer_bottom_border(cols, cap)
+			strings.write_string(b, border_ansi)
+			n := write_fit(b, bot, cols)
+			strings.write_string(b, "\x1b[0m")
+			for i := n; i < cols; i += 1 {
+				strings.write_byte(b, ' ')
+			}
+			// last screen row — no NL
+		} else {
+			// plain dim info line
+			info := fmt.tprintf(" %s", cap)
+			write_row(b, info, cols, .Bar_Dim, false)
+		}
 	}
 
+	// cursor CUP
 	vis_row := cur_row - from
 	if vis_row < 0 {
 		vis_row = 0
@@ -736,10 +812,174 @@ write_input :: proc(
 	if vis_row >= input_h {
 		vis_row = input_h - 1
 	}
-	// 1-based absolute screen row for CUP (above optional info line)
-	abs_row := screen_rows - info_h - input_h + vis_row + 1
-	abs_col := min(cols, cur_col + 1)
+	// box: content is offset +2 cols ("│ ")
+	col_off := 2 if use_box else 0
+	abs_row := screen_rows - frame_bot - input_h + vis_row + 1
+	abs_col := min(cols - 1, col_off + cur_col + 1)
+	if abs_col < 1 {
+		abs_col = 1
+	}
 	strings.write_string(b, fmt.tprintf("\x1b[%d;%dH\x1b[?25h", abs_row, abs_col))
+}
+
+// write_composer_content_row paints one boxed line: │  content… │
+write_composer_content_row :: proc(
+	b: ^strings.Builder,
+	content: string,
+	cols: int,
+	placeholder: bool,
+	focused: bool,
+	th: Theme,
+	border_ansi: string,
+) {
+	w := max(4, cols)
+	inner := w - 2
+	strings.write_string(b, border_ansi)
+	strings.write_string(b, "│")
+	strings.write_string(b, "\x1b[0m")
+	// one space pad
+	strings.write_byte(b, ' ')
+	n := 1
+	// style content
+	if placeholder {
+		strings.write_string(b, "\x1b[2m")
+	} else if strings.has_prefix(content, INPUT_PREFIX) {
+		// accent chevron (2 display columns)
+		acc := th.user if th.user != "" else "\x1b[1m"
+		strings.write_string(b, acc)
+		strings.write_string(b, INPUT_PREFIX)
+		strings.write_string(b, "\x1b[0m\x1b[1m")
+		n += 2
+		rest := content[len(INPUT_PREFIX):]
+		for r in rest {
+			if n >= inner {
+				break
+			}
+			strings.write_string(b, fmt.tprintf("%c", r))
+			n += 1
+		}
+		strings.write_string(b, "\x1b[0m")
+		for n < inner {
+			strings.write_byte(b, ' ')
+			n += 1
+		}
+		strings.write_string(b, border_ansi)
+		strings.write_string(b, "│")
+		strings.write_string(b, "\x1b[0m")
+		return
+	} else {
+		strings.write_string(b, "\x1b[1m")
+	}
+	for r in content {
+		if n >= inner {
+			break
+		}
+		strings.write_string(b, fmt.tprintf("%c", r))
+		n += 1
+	}
+	strings.write_string(b, "\x1b[0m")
+	for n < inner {
+		strings.write_byte(b, ' ')
+		n += 1
+	}
+	strings.write_string(b, border_ansi)
+	strings.write_string(b, "│")
+	strings.write_string(b, "\x1b[0m")
+	_ = focused
+}
+
+// map_cursor_to_display maps body byte cursor to (row, col) in display lines
+// where row 0 has prefix_cols of chevron and later rows have cont_indent.
+map_cursor_to_display :: proc(
+	body: string,
+	cursor: int,
+	text_w: int,
+	prefix_cols: int,
+	cont_indent: int,
+) -> (
+	row, col: int,
+) {
+	cur := cursor
+	if cur < 0 {
+		cur = 0
+	}
+	if cur > len(body) {
+		cur = len(body)
+	}
+	// Walk same wrap algorithm as write_input
+	start := 0
+	r := 0
+	for start <= len(body) {
+		end := start
+		c := 0
+		for end < len(body) && c < text_w {
+			if body[end] == '\n' {
+				break
+			}
+			_, sz := utf8.decode_rune(body[end:])
+			if sz <= 0 {
+				sz = 1
+			}
+			if end < cur && end + sz > cur {
+				// cursor mid-rune — sit at end
+			}
+			end += sz
+			c += 1
+			if end >= cur && start <= cur {
+				// cursor in this segment
+				// count runes from start to cur
+				rn := 0
+				p := start
+				for p < cur && p < end {
+					_, sz2 := utf8.decode_rune(body[p:])
+					if sz2 <= 0 {
+						sz2 = 1
+					}
+					p += sz2
+					rn += 1
+				}
+				indent := prefix_cols if r == 0 else cont_indent
+				return r, indent + rn
+			}
+		}
+		// segment [start,end)
+		if cur >= start && cur <= end {
+			rn := 0
+			p := start
+			for p < cur && p < end {
+				_, sz2 := utf8.decode_rune(body[p:])
+				if sz2 <= 0 {
+					sz2 = 1
+				}
+				p += sz2
+				rn += 1
+			}
+			indent := prefix_cols if r == 0 else cont_indent
+			return r, indent + rn
+		}
+		if end < len(body) && body[end] == '\n' {
+			if cur == end {
+				indent := prefix_cols if r == 0 else cont_indent
+				return r, indent + c
+			}
+			start = end + 1
+			r += 1
+			continue
+		}
+		if end >= len(body) {
+			indent := prefix_cols if r == 0 else cont_indent
+			if cur >= end {
+				return r, indent + c
+			}
+			break
+		}
+		start = end
+		r += 1
+		if r > 64 {
+			break
+		}
+	}
+	return 0, prefix_cols
 }
 
 // ensure_block_visible adjusts s.scroll so selected_block's first line is in view.

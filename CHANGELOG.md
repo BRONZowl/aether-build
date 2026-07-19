@@ -7,7 +7,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 ### TUI chrome (Grok-shaped)
 
 - Top bar: git branch + `~/cwd` (left) · plan/goal/todos/ctx/mode/model chips (right)
-- Composer: `❯` prefix, empty placeholder, dim `model · mode` info line under input
+- Composer: boxed prompt (`╭─╮` / `╰─╯`) with accent `❯`, empty placeholder, caption `model · mode` on bottom rail (compact: plain field)
 - `core/git_info`: cached branch from `.git/HEAD` + home-collapse cwd display
 
 ### Cleanup (E1–E3 + emit/json)

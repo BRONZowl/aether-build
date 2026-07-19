@@ -12,17 +12,42 @@ import "aether:tools"
 // BRANCH_ICON matches Grok non-nerd fallback (⎇); ASCII fallback for safety in tests.
 BRANCH_ICON :: "⎇"
 
-// composer_info_rows: model · mode line under the prompt (0 in compact mode).
-composer_info_rows :: proc(s: ^App_State) -> int {
-	if core.compact_mode_enabled() {
-		return 0
-	}
-	return 1
+// composer_use_box: Grok-shaped rounded frame around the prompt (non-compact, wide enough).
+composer_use_box :: proc(cols: int) -> bool {
+	return !core.compact_mode_enabled() && cols >= 28
 }
 
-// chrome_fixed_rows: header + status + composer info (excludes input + slash menu).
+// composer_frame_rows: top/bottom border rows around the prompt (0 in compact).
+composer_frame_rows :: proc(s: ^App_State, cols: int) -> (top, bottom: int) {
+	_ = s
+	if composer_use_box(cols) {
+		return 1, 1
+	}
+	// compact / narrow: keep a single dim info line under the field
+	if core.compact_mode_enabled() {
+		return 0, 0
+	}
+	return 0, 1
+}
+
+// composer_info_rows: rows below the text field for model · mode (legacy name).
+composer_info_rows :: proc(s: ^App_State) -> int {
+	// Prefer cols from last paint; if unknown assume box-capable width.
+	cols := s.last_cols if s.last_cols > 0 else 80
+	_, bottom := composer_frame_rows(s, cols)
+	return bottom
+}
+
+// chrome_fixed_rows: header + status only (composer frame is part of input block).
 chrome_fixed_rows :: proc(s: ^App_State) -> int {
-	return 2 + composer_info_rows(s) // header + hints status [+ info]
+	_ = s
+	return 2 // header + hints status
+}
+
+// composer_block_height: text lines + optional box/info chrome.
+composer_block_height :: proc(s: ^App_State, cols: int) -> int {
+	top, bottom := composer_frame_rows(s, cols)
+	return top + input_line_count(s, cols) + bottom
 }
 
 // format_top_bar builds the Grok-shaped top chrome line for width cols.
@@ -173,12 +198,83 @@ truncate_runes :: proc(s: string, max_runes: int) -> string {
 	return fmt.tprintf("%s…", s[:end])
 }
 
-// format_composer_info: dim line under input — "model · mode [· multi]"
+// format_composer_info: caption text for bottom rail / dim line — "model · mode [· multi]"
 format_composer_info :: proc(s: ^App_State) -> string {
 	mode := s.perm if s.perm != "" else "ask"
 	model := s.model if s.model != "" else "—"
 	if s.multiline_mode {
-		return fmt.tprintf(" %s · %s · multi", model, mode)
+		return fmt.tprintf("%s · %s · multi", model, mode)
 	}
-	return fmt.tprintf(" %s · %s", model, mode)
+	return fmt.tprintf("%s · %s", model, mode)
+}
+
+// format_composer_top_border: ╭────╮ for cols width.
+format_composer_top_border :: proc(cols: int) -> string {
+	w := max(4, cols)
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, "╭")
+	for i in 0 ..< (w - 2) {
+		_ = i
+		strings.write_string(&b, "─")
+	}
+	strings.write_string(&b, "╮")
+	return strings.to_string(b)
+}
+
+// format_composer_bottom_border: ╰─ caption ───╯ (Grok bottom divider with model · flags).
+format_composer_bottom_border :: proc(cols: int, caption: string) -> string {
+	w := max(4, cols)
+	cap := strings.trim_space(caption)
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, "╰")
+	avail := w - 2 // corners ╰ ╯
+	if cap == "" {
+		for i in 0 ..< avail {
+			_ = i
+			strings.write_string(&b, "─")
+		}
+		strings.write_string(&b, "╯")
+		return strings.to_string(b)
+	}
+	label := fmt.tprintf(" %s ", cap)
+	if utf8.rune_count(label) + 1 > avail {
+		label = fmt.tprintf(" %s ", truncate_runes(cap, max(1, avail - 3)))
+	}
+	lw := utf8.rune_count(label)
+	dashes_left := 1
+	dashes_right := max(0, avail - dashes_left - lw)
+	for i in 0 ..< dashes_left {
+		_ = i
+		strings.write_string(&b, "─")
+	}
+	strings.write_string(&b, label)
+	for i in 0 ..< dashes_right {
+		_ = i
+		strings.write_string(&b, "─")
+	}
+	strings.write_string(&b, "╯")
+	return strings.to_string(b)
+}
+
+// format_composer_side_row: "│ " + content padded + "│" to cols (tests / helpers).
+format_composer_side_row :: proc(content: string, cols: int) -> string {
+	w := max(4, cols)
+	inner := w - 2 // between │ │
+	b := strings.builder_make(context.temp_allocator)
+	strings.write_string(&b, "│")
+	pad_content := fmt.tprintf(" %s", content)
+	n := 0
+	for r in pad_content {
+		if n >= inner {
+			break
+		}
+		strings.write_string(&b, fmt.tprintf("%c", r))
+		n += 1
+	}
+	for n < inner {
+		strings.write_byte(&b, ' ')
+		n += 1
+	}
+	strings.write_string(&b, "│")
+	return strings.to_string(b)
 }

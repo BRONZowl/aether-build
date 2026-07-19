@@ -670,9 +670,9 @@ input_line_count :: proc(s: ^App_State, cols: int) -> int {
 	return lines
 }
 
-// total_input_rows: wrapped input + optional model/mode info line under composer.
+// total_input_rows: full composer block height (text + optional box frame).
 total_input_rows :: proc(s: ^App_State, cols: int) -> int {
-	return input_line_count(s, cols) + composer_info_rows(s)
+	return composer_block_height(s, cols)
 }
 
 // ordered_remove_range removes [lo, hi)

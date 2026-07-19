@@ -18,18 +18,18 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 	rows := max(6, term.rows)
 	cols := max(20, term.cols)
 	input_h := input_line_count(st, cols)
-	info_h := composer_info_rows(st)
-	menu_h := slash_menu_height(st, rows, input_h+info_h)
+	block_h := composer_block_height(st, cols)
+	menu_h := slash_menu_height(st, rows, block_h)
 	fixed := chrome_fixed_rows(st)
-	body_h := rows - fixed - input_h - menu_h
+	body_h := rows - fixed - block_h - menu_h
 	if body_h < 1 {
 		body_h = 1
 	}
-	for body_h + menu_h + fixed + input_h > rows && menu_h > 0 {
+	for body_h + menu_h + fixed + block_h > rows && menu_h > 0 {
 		menu_h -= 1
 	}
-	// hit_test treats "input" as the bottom region (input + info line)
-	zone := hit_test_click_zone(my, rows, body_h, input_h+info_h, menu_h)
+	// hit_test treats "input" as the full composer block (box + text)
+	zone := hit_test_click_zone(my, rows, body_h, block_h, menu_h)
 	switch zone {
 	case .Input:
 		if st.focus != .Prompt {

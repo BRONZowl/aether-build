@@ -36,3 +36,16 @@ test_format_composer_info :: proc(t: ^testing.T) {
 	info2 := format_composer_info(&st)
 	testing.expect(t, strings.contains(info2, "multi"), info2)
 }
+
+@(test)
+test_composer_borders_width :: proc(t: ^testing.T) {
+	top := format_composer_top_border(40)
+	testing.expect(t, utf8.rune_count(top) == 40, top)
+	testing.expect(t, strings.has_prefix(top, "╭"), top)
+	testing.expect(t, strings.has_suffix(top, "╮"), top)
+	bot := format_composer_bottom_border(40, "m · ask")
+	testing.expect(t, utf8.rune_count(bot) == 40, bot)
+	testing.expect(t, strings.has_prefix(bot, "╰"), bot)
+	testing.expect(t, strings.has_suffix(bot, "╯"), bot)
+	testing.expect(t, strings.contains(bot, "m · ask"), bot)
+}
