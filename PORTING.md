@@ -430,7 +430,7 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 
 | Surface | Status | Residual |
 |---------|--------|----------|
-| Welcome / brand art | **Full (V1)** — Aether Braille “A” monogram, height tiers (Grok medium) | Grok Braille logo; shimmer N/A |
+| Welcome / brand art | **Full (V1)** — Aether open-“A” Braille monogram; Grok logo07/05 canvas + centered stack | Grok Braille logo; shimmer N/A |
 | Mermaid Unicode layout | **Full (M8)** | PNG/SVG N/A |
 | GFM tables box-drawing | **Full** | — |
 | Themes / compact chrome | **Full** | — |
@@ -543,7 +543,7 @@ single-process product).
 |----------|--------|
 | Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, Mixpanel | Phase D / residual N/A |
 | Mermaid PNG/SVG raster pipeline | **M8** ships Unicode art; Grok PNG affordance residual N/A |
-| Grok Braille welcome logo + shimmer | **V1** Aether Braille monogram (same medium; no shimmer) |
+| Grok Braille welcome logo + shimmer | **V1** Aether open-“A” on logo07/05 layout (no shimmer) |
 | In-process Landlock apply | **M6** uses bwrap when available; LSM probe only |
 | Remote workspace services, SQLite memory | Documented N/A in matrices |
 

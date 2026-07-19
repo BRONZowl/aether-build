@@ -19,7 +19,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ### Visual parity (V1)
 
-- Aether brand Braille monogram (chip / small / full) — Grok-style U+2800 medium, Aether “A”
+- Aether brand Braille monogram on Grok logo layout (14×7 / 10×5 canvas, centered welcome stack)
 - Empty TUI welcome, REPL startup banner, `/about` art
 - `AETHER_NO_ASCII_ART` / `AETHER_ASCII_ART`; `/features` row `ascii-art`
 

@@ -3,6 +3,7 @@ package core
 import "core:os"
 import "core:strings"
 import "core:testing"
+import "core:unicode/utf8"
 
 @(test)
 test_brand_pick_tier_sizes :: proc(t: ^testing.T) {
@@ -20,8 +21,8 @@ test_brand_pick_tier_sizes :: proc(t: ^testing.T) {
 	}
 
 	testing.expect(t, brand_pick_tier(10, 80) == .Chip)
-	testing.expect(t, brand_pick_tier(14, 30) == .Chip || brand_pick_tier(14, 30) == .Small)
-	testing.expect(t, brand_pick_tier(14, 40) == .Small)
+	testing.expect(t, brand_pick_tier(14, 18) == .Chip || brand_pick_tier(14, 18) == .Small)
+	testing.expect(t, brand_pick_tier(16, 40) == .Small)
 	testing.expect(t, brand_pick_tier(24, 80) == .Full)
 }
 
@@ -54,28 +55,41 @@ test_brand_art_lines_content :: proc(t: ^testing.T) {
 		}
 	}
 	full := brand_art_lines(.Full)
-	testing.expect(t, len(full) == 7)
-	joined := strings.join(full, "\n", context.temp_allocator)
-	// Grok-style Braille monogram (U+2800 block) — Aether "A" peak
-	testing.expect(t, strings.contains(joined, "⣿") || strings.contains(joined, "⣾"))
-	// first braille plane starts at U+2800; dense cells use high bits
-	has_braille := false
-	for r in joined {
-		if r >= 0x2800 && r <= 0x28FF {
-			has_braille = true
-			break
+	// Grok logo07 layout: 7 rows × 14 braille cells, fixed width
+	testing.expect(t, len(full) == BRAND_FULL_CELLS_H)
+	for line in full {
+		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_FULL_CELLS_W)
+		// every cell is U+2800..U+28FF (braille block)
+		for r in line {
+			testing.expect(t, r >= 0x2800 && r <= 0x28FF)
 		}
 	}
-	testing.expect(t, has_braille)
+	joined := strings.join(full, "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "⣿") || strings.contains(joined, "⣾") || strings.contains(joined, "⣤"))
 
 	small := brand_art_lines(.Small)
-	testing.expect(t, len(small) == 5)
-	small_j := strings.join(small, "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(small_j, "⣿") || strings.contains(small_j, "⣾"))
+	testing.expect(t, len(small) == BRAND_SMALL_CELLS_H)
+	for line in small {
+		testing.expect(t, utf8.rune_count_in_string(line) == BRAND_SMALL_CELLS_W)
+		for r in line {
+			testing.expect(t, r >= 0x2800 && r <= 0x28FF)
+		}
+	}
 
 	chip := brand_art_lines(.Chip)
 	testing.expect(t, len(chip) == 1)
 	testing.expect(t, strings.contains(chip[0], "aether"))
+}
+
+@(test)
+test_brand_center_line :: proc(t: ^testing.T) {
+	line := BRAND_ART_FULL[0]
+	w := brand_line_cells(line)
+	out := brand_center_line(line, w + 10, context.allocator)
+	defer delete(out)
+	// 5 spaces of left pad when centering in w+10
+	testing.expect(t, strings.has_prefix(out, "     "))
+	testing.expect(t, strings.has_suffix(out, line) || strings.contains(out, line))
 }
 
 @(test)

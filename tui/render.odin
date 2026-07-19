@@ -52,16 +52,22 @@ flatten_blocks :: proc(
 		pref := "·" if compact else "· "
 		wrap_push(out, styles, block_idxs, -1, fmt.tprintf("%s%s", pref, n), .Dim, w, allocator)
 	}
-	// V1: empty-session welcome art (no transcript blocks, not streaming)
+	// V1: empty-session welcome art (no transcript blocks, not streaming).
+	// Grok layout: centered Braille monogram, gap, tips line (stacked welcome).
 	if len(s.blocks) == 0 && !s.streaming && core.brand_art_enabled() {
 		rows_hint := term_rows if term_rows > 0 else 24
 		art_lines := core.brand_pick_art(rows_hint, cols)
 		for line in art_lines {
-			mark_line(out, styles, block_idxs, -1, line, .Dim, allocator)
+			// Center like Grok logo Paragraph Alignment::Center
+			centered := core.brand_center_line(line, cols, context.temp_allocator)
+			mark_line(out, styles, block_idxs, -1, centered, .Dim, allocator)
 		}
 		if len(art_lines) > 0 {
+			// one blank gap after logo (Grok logo_gap = 1)
+			mark_line(out, styles, block_idxs, -1, "", .Dim, allocator)
 			tips := core.brand_welcome_tips(context.temp_allocator)
-			mark_line(out, styles, block_idxs, -1, tips, .Dim, allocator)
+			centered_tips := core.brand_center_line(tips, cols, context.temp_allocator)
+			mark_line(out, styles, block_idxs, -1, centered_tips, .Dim, allocator)
 			// blank separator before compose area content
 			mark_line(out, styles, block_idxs, -1, "", .Dim, allocator)
 		}
