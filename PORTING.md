@@ -7,7 +7,7 @@ Living tracker for **Aether (Odin)** capability parity with **Grok Build (Rust)*
 
 **Not the goal:** bit-identical Rust crates, monorepo LOC match, deleting Rust, or every xAI-internal service.
 
-Last updated: 2026-07-19 (S4 standalone extract). Tip: `aether` branch.
+Last updated: 2026-07-19 (product-contract audit vs grok-build `fca5b1f`).
 
 ---
 
@@ -235,7 +235,7 @@ make -C aether build vet test smoke-tui
 | `lsp` | Full | 7 ops incl. **diagnostics** (B10–B12: multi-file `paths[]`, `timeout_ms`, `errors_only`/`min_severity`, publishDiagnostics cache + pull); hover fence + caps + relative paths; A1.7b |
 | `monitor` | Full | Lines + rate limit + persistent/timeout; session terminal log; sandbox N/A; A1.8b |
 | `scheduler_*` | Full | Durable + fire inject; list missed/relative next_fire; multi-client N/A; A1.11a |
-| `update_goal` | Full | Session-durable goal state; classifier/auto-pause N/A; A1.10a |
+| `update_goal` | Full | Session-durable goal state; classifier/auto-pause **and** Grok `/goal --budget` token orchestrator **N/A**; A1.10a |
 | `image_gen` / `image_edit` | Full | Compress + `[Image #N]` registry; path/clipboard paste + multimodal chat (M1); A1.9 |
 | `image_to_video` / `reference_to_video` | Full | Token/path resolve via registry; ZDR/tier N/A; A1.9 |
 | `spawn_subagent` / `task` | Full | explore/plan/gp + bg + resume + worktree; `task` alias; personas N/A; A1.11c |
@@ -260,13 +260,13 @@ make -C aether build vet test smoke-tui
 | `/dream` | `/dream` | Full | consolidate→MEMORY.md + lock; slash bypasses gates; gated auto on exit/new |
 | `/view-plan` | `/view-plan` `/show-plan` `/plan view` | Full | **B32** dump `.grok/plan.md` |
 | `/context` | `/context` | Full | est. tokens (chars/4) + usage bar + session stats |
-| `/hooks-*` | `/hooks` | Full | status/list/reload/**paths/add/remove** (B18 hooks-paths); command + HTTP A4.1–7; trust N/A |
+| `/hooks-*` | `/hooks` | Full | status/list/reload/**paths/add/remove** (B18 hooks-paths); command + HTTP A4.1–7; **`hooks-trust`/`hooks-untrust` folder-trust N/A** |
 | `/plugins` `/reload-plugins` | — | **N/A** | R3a Drop with marketplace |
 | `/session-info` | `/session-info` `/session` | Full | + context one-liner |
 | `/settings` `/config` | `/config` `/settings` `/preferences` `/prefs` | Full | **B34** effective settings dump (no modal; no secrets) |
 | `/feedback` | `/feedback` | Full | local JSONL; remote API N/A |
 | `/btw` | `/btw` | Full | local notice only (not model) |
-| `/goal` | `/goal` | Full | session-durable |
+| `/goal` | `/goal` | Full | session-durable (status/pause/resume/clear); **token `--budget` orchestrator N/A** |
 | `/loop` | `/loop` | Full | scheduler-backed |
 | `/imagine` | `/imagine` | Full | image_gen |
 | `/imagine-video` | `/imagine-video` | Full | image_to_video host; ref + optional prompt; C1.1 |
@@ -462,8 +462,67 @@ counts (Full: 0) are obsolete; re-read the matrices above when status changes.
 
 ---
 
+## Product-contract audit (2026-07-19)
+
+**Scope:** every *user-visible* Grok Build daily-driver capability must be **Full**
+in Aether or **explicit N/A** — not bit-identical crates or Dropped L4.
+
+**Reference tree:** sibling `../grok-build` @ **`fca5b1f`** (2026-07-19).  
+**Re-run inventory:** `python3 scripts/parity-inventory.py`  
+(`GROK_BUILD=/path/to/grok-build` if not at `../grok-build`).
+
+### Method
+
+1. Scraped default **GrokBuild** tool registrations under  
+   `crates/codegen/xai-grok-tools/src/implementations/grok_build/**` (+ memory,
+   skill, search_tool, use_tool, task_output).
+2. Scraped shell **BUILTIN_COMMANDS** + **PROMPT_COMMANDS** in  
+   `xai-grok-shell/src/session/slash_commands.rs`.
+3. Cross-checked Aether `tools/tools.odin` schema, `agent/loop.odin` dispatch,
+   `agent/slash.odin`, and subsystem packages against the PORTING matrices.
+
+### Tools result
+
+| Outcome | Items |
+|---------|--------|
+| **HIT (Full)** | All default GrokBuild model tools: bash, read/search_replace/grep/list_dir, web_*, todo, ask_user, plan enter/exit, lsp, monitor, scheduler_*, update_goal, image_*, video_*, task/spawn + get/kill/wait, skill, search_tool/use_tool, memory_*, MCP resource/prompt metas |
+| **N/A** | `deploy_app` (service stub); **hashline_*** pack (alternate edit scheme); codex/opencode packs |
+| **Aether super-set** | `write`, `glob`, `delete_file`, `wait_commands_or_subagents` alias, large soft-bash inspect matrix, many discover slash builtins |
+
+No ship-path model tool **Missing**.
+
+### Slash result
+
+| Grok builtin | Aether | Class |
+|--------------|--------|--------|
+| compact, always-approve/yolo, flush, dream, memory, context, feedback, goal, loop, session-info | Present | Full |
+| hooks-list/add/remove | `/hooks` | Full |
+| hooks-trust / hooks-untrust | — | **N/A** (folder-trust; hooks still load/run) |
+| plugins / reload-plugins | — | **N/A** (R3a marketplace Drop) |
+
+Pager/TUI session, model, effort, plan, sessions, etc. live outside that small
+ACP slash table in Rust; Aether covers them as local slash + TUI (Full for
+single-process product).
+
+### Residual N/A (still intentional — not false Full)
+
+| Residual | Notes |
+|----------|--------|
+| Goal `--budget` token orchestrator | Grok goal_tracker budget auto-pause; Aether `/goal` set/status/pause/resume/clear + `update_goal` only |
+| Hooks folder trust | Project trust gate for hooks/plugins |
+| Browser OIDC, plugins, ACP multi-client, Landlock, voice, update, mermaid engine, Mixpanel | Phase D / R3 Drop |
+| Personas, remote workspace services, SQLite memory | Documented N/A in matrices |
+
+### Verdict
+
+**Product-contract parity: PASS.** No Class A (ship-path missing) findings.
+Ledger residuals are Class B (documented N/A). No PORTING ship-path row demoted.
+
+---
+
 ## Related
 
 - User-facing overview: [README.md](./README.md)  
+- Inventory script: [scripts/parity-inventory.py](./scripts/parity-inventory.py)  
 - Private mirror (org): `BronzOwl-Labs/aether-grok-build` branch `aether`  
-- Reference: `crates/codegen/xai-grok-*` (read-only for port work)  
+- Reference: `../grok-build/crates/codegen/xai-grok-*` (read-only for port work)  
