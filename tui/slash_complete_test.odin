@@ -57,3 +57,42 @@ test_try_slash_tab_complete_no_slash :: proc(t: ^testing.T) {
 	st.cursor = len(st.input)
 	testing.expect(t, !try_slash_tab_complete(&st))
 }
+
+@(test)
+test_slash_menu_matches_live :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.focus = .Prompt
+	input_set_text(&st, "/he")
+	st.cursor = len(st.input)
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	testing.expect(t, slash_menu_matches(&st, &ms))
+	testing.expect(t, len(ms) >= 1)
+	// help should be in list
+	found := false
+	for m in ms {
+		if m == "/help" {
+			found = true
+			break
+		}
+	}
+	testing.expect(t, found)
+	testing.expect(t, slash_menu_height(&st) >= 2)
+}
+
+@(test)
+test_slash_menu_navigate_and_accept :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.focus = .Prompt
+	input_set_text(&st, "/")
+	st.cursor = 1
+	testing.expect(t, slash_menu_navigate(&st, 1))
+	testing.expect(t, st.slash_menu_sel >= 0)
+	testing.expect(t, slash_menu_accept(&st))
+	got := input_text(&st)
+	testing.expect(t, strings.has_prefix(got, "/"))
+	testing.expect(t, strings.contains(got, " ") || len(got) > 1)
+}

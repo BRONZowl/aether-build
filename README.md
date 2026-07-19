@@ -173,7 +173,7 @@ Fullscreen raw-terminal chat aligned with **Grok Build** muscle memory where pra
 
 | Key | Action |
 |-----|--------|
-| Tab | Slash complete (`/cmd…`, B20) or **`@path` / path** complete (B22–B24: dir list + workspace `rg --files`); else toggle prompt ↔ scrollback |
+| Tab | Accept slash suggestion (live menu while typing `/…`, ↑↓ select) or **`@path` / path** complete; else toggle prompt ↔ scrollback |
 | Space (scrollback) | Focus prompt |
 | ↑ / ↓ | Select block |
 | ← / → (tool) | Collapse / expand |

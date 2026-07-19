@@ -189,7 +189,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 
 		case .Tab:
-			// B20 slash · B22 @path · else Grok focus toggle
+			// B20 slash menu/complete · B22 @path · else Grok focus toggle
 			if st.focus == .Prompt && try_slash_tab_complete(&st) {
 				dirty = true
 			} else if st.focus == .Prompt && try_path_tab_complete(&st, cwd) {
@@ -262,9 +262,13 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			dirty = true
 
 		case .Shift_Tab:
-			// Grok: cycle mode ask → plan → always-approve → read-only. Live mid-turn.
-			cycle_mode(&st, &perm, &perm_before_yolo, cwd)
-			dirty = true
+			// Slash menu: reverse highlight; else Grok mode cycle (ask→plan→…).
+			if st.focus == .Prompt && slash_menu_navigate(&st, -1) {
+				dirty = true
+			} else {
+				cycle_mode(&st, &perm, &perm_before_yolo, cwd)
+				dirty = true
+			}
 
 		case .Ctrl_S:
 			st.new_first_ns = 0
@@ -543,13 +547,21 @@ run :: proc(opts: agent.Headless_Options) -> int {
 				}
 				continue
 			}
-			// editing resets slash Tab cycle unless still same prefix (handled in try)
+			// editing resets Tab LCP cycle; menu recompute uses live prefix
 			if st.slash_comp_prefix != "" {
-				// only reset on non-slash-path edits; cheap: always reset, Tab restarts
 				slash_complete_reset(&st)
 			}
+			// typing resets highlight unless still navigating same list
+			prev_pref, _ := slash_token_prefix(input_text(&st), st.cursor)
 			input_insert_rune(&st, key.ch)
 			st.history_idx = -1
+			new_pref, okp := slash_token_prefix(input_text(&st), st.cursor)
+			if !okp || new_pref != prev_pref {
+				// keep sel if still prefix-extending (e.g. /h → /he)
+				if !(okp && strings.has_prefix(new_pref, prev_pref) && prev_pref != "") {
+					st.slash_menu_sel = 0
+				}
+			}
 			dirty = true
 
 		case .PgUp:
@@ -561,6 +573,11 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			dirty = true
 
 		case .Up:
+			// Live slash menu navigation (before history / scrollback)
+			if st.focus == .Prompt && slash_menu_navigate(&st, -1) {
+				dirty = true
+				continue
+			}
 			if st.focus == .Scrollback {
 				_ = scrollback_move_sel(&st, -1)
 				dirty = true
@@ -584,6 +601,10 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			dirty = true
 
 		case .Down:
+			if st.focus == .Prompt && slash_menu_navigate(&st, 1) {
+				dirty = true
+				continue
+			}
 			if st.focus == .Scrollback {
 				_ = scrollback_move_sel(&st, 1)
 				dirty = true

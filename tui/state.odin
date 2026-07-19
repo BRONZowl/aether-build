@@ -108,6 +108,8 @@ App_State :: struct {
 	// B20: Tab slash-complete cycle state
 	slash_comp_idx:    int,
 	slash_comp_prefix: string, // owned; last prefix used for cycle
+	// Live slash suggestion menu (while typing /cmd)
+	slash_menu_sel:    int, // highlight index into current matches
 }
 
 state_init :: proc(s: ^App_State) {
@@ -136,6 +138,7 @@ state_init :: proc(s: ^App_State) {
 	search_init(&s.search)
 	s.slash_comp_idx = 0
 	s.slash_comp_prefix = ""
+	s.slash_menu_sel = 0
 }
 
 search_init :: proc(ss: ^Scrollback_Search) {

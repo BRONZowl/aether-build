@@ -207,7 +207,8 @@ apply_slash_completion :: proc(s: ^App_State, completed: string, add_space: bool
 }
 
 // try_slash_tab_complete: Tab handler when prompt has a slash token.
-// Cycles matches; first Tab expands to LCP then cycles full names.
+// With live menu: accepts highlighted row (Tab) or advances selection (Shift+Tab via navigate).
+// Without multi match: LCP expand then cycle.
 // Returns true if Tab was consumed (caller should not toggle focus).
 try_slash_tab_complete :: proc(s: ^App_State) -> bool {
 	if s == nil || s.focus != .Prompt {
@@ -232,46 +233,61 @@ try_slash_tab_complete :: proc(s: ^App_State) -> bool {
 		return true
 	}
 
-	// New prefix → reset cycle index
+	// Unique → complete with space
+	if len(matches) == 1 {
+		_ = apply_slash_completion(s, matches[0], true)
+		state_set_status(s, matches[0])
+		slash_complete_reset(s)
+		s.slash_menu_sel = 0
+		return true
+	}
+
+	// First Tab on this prefix: expand LCP if useful, else accept selection
 	if s.slash_comp_prefix != prefix {
 		if s.slash_comp_prefix != "" {
 			delete(s.slash_comp_prefix)
 		}
 		s.slash_comp_prefix = strings.clone(prefix)
 		s.slash_comp_idx = 0
-		// first hit: expand to longest common prefix if longer than typed
 		lcp := common_slash_prefix(matches[:])
 		if len(lcp) > len(prefix) {
 			_ = apply_slash_completion(s, lcp, false)
-			// update stored prefix to LCP for subsequent cycles
 			delete(s.slash_comp_prefix)
 			s.slash_comp_prefix = strings.clone(lcp)
+			// re-collect after LCP (narrower list)
+			clear(&matches)
+			collect_slash_matches(lcp, &matches)
 			if len(matches) == 1 {
-				// unique: add trailing space
 				_ = apply_slash_completion(s, matches[0], true)
-				state_set_status(s, fmt.tprintf("%s", matches[0]))
-			} else {
-				state_set_status(
-					s,
-					fmt.tprintf("%d matches · Tab cycle · %s…", len(matches), lcp),
-				)
+				state_set_status(s, matches[0])
+				slash_complete_reset(s)
+				return true
 			}
+			state_set_status(
+				s,
+				fmt.tprintf("%d matches · ↑↓ · Tab accept", len(matches)),
+			)
 			return true
 		}
 	}
 
-	// Cycle full command names
-	if len(matches) == 1 {
-		_ = apply_slash_completion(s, matches[0], true)
-		state_set_status(s, matches[0])
+	// Accept highlighted menu row (live popup)
+	if s.slash_menu_sel >= 0 && s.slash_menu_sel < len(matches) {
+		chosen := matches[s.slash_menu_sel]
+		_ = apply_slash_completion(s, chosen, true)
+		state_set_status(s, fmt.tprintf("%s  (%d/%d)", chosen, s.slash_menu_sel + 1, len(matches)))
+		// advance highlight for next Tab if they backspace
+		s.slash_comp_idx = (s.slash_menu_sel + 1) % len(matches)
+		s.slash_menu_sel = s.slash_comp_idx
 		return true
 	}
+
+	// Fallback cycle
 	idx := s.slash_comp_idx % len(matches)
 	chosen := matches[idx]
 	s.slash_comp_idx = (idx + 1) % len(matches)
+	s.slash_menu_sel = s.slash_comp_idx
 	_ = apply_slash_completion(s, chosen, true)
-	// After adding space, token no longer active until user edits — keep cycle
-	// for next Tab if they backspace into command again.
 	state_set_status(
 		s,
 		fmt.tprintf("%s  (%d/%d)", chosen, idx + 1, len(matches)),
@@ -289,4 +305,88 @@ slash_complete_reset :: proc(s: ^App_State) {
 		delete(s.slash_comp_prefix)
 		s.slash_comp_prefix = ""
 	}
+	// keep slash_menu_sel; refreshed when matches recompute
+}
+
+SLASH_MENU_MAX :: 8
+
+// slash_menu_matches: current slash-token matches for live popup (temp ok).
+// Returns false if menu should not show (not on slash token / empty).
+slash_menu_matches :: proc(
+	s: ^App_State,
+	out: ^[dynamic]string,
+) -> bool {
+	if s == nil || s.focus != .Prompt {
+		return false
+	}
+	if s.picker.active || s.model_picker.active || s.ask_active || s.search.active {
+		return false
+	}
+	text := input_text(s)
+	prefix, ok := slash_token_prefix(text, s.cursor)
+	if !ok {
+		return false
+	}
+	collect_slash_matches(prefix, out)
+	if len(out) == 0 {
+		return false
+	}
+	// clamp selection
+	if s.slash_menu_sel < 0 {
+		s.slash_menu_sel = 0
+	}
+	if s.slash_menu_sel >= len(out) {
+		s.slash_menu_sel = len(out) - 1
+	}
+	return true
+}
+
+// slash_menu_height: rows reserved above status for the suggestion list.
+slash_menu_height :: proc(s: ^App_State) -> int {
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) {
+		return 0
+	}
+	n := len(ms)
+	if n > SLASH_MENU_MAX {
+		n = SLASH_MENU_MAX
+	}
+	// +1 for header "slash commands"
+	return n + 1
+}
+
+// slash_menu_navigate: ↑/↓ while menu open. Returns true if consumed.
+slash_menu_navigate :: proc(s: ^App_State, delta: int) -> bool {
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) {
+		return false
+	}
+	n := len(ms)
+	if n <= 0 {
+		return false
+	}
+	s.slash_menu_sel = (s.slash_menu_sel + delta) % n
+	if s.slash_menu_sel < 0 {
+		s.slash_menu_sel += n
+	}
+	return true
+}
+
+// slash_menu_accept: apply highlighted (or only) match. Returns true if applied.
+slash_menu_accept :: proc(s: ^App_State) -> bool {
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) {
+		return false
+	}
+	idx := s.slash_menu_sel
+	if idx < 0 || idx >= len(ms) {
+		idx = 0
+	}
+	ok := apply_slash_completion(s, ms[idx], true)
+	if ok {
+		state_set_status(s, ms[idx])
+		slash_complete_reset(s)
+		s.slash_menu_sel = 0
+	}
+	return ok
 }

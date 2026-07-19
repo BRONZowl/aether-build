@@ -352,8 +352,10 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	s.last_cols = cols
 
 	input_h := input_line_count(s, cols)
-	// header + status + input
-	body_h := rows - 2 - input_h
+	// Live slash suggestion menu (between body and status)
+	menu_h := slash_menu_height(s)
+	// header + status + input [+ slash menu]
+	body_h := rows - 2 - input_h - menu_h
 	if body_h < 1 {
 		body_h = 1
 	}
@@ -463,6 +465,11 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		}
 	}
 
+	// Slash command suggestion popup (live while typing /…)
+	if menu_h > 0 {
+		write_slash_menu(&b, s, cols, menu_h)
+	}
+
 	// status — hints match Grok Build prompt bindings
 	st := s.status if s.status != "" else "ready"
 	scroll_info := ""
@@ -508,6 +515,18 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 				" %s%s  | S-Enter send · Ctrl+F find · Tab · Ctrl+Q",
 				st,
 				scroll_info,
+			)
+		}
+	} else if menu_h > 0 {
+		ms := make([dynamic]string, 0, 16, context.temp_allocator)
+		_ = slash_menu_matches(s, &ms)
+		if compact {
+			status = fmt.tprintf(" %s | %d cmds · ↑↓ · Tab", st, len(ms))
+		} else {
+			status = fmt.tprintf(
+				" %s  | %d slash matches · ↑↓ select · Tab accept · Esc clear",
+				st,
+				len(ms),
 			)
 		}
 	} else {
@@ -597,6 +616,49 @@ write_fit :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 }
 
 // write_md_inline lives in markdown.odin (C1.1).
+
+// write_slash_menu: live autocomplete list for `/` tokens (above status/input).
+write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: int) {
+	ms := make([dynamic]string, 0, 16, context.temp_allocator)
+	if !slash_menu_matches(s, &ms) || menu_h <= 0 {
+		for i := 0; i < menu_h; i += 1 {
+			write_row(b, "", cols, .Bar_Dim, true)
+		}
+		return
+	}
+	// header
+	write_row(b, " slash commands · Tab accept · ↑↓", cols, .Bar_Dim, true)
+	shown := menu_h - 1
+	if shown > len(ms) {
+		shown = len(ms)
+	}
+	// scroll window so selection is visible
+	start := 0
+	if s.slash_menu_sel >= shown {
+		start = s.slash_menu_sel - shown + 1
+	}
+	if start < 0 {
+		start = 0
+	}
+	if start + shown > len(ms) {
+		start = max(0, len(ms) - shown)
+	}
+	for row := 0; row < shown; row += 1 {
+		i := start + row
+		if i >= len(ms) {
+			write_row(b, "", cols, .Normal, true)
+			continue
+		}
+		line: string
+		if i == s.slash_menu_sel {
+			line = fmt.tprintf(" › %s", ms[i])
+			write_row(b, line, cols, .Bar_Reverse, true)
+		} else {
+			line = fmt.tprintf("   %s", ms[i])
+			write_row(b, line, cols, .Normal, true)
+		}
+	}
+}
 
 write_input :: proc(b: ^strings.Builder, s: ^App_State, cols: int, input_h: int, screen_rows: int) {
 	prefix := "> "
