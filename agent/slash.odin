@@ -15,6 +15,30 @@ Slash_Action :: enum {
 // Slash_Writer receives user-visible slash output (one logical line at a time).
 Slash_Writer :: #type proc(line: string)
 
+
+// emit_line writes one slash output line (stderr when out is nil).
+emit_line :: proc(out: Slash_Writer, line: string) {
+	if out != nil {
+		out(line)
+	} else {
+		fmt.eprintln(line)
+	}
+}
+
+// emit_lines splits text on newlines and emits each non-empty line.
+emit_lines :: proc(out: Slash_Writer, text: string) {
+	start := 0
+	for i := 0; i <= len(text); i += 1 {
+		if i == len(text) || text[i] == '\n' {
+			line := text[start:i]
+			if line != "" {
+				emit_line(out, line)
+			}
+			start = i + 1
+		}
+	}
+}
+
 // run_slash handles REPL/TUI slash commands. out defaults to stderr when nil.
 // perm is optional live permission mode (updated by /always-approve).
 run_slash :: proc(
@@ -26,14 +50,6 @@ run_slash :: proc(
 	perm: ^core.Permission_Mode,
 	out: Slash_Writer = nil,
 ) -> Slash_Action {
-	emit :: proc(out: Slash_Writer, line: string) {
-		if out != nil {
-			out(line)
-		} else {
-			fmt.eprintln(line)
-		}
-	}
-
 	perm_mode :: proc(perm: ^core.Permission_Mode) -> core.Permission_Mode {
 		if perm != nil {
 			return perm^
@@ -54,31 +70,13 @@ run_slash :: proc(
 		maybe_stop_hooks("exit")
 		// Best-effort auto-dream before leave (gates apply).
 		if note := maybe_auto_dream(sess, model^); note != "" {
-			nstart := 0
-			for i := 0; i <= len(note); i += 1 {
-				if i == len(note) || note[i] == '\n' {
-					line := note[nstart:i]
-					if line != "" {
-						emit(out, line)
-					}
-					nstart = i + 1
-				}
-			}
+			emit_lines(out, note)
 		}
 		return .Exit
 	case "/help", "/?":
 		// B65: sectioned help (+ optional filter)
 		help_out := handle_help_slash(arg, context.temp_allocator)
-		hstart := 0
-		for i := 0; i <= len(help_out); i += 1 {
-			if i == len(help_out) || help_out[i] == '\n' {
-				line := help_out[hstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				hstart = i + 1
-			}
-		}
+		emit_lines(out, help_out)
 		return .Continue
 	case "/always-approve", "/yolo":
 		// /yolo always turns on
@@ -94,25 +92,25 @@ run_slash :: proc(
 				perm^ = .Always_Approve
 				changed = true
 			}
-			emit(out, "aether: permission mode = always-approve")
+			emit_line(out, "aether: permission mode = always-approve")
 		case "off", "false", "0", "no", "disable", "ask":
 			if perm != nil {
 				perm^ = .Ask
 				changed = true
 			}
-			emit(out, "aether: permission mode = ask")
+			emit_line(out, "aether: permission mode = ask")
 		case "read-only", "readonly", "ro":
 			if perm != nil {
 				perm^ = .Read_Only
 				changed = true
 			}
-			emit(out, "aether: permission mode = read-only")
+			emit_line(out, "aether: permission mode = read-only")
 		case "auto", "accept-edits", "accept_edits":
 			if perm != nil {
 				perm^ = .Auto
 				changed = true
 			}
-			emit(out, "aether: permission mode = auto (accept file edits; ask for shell)")
+			emit_line(out, "aether: permission mode = auto (accept file edits; ask for shell)")
 		case "toggle":
 			if perm != nil {
 				if perm^ == .Always_Approve {
@@ -121,18 +119,18 @@ run_slash :: proc(
 					perm^ = .Always_Approve
 				}
 				changed = true
-				emit(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(perm^)))
+				emit_line(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(perm^)))
 			} else {
-				emit(out, "aether: permission mode pointer unavailable")
+				emit_line(out, "aether: permission mode pointer unavailable")
 			}
 		case "status", "?":
-			emit(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(cur)))
+			emit_line(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(cur)))
 		case:
-			emit(out, "aether: usage: /always-approve [on|off|auto|read-only|toggle|status]")
+			emit_line(out, "aether: usage: /always-approve [on|off|auto|read-only|toggle|status]")
 		}
 		if changed && perm != nil {
 			if pe := core.persist_permission_mode(perm^); pe != "" {
-				emit(out, fmt.tprintf("aether: permission_mode persist: %s", pe))
+				emit_line(out, fmt.tprintf("aether: permission_mode persist: %s", pe))
 			}
 		}
 		return .Continue
@@ -146,35 +144,35 @@ run_slash :: proc(
 			if perm != nil {
 				if cur == .Auto {
 					perm^ = .Ask
-					emit(out, "aether: permission mode = ask (left auto)")
+					emit_line(out, "aether: permission mode = ask (left auto)")
 				} else {
 					perm^ = .Auto
-					emit(out, "aether: permission mode = auto (accept file edits; ask for shell)")
+					emit_line(out, "aether: permission mode = auto (accept file edits; ask for shell)")
 				}
 				changed = true
 			} else {
-				emit(out, "aether: permission mode pointer unavailable")
+				emit_line(out, "aether: permission mode pointer unavailable")
 			}
 		case "on", "true", "1", "yes", "enable":
 			if perm != nil {
 				perm^ = .Auto
 				changed = true
 			}
-			emit(out, "aether: permission mode = auto (accept file edits; ask for shell)")
+			emit_line(out, "aether: permission mode = auto (accept file edits; ask for shell)")
 		case "off", "false", "0", "no", "disable", "ask":
 			if perm != nil {
 				perm^ = .Ask
 				changed = true
 			}
-			emit(out, "aether: permission mode = ask")
+			emit_line(out, "aether: permission mode = ask")
 		case "status", "?":
-			emit(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(cur)))
+			emit_line(out, fmt.tprintf("aether: permission mode = %s", core.permission_mode_string(cur)))
 		case:
-			emit(out, "aether: usage: /auto [on|off|toggle|status]")
+			emit_line(out, "aether: usage: /auto [on|off|toggle|status]")
 		}
 		if changed && perm != nil {
 			if pe := core.persist_permission_mode(perm^); pe != "" {
-				emit(out, fmt.tprintf("aether: permission_mode persist: %s", pe))
+				emit_line(out, fmt.tprintf("aether: permission_mode persist: %s", pe))
 			}
 		}
 		return .Continue
@@ -185,8 +183,8 @@ run_slash :: proc(
 			if sess != nil && sess.model != "" {
 				cur = sess.model
 			}
-			emit(out, fmt.tprintf("aether: model = %s", cur if cur != "" else "(unset)"))
-			emit(out, "aether: usage: /model <id>   examples: grok-4.5, grok-build")
+			emit_line(out, fmt.tprintf("aether: model = %s", cur if cur != "" else "(unset)"))
+			emit_line(out, "aether: usage: /model <id>   examples: grok-4.5, grok-build")
 			return .Continue
 		}
 		if model != nil {
@@ -198,38 +196,38 @@ run_slash :: proc(
 			sess.model = strings.clone(a)
 			if sess.auto_save {
 				if e := session_save(sess); e != "" {
-					emit(out, fmt.tprintf("aether: model set to %s (save failed: %s)", a, e))
+					emit_line(out, fmt.tprintf("aether: model set to %s (save failed: %s)", a, e))
 					return .Continue
 				}
 			}
 		}
 		if pe := core.persist_default_model(a); pe != "" {
-			emit(out, fmt.tprintf("aether: model set to %s (persist: %s)", a, pe))
+			emit_line(out, fmt.tprintf("aether: model set to %s (persist: %s)", a, pe))
 		} else {
-			emit(out, fmt.tprintf("aether: model set to %s", a))
+			emit_line(out, fmt.tprintf("aether: model set to %s", a))
 		}
 		return .Continue
 	case "/effort":
 		a := strings.trim_space(arg)
 		if a == "" || a == "status" || a == "?" {
 			cur := reasoning_effort_current()
-			emit(
+			emit_line(
 				out,
 				fmt.tprintf(
 					"aether: reasoning_effort = %s",
 					cur if cur != "" else "(default/off)",
 				),
 			)
-			emit(out, "aether: usage: /effort low|medium|high|xhigh|off")
+			emit_line(out, "aether: usage: /effort low|medium|high|xhigh|off")
 			return .Continue
 		}
 		if !set_reasoning_effort(a) {
-			emit(out, "aether: usage: /effort low|medium|high|xhigh|off")
+			emit_line(out, "aether: usage: /effort low|medium|high|xhigh|off")
 			return .Continue
 		}
 		cur := reasoning_effort_current()
 		_ = core.persist_reasoning_effort(cur if cur != "" else "off")
-		emit(
+		emit_line(
 			out,
 			fmt.tprintf(
 				"aether: reasoning_effort = %s",
@@ -243,7 +241,7 @@ run_slash :: proc(
 		if strings.trim_space(arg) != "" {
 			v, ok := parse_rewind_count(arg)
 			if !ok {
-				emit(out, "aether: usage: /copy [N]  (Nth latest assistant reply)")
+				emit_line(out, "aether: usage: /copy [N]  (Nth latest assistant reply)")
 				return .Continue
 			}
 			n = v
@@ -264,11 +262,11 @@ run_slash :: proc(
 			}
 		}
 		if body == "" {
-			emit(out, fmt.tprintf("aether: no assistant reply #%d to copy", n))
+			emit_line(out, fmt.tprintf("aether: no assistant reply #%d to copy", n))
 			return .Continue
 		}
 		st := copy_text_to_clipboard(body)
-		emit(out, fmt.tprintf("aether: %s (%d chars)", st, len(body)))
+		emit_line(out, fmt.tprintf("aether: %s (%d chars)", st, len(body)))
 		return .Continue
 	case "/history":
 		// List / filter / show session user prompts (newest first)
@@ -277,108 +275,63 @@ run_slash :: proc(
 		a := strings.trim_space(arg)
 		if a == "" || a == "list" || a == "?" {
 			filtered := filter_prompts(all, "", context.temp_allocator)
-			emit(out, format_history_list(filtered, 20, 100, context.temp_allocator))
+			emit_line(out, format_history_list(filtered, 20, 100, context.temp_allocator))
 			return .Continue
 		}
 		if idx, ok := parse_history_index(a); ok {
 			if idx > len(all) {
-				emit(out, fmt.tprintf("aether: history #%d not found (%d prompts)", idx, len(all)))
+				emit_line(out, fmt.tprintf("aether: history #%d not found (%d prompts)", idx, len(all)))
 				return .Continue
 			}
 			// full text of that prompt
-			emit(out, fmt.tprintf("aether: history #%d:\n%s", idx, all[idx - 1]))
+			emit_line(out, fmt.tprintf("aether: history #%d:\n%s", idx, all[idx - 1]))
 			return .Continue
 		}
 		// substring filter
 		filtered := filter_prompts(all, a, context.temp_allocator)
 		if len(filtered) == 0 {
-			emit(out, fmt.tprintf("aether: no prompts matching %q", a))
+			emit_line(out, fmt.tprintf("aether: no prompts matching %q", a))
 			return .Continue
 		}
-		emit(out, format_history_list(filtered, 20, 100, context.temp_allocator))
+		emit_line(out, format_history_list(filtered, 20, 100, context.temp_allocator))
 		return .Continue
 	case "/btw":
 		if strings.trim_space(arg) == "" {
-			emit(out, "aether: usage: /btw <note>  (local only; not sent to the model)")
+			emit_line(out, "aether: usage: /btw <note>  (local only; not sent to the model)")
 			return .Continue
 		}
-		emit(out, fmt.tprintf("btw: %s", strings.trim_space(arg)))
+		emit_line(out, fmt.tprintf("btw: %s", strings.trim_space(arg)))
 		return .Continue
 	case "/feedback":
 		fb := handle_feedback_slash(sess, arg, context.temp_allocator)
-		fstart := 0
-		for i := 0; i <= len(fb); i += 1 {
-			if i == len(fb) || fb[i] == '\n' {
-				line := fb[fstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				fstart = i + 1
-			}
-		}
+		emit_lines(out, fb)
 		return .Continue
 	case "/context", "/usage", "/cost":
 		// /usage and /cost alias /context (B25)
 		ctx_out := handle_context_slash(sess, arg, context.temp_allocator)
-		cstart := 0
-		for i := 0; i <= len(ctx_out); i += 1 {
-			if i == len(ctx_out) || ctx_out[i] == '\n' {
-				line := ctx_out[cstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				cstart = i + 1
-			}
-		}
+		emit_lines(out, ctx_out)
 		return .Continue
 	case "/diff":
 		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
 		diff_out := handle_diff_slash(dcwd, arg, context.temp_allocator)
-		dstart := 0
-		for i := 0; i <= len(diff_out); i += 1 {
-			if i == len(diff_out) || diff_out[i] == '\n' {
-				line := diff_out[dstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				dstart = i + 1
-			}
-		}
+		emit_lines(out, diff_out)
 		if len(diff_out) == 0 {
-			emit(out, "aether: /diff produced no output")
+			emit_line(out, "aether: /diff produced no output")
 		}
 		return .Continue
 	case "/compact":
 		cmp_out := handle_compact_slash(sess, model^, arg, perm_mode(perm), context.temp_allocator)
-		kstart := 0
-		for i := 0; i <= len(cmp_out); i += 1 {
-			if i == len(cmp_out) || cmp_out[i] == '\n' {
-				line := cmp_out[kstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				kstart = i + 1
-			}
-		}
+		emit_lines(out, cmp_out)
 		if len(cmp_out) == 0 {
-			emit(out, "aether: compact produced no output")
+			emit_line(out, "aether: compact produced no output")
 		}
 		// History replaced — UI should rebuild
 		return .Session_Changed
 	case "/flush":
 		flush_out := handle_flush_slash(sess, model^, arg, context.temp_allocator)
-		fstart := 0
-		for i := 0; i <= len(flush_out); i += 1 {
-			if i == len(flush_out) || flush_out[i] == '\n' {
-				line := flush_out[fstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				fstart = i + 1
-			}
-		}
+		emit_lines(out, flush_out)
 		if len(flush_out) == 0 {
-			emit(out, "aether: flush produced no output")
+			emit_line(out, "aether: flush produced no output")
 		}
 		return .Continue
 	case "/memory":
@@ -388,77 +341,32 @@ run_slash :: proc(
 			context.temp_allocator,
 			sess,
 		)
-		mstart := 0
-		for i := 0; i <= len(mem_out); i += 1 {
-			if i == len(mem_out) || mem_out[i] == '\n' {
-				line := mem_out[mstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				mstart = i + 1
-			}
-		}
+		emit_lines(out, mem_out)
 		return .Continue
 	case "/dream":
 		dream_out := handle_dream_slash(sess, model^, arg, context.temp_allocator)
-		dstart := 0
-		for i := 0; i <= len(dream_out); i += 1 {
-			if i == len(dream_out) || dream_out[i] == '\n' {
-				line := dream_out[dstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				dstart = i + 1
-			}
-		}
+		emit_lines(out, dream_out)
 		if len(dream_out) == 0 {
-			emit(out, "aether: dream produced no output")
+			emit_line(out, "aether: dream produced no output")
 		}
 		return .Continue
 	case "/remember":
 		// B32: save a user note to today's memory session log
 		rcwd := sess.cwd if sess.cwd != "" else cwd^
 		rem_out := handle_remember_slash(rcwd, arg, context.temp_allocator)
-		rstart := 0
-		for i := 0; i <= len(rem_out); i += 1 {
-			if i == len(rem_out) || rem_out[i] == '\n' {
-				line := rem_out[rstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				rstart = i + 1
-			}
-		}
+		emit_lines(out, rem_out)
 		return .Continue
 	case "/goal":
-		emit(out, handle_goal_slash(arg, context.temp_allocator))
+		emit_line(out, handle_goal_slash(arg, context.temp_allocator))
 		return .Continue
 	case "/imagine":
 		img_out := handle_imagine_slash(arg, context.temp_allocator)
 		// emit line-by-line
-		istart := 0
-		for i := 0; i <= len(img_out); i += 1 {
-			if i == len(img_out) || img_out[i] == '\n' {
-				line := img_out[istart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				istart = i + 1
-			}
-		}
+		emit_lines(out, img_out)
 		return .Continue
 	case "/imagine-video":
 		vid_out := handle_imagine_video_slash(arg, context.temp_allocator)
-		vstart := 0
-		for i := 0; i <= len(vid_out); i += 1 {
-			if i == len(vid_out) || vid_out[i] == '\n' {
-				line := vid_out[vstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				vstart = i + 1
-			}
-		}
+		emit_lines(out, vid_out)
 		return .Continue
 	case "/theme", "/t":
 		// C2.1 — name stored in core; TUI re-reads each paint; B9 persists [ui] theme
@@ -467,40 +375,31 @@ run_slash :: proc(
 		if a == "" {
 			next := core.cycle_ui_theme_name()
 			if pe := core.persist_ui_string("theme", next); pe != "" {
-				emit(out, fmt.tprintf("aether: theme → %s (persist: %s)", next, pe))
+				emit_line(out, fmt.tprintf("aether: theme → %s (persist: %s)", next, pe))
 			} else {
-				emit(out, fmt.tprintf("aether: theme → %s", next))
+				emit_line(out, fmt.tprintf("aether: theme → %s", next))
 			}
 			return .Continue
 		}
 		if al == "list" || al == "ls" || al == "help" || al == "?" {
 			txt := core.list_ui_theme_names(context.temp_allocator)
 			// emit lines
-			hstart := 0
-			for i := 0; i <= len(txt); i += 1 {
-				if i == len(txt) || txt[i] == '\n' {
-					line := txt[hstart:i]
-					if line != "" {
-						emit(out, line)
-					}
-					hstart = i + 1
-				}
-			}
+			emit_lines(out, txt)
 			return .Continue
 		}
 		if al == "status" || al == "show" {
-			emit(out, fmt.tprintf("aether: theme = %s", core.get_ui_theme_name()))
+			emit_line(out, fmt.tprintf("aether: theme = %s", core.get_ui_theme_name()))
 			return .Continue
 		}
 		if core.set_ui_theme_name(a) {
 			name := core.get_ui_theme_name()
 			if pe := core.persist_ui_string("theme", name); pe != "" {
-				emit(out, fmt.tprintf("aether: theme → %s (persist: %s)", name, pe))
+				emit_line(out, fmt.tprintf("aether: theme → %s (persist: %s)", name, pe))
 			} else {
-				emit(out, fmt.tprintf("aether: theme → %s", name))
+				emit_line(out, fmt.tprintf("aether: theme → %s", name))
 			}
 		} else {
-			emit(out, fmt.tprintf("aether: unknown theme %q — try /theme list", a))
+			emit_line(out, fmt.tprintf("aether: unknown theme %q — try /theme list", a))
 		}
 		return .Continue
 	case "/vim-mode", "/vim":
@@ -545,57 +444,39 @@ run_slash :: proc(
 	case "/loop":
 		// Multi-line result: emit line-by-line for TUI notices
 		loop_out := handle_loop_slash(arg, context.temp_allocator)
-		start := 0
-		for i := 0; i <= len(loop_out); i += 1 {
-			if i == len(loop_out) || loop_out[i] == '\n' {
-				line := loop_out[start:i]
-				if line != "" {
-					emit(out, line)
-				}
-				start = i + 1
-			}
-		}
+		emit_lines(out, loop_out)
 		if len(loop_out) == 0 {
-			emit(out, loop_usage_message())
+			emit_line(out, loop_usage_message())
 		}
 		return .Continue
 	case "/todos", "/todo":
 		arg_l := strings.to_lower(arg, context.temp_allocator)
 		if arg_l == "clear" || arg_l == "reset" || arg_l == "empty" {
 			tools.todo_clear()
-			emit(out, "aether: todos cleared")
+			emit_line(out, "aether: todos cleared")
 			return .Continue
 		}
 		if arg_l != "" && arg_l != "list" && arg_l != "show" && arg_l != "status" {
-			emit(out, "aether: usage: /todos [clear]")
+			emit_line(out, "aether: usage: /todos [clear]")
 			return .Continue
 		}
 		sum := tools.summarize_todo_state(context.temp_allocator)
 		// Emit one line at a time for TUI notice sink
 		if sum == "" || !strings.contains(sum, "\n") {
-			emit(out, sum if sum != "" else "No tasks currently tracked.")
+			emit_line(out, sum if sum != "" else "No tasks currently tracked.")
 			return .Continue
 		}
 		// split on newlines; skip trailing empty
-		start := 0
-		for i := 0; i <= len(sum); i += 1 {
-			if i == len(sum) || sum[i] == '\n' {
-				line := sum[start:i]
-				if line != "" {
-					emit(out, line)
-				}
-				start = i + 1
-			}
-		}
+		emit_lines(out, sum)
 		return .Continue
 	case "/find":
 		// TUI handles /find; REPL documents it
-		emit(out, "aether: /find is TUI-only (Ctrl+F in aether tui)")
+		emit_line(out, "aether: /find is TUI-only (Ctrl+F in aether tui)")
 		return .Continue
 	case "/plan":
 		arg_l := strings.to_lower(arg, context.temp_allocator)
 		if arg_l == "off" || arg_l == "exit" || arg_l == "leave" || arg_l == "end" {
-			emit(out, user_exit_plan_mode(sess.cwd, false, context.temp_allocator))
+			emit_line(out, user_exit_plan_mode(sess.cwd, false, context.temp_allocator))
 			sess.plan_mode =
 				plan_mode_is_active() || plan_mode_is_pending() || plan_mode_is_exit_pending()
 			return .Continue
@@ -605,13 +486,13 @@ run_slash :: proc(
 			path := plan_file_path_for_cwd(sess.cwd, context.temp_allocator)
 			switch st {
 			case .Active:
-				emit(out, fmt.tprintf("plan mode: ACTIVE — %s", path))
+				emit_line(out, fmt.tprintf("plan mode: ACTIVE — %s", path))
 			case .Pending:
-				emit(out, fmt.tprintf("plan mode: PENDING (activates next turn) — %s", path))
+				emit_line(out, fmt.tprintf("plan mode: PENDING (activates next turn) — %s", path))
 			case .Exit_Pending:
-				emit(out, fmt.tprintf("plan mode: EXIT PENDING — %s", path))
+				emit_line(out, fmt.tprintf("plan mode: EXIT PENDING — %s", path))
 			case .Inactive:
-				emit(out, "plan mode: OFF")
+				emit_line(out, "plan mode: OFF")
 			}
 			return .Continue
 		}
@@ -619,16 +500,7 @@ run_slash :: proc(
 			// /plan view → same as /view-plan
 			pcwd := sess.cwd if sess.cwd != "" else cwd^
 			vp := handle_view_plan_slash(pcwd, context.temp_allocator)
-			vstart := 0
-			for i := 0; i <= len(vp); i += 1 {
-				if i == len(vp) || vp[i] == '\n' {
-					line := vp[vstart:i]
-					if line != "" {
-						emit(out, line)
-					}
-					vstart = i + 1
-				}
-			}
+			emit_lines(out, vp)
 			return .Continue
 		}
 		// bare /plan, /plan on, or /plan <description>
@@ -636,7 +508,7 @@ run_slash :: proc(
 		if arg_l == "on" {
 			desc = ""
 		}
-		emit(out, user_enter_plan_mode(sess.cwd, desc, context.temp_allocator))
+		emit_line(out, user_enter_plan_mode(sess.cwd, desc, context.temp_allocator))
 		sess.plan_mode =
 			plan_mode_is_active() || plan_mode_is_pending() || plan_mode_is_exit_pending()
 		return .Continue
@@ -644,28 +516,19 @@ run_slash :: proc(
 		// B32: dump .grok/plan.md
 		pcwd := sess.cwd if sess.cwd != "" else cwd^
 		vp := handle_view_plan_slash(pcwd, context.temp_allocator)
-		vstart := 0
-		for i := 0; i <= len(vp); i += 1 {
-			if i == len(vp) || vp[i] == '\n' {
-				line := vp[vstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				vstart = i + 1
-			}
-		}
+		emit_lines(out, vp)
 		return .Continue
 	case "/multiline", "/ml":
 		// TUI handles mode toggle; REPL just documents it (B36: /ml alias)
-		emit(out, "use Ctrl+M in the TUI to toggle multiline (or /multiline|/ml there)")
+		emit_line(out, "use Ctrl+M in the TUI to toggle multiline (or /multiline|/ml there)")
 		return .Continue
 	case "/whoami":
 		// whoami prints its own stderr path; also summarize for sink
 		code := run_whoami(opts.verbose)
 		if code != 0 {
-			emit(out, "whoami failed (not signed in?)")
+			emit_line(out, "whoami failed (not signed in?)")
 		} else if out != nil {
-			emit(out, "whoami: see identity above / auth ok")
+			emit_line(out, "whoami: see identity above / auth ok")
 		}
 		return .Continue
 	case "/login":
@@ -678,60 +541,33 @@ run_slash :: proc(
 		}
 		code := run_host_login(extra, opts.quiet)
 		if code != 0 {
-			emit(out, fmt.tprintf("login failed (exit %d) — see stderr; or set XAI_API_KEY", code))
+			emit_line(out, fmt.tprintf("login failed (exit %d) — see stderr; or set XAI_API_KEY", code))
 		} else {
-			emit(out, "login ok — try /whoami")
+			emit_line(out, "login ok — try /whoami")
 		}
 		return .Continue
 	case "/mcp":
 		mcp_out := handle_mcp_slash(arg, opts.no_mcp, opts.quiet, context.temp_allocator)
-		mstart := 0
-		for i := 0; i <= len(mcp_out); i += 1 {
-			if i == len(mcp_out) || mcp_out[i] == '\n' {
-				line := mcp_out[mstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				mstart = i + 1
-			}
-		}
+		emit_lines(out, mcp_out)
 		return .Continue
 	case "/hooks":
 		hcwd := sess.cwd if sess.cwd != "" else (cwd^ if cwd != nil else ".")
 		hooks_out := handle_hooks_slash(arg, hcwd, context.temp_allocator)
-		hstart := 0
-		for i := 0; i <= len(hooks_out); i += 1 {
-			if i == len(hooks_out) || hooks_out[i] == '\n' {
-				line := hooks_out[hstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				hstart = i + 1
-			}
-		}
+		emit_lines(out, hooks_out)
 		return .Continue
 	case "/create-skill", "/createskill", "/new-skill":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit(out, handle_create_skill_slash(arg, ws, context.temp_allocator))
+		emit_line(out, handle_create_skill_slash(arg, ws, context.temp_allocator))
 		return .Continue
 	case "/plugins", "/plugin":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 		pout := handle_plugins_slash(arg, ws, context.temp_allocator)
-		pstart := 0
-		for i := 0; i <= len(pout); i += 1 {
-			if i == len(pout) || pout[i] == '\n' {
-				line := pout[pstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				pstart = i + 1
-			}
-		}
+		emit_lines(out, pout)
 		return .Continue
 	case "/personas", "/persona":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 		if strings.trim_space(arg) == "help" || strings.trim_space(arg) == "?" {
-			emit(
+			emit_line(
 				out,
 				"Usage: /personas — list personas for spawn_subagent persona=\n" +
 				"Files: ~/.grok/personas/<name>.md or <cwd>/.grok/personas/<name>.md\n" +
@@ -739,7 +575,7 @@ run_slash :: proc(
 			)
 			return .Continue
 		}
-		emit(out, format_personas_list(ws, context.temp_allocator))
+		emit_line(out, format_personas_list(ws, context.temp_allocator))
 		return .Continue
 	case "/skills":
 		arg_l := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
@@ -747,16 +583,7 @@ run_slash :: proc(
 			ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 			msg := reload_skills_for_cwd(ws, true)
 			// emit line-by-line
-			hstart := 0
-			for i := 0; i <= len(msg); i += 1 {
-				if i == len(msg) || msg[i] == '\n' {
-					line := msg[hstart:i]
-					if line != "" {
-						emit(out, line)
-					}
-					hstart = i + 1
-				}
-			}
+			emit_lines(out, msg)
 			delete(msg)
 			return .Continue
 		}
@@ -765,18 +592,18 @@ run_slash :: proc(
 			body := skills_invoke_text(arg, "", context.temp_allocator)
 			// show first lines only for slash output
 			if len(body) > 2000 {
-				emit(out, body[:2000])
-				emit(out, "…[truncated; full body available via skill tool]")
+				emit_line(out, body[:2000])
+				emit_line(out, "…[truncated; full body available via skill tool]")
 			} else {
-				emit(out, body)
+				emit_line(out, body)
 			}
 			return .Continue
 		}
-		emit(out, skills_list_text(context.temp_allocator))
+		emit_line(out, skills_list_text(context.temp_allocator))
 		return .Continue
 	case "/skill":
 		if arg == "" {
-			emit(out, "aether: usage: /skill <name> [args]")
+			emit_line(out, "aether: usage: /skill <name> [args]")
 			return .Continue
 		}
 		name := arg
@@ -787,208 +614,91 @@ run_slash :: proc(
 		}
 		body := skills_invoke_text(name, rest, context.temp_allocator)
 		if len(body) > 2000 {
-			emit(out, body[:2000])
-			emit(out, "…[truncated; model can use skill tool for full text]")
+			emit_line(out, body[:2000])
+			emit_line(out, "…[truncated; model can use skill tool for full text]")
 		} else {
-			emit(out, body)
+			emit_line(out, body)
 		}
 		return .Continue
 	case "/version":
 		ver := handle_version_slash(context.temp_allocator)
-		vstart := 0
-		for i := 0; i <= len(ver); i += 1 {
-			if i == len(ver) || ver[i] == '\n' {
-				line := ver[vstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				vstart = i + 1
-			}
-		}
+		emit_lines(out, ver)
 		return .Continue
 	case "/about":
 		// B50: product blurb
 		ab_out := handle_about_slash(context.temp_allocator)
-		astart := 0
-		for i := 0; i <= len(ab_out); i += 1 {
-			if i == len(ab_out) || ab_out[i] == '\n' {
-				line := ab_out[astart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				astart = i + 1
-			}
-		}
+		emit_lines(out, ab_out)
 		return .Continue
 	case "/aliases", "/alias":
 		// B53: slash alias table
 		al_out := handle_aliases_slash(arg, context.temp_allocator)
-		lstart := 0
-		for i := 0; i <= len(al_out); i += 1 {
-			if i == len(al_out) || al_out[i] == '\n' {
-				line := al_out[lstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				lstart = i + 1
-			}
-		}
+		emit_lines(out, al_out)
 		return .Continue
 	case "/keys", "/bindings", "/shortcuts":
 		// B41: keyboard cheat sheet
 		keys_out := handle_keys_slash(context.temp_allocator)
-		kstart := 0
-		for i := 0; i <= len(keys_out); i += 1 {
-			if i == len(keys_out) || keys_out[i] == '\n' {
-				line := keys_out[kstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				kstart = i + 1
-			}
-		}
+		emit_lines(out, keys_out)
 		return .Continue
 	case "/tools", "/tool":
 		// B45: model tool catalog
 		tools_out := handle_tools_slash(arg, context.temp_allocator)
-		tstart := 0
-		for i := 0; i <= len(tools_out); i += 1 {
-			if i == len(tools_out) || tools_out[i] == '\n' {
-				line := tools_out[tstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				tstart = i + 1
-			}
-		}
+		emit_lines(out, tools_out)
 		return .Continue
 	case "/soft-bash", "/bash-soft", "/softbash":
 		// B47: soft bash safety status
 		sb_out := handle_soft_bash_slash(arg, context.temp_allocator)
-		sstart := 0
-		for i := 0; i <= len(sb_out); i += 1 {
-			if i == len(sb_out) || sb_out[i] == '\n' {
-				line := sb_out[sstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				sstart = i + 1
-			}
-		}
+		emit_lines(out, sb_out)
 		return .Continue
 	case "/permissions", "/permission", "/perm", "/perms":
 		// B61: permission mode dashboard
 		pm_out := handle_permissions_slash(arg, perm_mode(perm), context.temp_allocator)
-		pstart := 0
-		for i := 0; i <= len(pm_out); i += 1 {
-			if i == len(pm_out) || pm_out[i] == '\n' {
-				line := pm_out[pstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				pstart = i + 1
-			}
-		}
+		emit_lines(out, pm_out)
 		return .Continue
 	case "/env", "/environ", "/environment":
 		// B62: product env catalog
 		env_out := handle_env_slash(arg, context.temp_allocator)
-		estart := 0
-		for i := 0; i <= len(env_out); i += 1 {
-			if i == len(env_out) || env_out[i] == '\n' {
-				line := env_out[estart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				estart = i + 1
-			}
-		}
+		emit_lines(out, env_out)
 		return .Continue
 	case "/paths", "/path", "/where":
 		// B63: product filesystem paths
 		paths_out := handle_paths_slash(arg, sess, context.temp_allocator)
-		pstart2 := 0
-		for i := 0; i <= len(paths_out); i += 1 {
-			if i == len(paths_out) || paths_out[i] == '\n' {
-				line := paths_out[pstart2:i]
-				if line != "" {
-					emit(out, line)
-				}
-				pstart2 = i + 1
-			}
-		}
+		emit_lines(out, paths_out)
 		return .Continue
 	case "/features", "/feature", "/flags":
 		// B68: process feature flags
 		feat_out := handle_features_slash(arg, context.temp_allocator)
-		fstart := 0
-		for i := 0; i <= len(feat_out); i += 1 {
-			if i == len(feat_out) || feat_out[i] == '\n' {
-				line := feat_out[fstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				fstart = i + 1
-			}
-		}
+		emit_lines(out, feat_out)
 		return .Continue
 	case "/status":
 		m := model^ if model != nil else ""
 		st_out := handle_status_slash(sess, m, perm_mode(perm), context.temp_allocator)
-		sstart := 0
-		for i := 0; i <= len(st_out); i += 1 {
-			if i == len(st_out) || st_out[i] == '\n' {
-				line := st_out[sstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				sstart = i + 1
-			}
-		}
+		emit_lines(out, st_out)
 		return .Continue
 	case "/config", "/settings", "/preferences", "/prefs":
 		// B34: effective product settings (no modal; no secrets)
 		m := model^ if model != nil else ""
 		cfg_out := handle_config_slash(sess, m, perm_mode(perm), context.temp_allocator)
-		cstart := 0
-		for i := 0; i <= len(cfg_out); i += 1 {
-			if i == len(cfg_out) || cfg_out[i] == '\n' {
-				line := cfg_out[cstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				cstart = i + 1
-			}
-		}
+		emit_lines(out, cfg_out)
 		return .Continue
 	case "/doctor":
 		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
 		doc_out := handle_doctor_slash(sess, dcwd, context.temp_allocator)
-		dstart := 0
-		for i := 0; i <= len(doc_out); i += 1 {
-			if i == len(doc_out) || doc_out[i] == '\n' {
-				line := doc_out[dstart:i]
-				if line != "" {
-					emit(out, line)
-				}
-				dstart = i + 1
-			}
-		}
+		emit_lines(out, doc_out)
 		return .Continue
 	case "/session", "/session-info":
-		emit(out, fmt.tprintf("id:        %s", sess.id))
-		emit(out, fmt.tprintf("title:     %s", sess.title if sess.title != "" else "(none)"))
-		emit(out, fmt.tprintf("path:      %s", sess.path))
-		emit(out, fmt.tprintf("model:     %s", sess.model))
-		emit(out, fmt.tprintf("cwd:       %s", sess.cwd))
-		emit(out, fmt.tprintf("messages:  %d", len(sess.msgs)))
-		emit(out, fmt.tprintf("autosave:  %v", sess.auto_save))
+		emit_line(out, fmt.tprintf("id:        %s", sess.id))
+		emit_line(out, fmt.tprintf("title:     %s", sess.title if sess.title != "" else "(none)"))
+		emit_line(out, fmt.tprintf("path:      %s", sess.path))
+		emit_line(out, fmt.tprintf("model:     %s", sess.model))
+		emit_line(out, fmt.tprintf("cwd:       %s", sess.cwd))
+		emit_line(out, fmt.tprintf("messages:  %d", len(sess.msgs)))
+		emit_line(out, fmt.tprintf("autosave:  %v", sess.auto_save))
 		if cmd == "/session-info" {
 			chars := estimate_message_chars(sess.msgs[:])
 			toks := estimate_tokens(chars)
 			window := default_context_window()
 			pct := context_usage_pct(toks, window)
-			emit(
+			emit_line(
 				out,
 				fmt.tprintf(
 					"context:   ~%d/%d tokens (%d%%)  auto-compact %s@%d%%",
@@ -999,7 +709,7 @@ run_slash :: proc(
 					auto_compact_threshold_pct(),
 				),
 			)
-			emit(out, fmt.tprintf("permission: %s", core.permission_mode_string(perm_mode(perm))))
+			emit_line(out, fmt.tprintf("permission: %s", core.permission_mode_string(perm_mode(perm))))
 		}
 		return .Continue
 	case "/sessions", "/resume":
@@ -1010,13 +720,13 @@ run_slash :: proc(
 			sp := strings.index_byte(arg_trim, ' ')
 			ref := strings.trim_space(arg_trim[sp + 1:]) if sp >= 0 else ""
 			if ref == "" {
-				emit(out, "aether: usage: /sessions delete <id|title|path>")
+				emit_line(out, "aether: usage: /sessions delete <id|title|path>")
 				return .Continue
 			}
 			if derr := session_delete_by_ref(ref, sess.sessions_dir, sess.path); derr != "" {
-				emit(out, fmt.tprintf("aether: %s", derr))
+				emit_line(out, fmt.tprintf("aether: %s", derr))
 			} else {
-				emit(out, fmt.tprintf("aether: deleted session %s", ref))
+				emit_line(out, fmt.tprintf("aether: deleted session %s", ref))
 			}
 			return .Continue
 		}
@@ -1039,11 +749,11 @@ run_slash :: proc(
 		}
 		entries, err := list_sessions(sess.sessions_dir, context.temp_allocator)
 		if err != "" {
-			emit(out, fmt.tprintf("aether: %s", err))
+			emit_line(out, fmt.tprintf("aether: %s", err))
 			return .Continue
 		}
 		if len(entries) == 0 {
-			emit(out, "(no saved sessions)")
+			emit_line(out, "(no saved sessions)")
 			return .Continue
 		}
 		// filter by id/title substring
@@ -1063,43 +773,43 @@ run_slash :: proc(
 			}
 		}
 		if len(show) == 0 {
-			emit(out, fmt.tprintf("aether: no sessions matching %q", filter))
+			emit_line(out, fmt.tprintf("aether: no sessions matching %q", filter))
 			return .Continue
 		}
-		emit(out, "aether: sessions (newest first; * = current; /load <id|title>)")
-		emit(out, " #  id                      when         msg  model             title")
+		emit_line(out, "aether: sessions (newest first; * = current; /load <id|title>)")
+		emit_line(out, " #  id                      when         msg  model             title")
 		n := min(limit, len(show))
 		for i in 0 ..< n {
 			e := show[i]
 			cur := e.path == sess.path || e.id == sess.id
 			line := format_session_list_line(e, cur, i + 1, context.temp_allocator)
-			emit(out, line)
+			emit_line(out, line)
 		}
 		if len(show) > n {
-			emit(out, fmt.tprintf("… %d more (raise limit: /sessions %d)", len(show) - n, len(show)))
+			emit_line(out, fmt.tprintf("… %d more (raise limit: /sessions %d)", len(show) - n, len(show)))
 		}
 		return .Continue
 	case "/rename", "/title":
 		if strings.trim_space(arg) == "" {
-			emit(out, "aether: usage: /rename <title>")
+			emit_line(out, "aether: usage: /rename <title>")
 			return .Continue
 		}
 		if e := session_set_title(sess, arg); e != "" {
-			emit(out, fmt.tprintf("aether: rename failed: %s", e))
+			emit_line(out, fmt.tprintf("aether: rename failed: %s", e))
 		} else {
-			emit(out, fmt.tprintf("aether: title set to %q", sess.title))
+			emit_line(out, fmt.tprintf("aether: title set to %q", sess.title))
 		}
 		return .Continue
 	case "/fork":
 		// Save current first if autosave so parent is durable
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
-				emit(out, fmt.tprintf("aether: autosave before fork failed: %s", e))
+				emit_line(out, fmt.tprintf("aether: autosave before fork failed: %s", e))
 			}
 		}
 		forked, ferr := session_fork(sess^, strings.trim_space(arg), context.allocator)
 		if ferr != "" {
-			emit(out, fmt.tprintf("aether: fork failed: %s", ferr))
+			emit_line(out, fmt.tprintf("aether: fork failed: %s", ferr))
 			return .Continue
 		}
 		// Switch to fork
@@ -1113,7 +823,7 @@ run_slash :: proc(
 		if sess.cwd != "" {
 			cwd^ = sess.cwd
 		}
-		emit(
+		emit_line(
 			out,
 			fmt.tprintf(
 				"aether: forked → session %s %q (%d messages)",
@@ -1126,35 +836,35 @@ run_slash :: proc(
 	case "/export":
 		a := strings.trim_space(arg)
 		if a == "help" || a == "?" {
-			emit(out, "aether: usage: /export [json|md] [path]")
-			emit(out, "  default     markdown → <sessions>/<id>-export.md")
-			emit(out, "  json [path] full session JSON dump")
-			emit(out, "  path.json   infers JSON from extension")
+			emit_line(out, "aether: usage: /export [json|md] [path]")
+			emit_line(out, "  default     markdown → <sessions>/<id>-export.md")
+			emit_line(out, "  json [path] full session JSON dump")
+			emit_line(out, "  path.json   infers JSON from extension")
 			return .Continue
 		}
 		path, eerr := session_export(sess^, a, context.allocator)
 		if eerr != "" {
-			emit(out, fmt.tprintf("aether: export failed: %s", eerr))
+			emit_line(out, fmt.tprintf("aether: export failed: %s", eerr))
 		} else {
 			kind := "transcript"
 			pl := strings.to_lower(path, context.temp_allocator)
 			if strings.has_suffix(pl, ".json") || strings.has_suffix(pl, ".jsonl") {
 				kind = "JSON session"
 			}
-			emit(out, fmt.tprintf("aether: exported %s → %s", kind, path))
+			emit_line(out, fmt.tprintf("aether: exported %s → %s", kind, path))
 			delete(path)
 		}
 		return .Continue
 	case "/import":
 		a := strings.trim_space(arg)
 		if a == "" || a == "help" || a == "?" {
-			emit(out, "aether: usage: /import <path.json>")
-			emit(out, "  Load a session or /export json dump as a **new** session (new id).")
+			emit_line(out, "aether: usage: /import <path.json>")
+			emit_line(out, "  Load a session or /export json dump as a **new** session (new id).")
 			return .Continue
 		}
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
-				emit(out, fmt.tprintf("aether: autosave failed before import: %s", e))
+				emit_line(out, fmt.tprintf("aether: autosave failed before import: %s", e))
 			}
 		}
 		dir := sess.sessions_dir
@@ -1163,7 +873,7 @@ run_slash :: proc(
 		}
 		loaded, lerr := session_import_file(a, dir, sess.auto_save)
 		if lerr != "" {
-			emit(out, fmt.tprintf("aether: import failed: %s", lerr))
+			emit_line(out, fmt.tprintf("aether: import failed: %s", lerr))
 			return .Continue
 		}
 		old_auto := sess.auto_save
@@ -1182,7 +892,7 @@ run_slash :: proc(
 		if sess.title != "" {
 			title_note = fmt.tprintf(" %q", sess.title)
 		}
-		emit(
+		emit_line(
 			out,
 			fmt.tprintf(
 				"aether: imported → session %s%s (%d messages)",
@@ -1197,14 +907,14 @@ run_slash :: proc(
 		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
 		switch a {
 		case "status", "show", "?", "list":
-			emit(out, tools.file_rewind_status(context.temp_allocator))
+			emit_line(out, tools.file_rewind_status(context.temp_allocator))
 		case "clear", "reset":
 			tools.file_rewind_clear()
-			emit(out, "aether: file rewind stack cleared")
+			emit_line(out, "aether: file rewind stack cleared")
 		case "", "once", "1", "undo":
-			emit(out, tools.file_rewind_undo(context.temp_allocator))
+			emit_line(out, tools.file_rewind_undo(context.temp_allocator))
 		case:
-			emit(out, "aether: usage: /undo-file [status|clear]  (undo last write/edit/delete)")
+			emit_line(out, "aether: usage: /undo-file [status|clear]  (undo last write/edit/delete)")
 		}
 		return .Continue
 	case "/rewind":
@@ -1212,26 +922,26 @@ run_slash :: proc(
 		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
 		switch a {
 		case "status", "show", "?", "list":
-			emit(out, format_conversation_rewind_status(sess, context.temp_allocator))
-			emit(out, tools.file_rewind_status(context.temp_allocator))
+			emit_line(out, format_conversation_rewind_status(sess, context.temp_allocator))
+			emit_line(out, tools.file_rewind_status(context.temp_allocator))
 		case "file", "files":
 			// convenience → file stack undo once
-			emit(out, tools.file_rewind_undo(context.temp_allocator))
+			emit_line(out, tools.file_rewind_undo(context.temp_allocator))
 		case:
 			n, ok := parse_rewind_count(arg)
 			if !ok {
-				emit(out, "aether: usage: /rewind [N|status]  (conversation turns; file undo: /undo-file)")
+				emit_line(out, "aether: usage: /rewind [N|status]  (conversation turns; file undo: /undo-file)")
 				return .Continue
 			}
 			before := len(sess.msgs)
 			removed, rerr := conversation_rewind_turns(sess, n)
 			if rerr != "" {
-				emit(out, fmt.tprintf("aether: %s", rerr))
+				emit_line(out, fmt.tprintf("aether: %s", rerr))
 				return .Continue
 			}
 			if sess.auto_save {
 				if e := session_save(sess); e != "" {
-					emit(
+					emit_line(
 						out,
 						fmt.tprintf(
 							"aether: rewound %d turn(s) (%d→%d msgs; save failed: %s)",
@@ -1244,7 +954,7 @@ run_slash :: proc(
 					return .Session_Changed
 				}
 			}
-			emit(
+			emit_line(
 				out,
 				fmt.tprintf(
 					"aether: rewound %d user turn(s) (%d→%d messages)",
@@ -1262,29 +972,29 @@ run_slash :: proc(
 			sess.title = strings.clone(arg)
 		}
 		if e := session_save(sess); e != "" {
-			emit(out, fmt.tprintf("aether: save failed: %s", e))
+			emit_line(out, fmt.tprintf("aether: save failed: %s", e))
 		} else {
-			emit(out, fmt.tprintf("aether: saved %s", sess.path))
+			emit_line(out, fmt.tprintf("aether: saved %s", sess.path))
 		}
 		return .Continue
 	case "/load":
 		if arg == "" {
-			emit(out, "aether: usage: /load <id|title|path>")
+			emit_line(out, "aether: usage: /load <id|title|path>")
 			return .Continue
 		}
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
-				emit(out, fmt.tprintf("aether: autosave failed before load: %s", e))
+				emit_line(out, fmt.tprintf("aether: autosave failed before load: %s", e))
 			}
 		}
 		path, rerr := resolve_session_ref(arg, sess.sessions_dir, context.temp_allocator)
 		if rerr != "" {
-			emit(out, fmt.tprintf("aether: %s", rerr))
+			emit_line(out, fmt.tprintf("aether: %s", rerr))
 			return .Continue
 		}
 		loaded, lerr := session_load_file(path, sess.auto_save)
 		if lerr != "" {
-			emit(out, fmt.tprintf("aether: load failed: %s", lerr))
+			emit_line(out, fmt.tprintf("aether: load failed: %s", lerr))
 			return .Continue
 		}
 		old_auto := sess.auto_save
@@ -1301,7 +1011,7 @@ run_slash :: proc(
 		if sess.title != "" {
 			title_note = fmt.tprintf(" %q", sess.title)
 		}
-		emit(
+		emit_line(
 			out,
 			fmt.tprintf(
 				"aether: loaded session %s%s (%d messages)",
@@ -1314,21 +1024,12 @@ run_slash :: proc(
 	case "/new":
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
-				emit(out, fmt.tprintf("aether: autosave failed before new: %s", e))
+				emit_line(out, fmt.tprintf("aether: autosave failed before new: %s", e))
 			}
 		}
 		// Auto-dream previous session before destroy (gates apply).
 		if note := maybe_auto_dream(sess, model^); note != "" {
-			nstart := 0
-			for i := 0; i <= len(note); i += 1 {
-				if i == len(note) || note[i] == '\n' {
-					line := note[nstart:i]
-					if line != "" {
-						emit(out, line)
-					}
-					nstart = i + 1
-				}
-			}
+			emit_lines(out, note)
 		}
 		dir := strings.clone(sess.sessions_dir)
 		auto := sess.auto_save
@@ -1348,17 +1049,17 @@ run_slash :: proc(
 		delete(m)
 		delete(c)
 		delete(dir)
-		emit(out, fmt.tprintf("aether: new session %s", sess.id))
+		emit_line(out, fmt.tprintf("aether: new session %s", sess.id))
 		return .Session_Changed
 	case "/clear":
 		for len(sess.msgs) > 1 {
 			last, _ := pop_safe(&sess.msgs)
 			destroy_message(&last)
 		}
-		emit(out, "aether: history cleared (same session id)")
+		emit_line(out, "aether: history cleared (same session id)")
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
-				emit(out, fmt.tprintf("aether: autosave failed: %s", e))
+				emit_line(out, fmt.tprintf("aether: autosave failed: %s", e))
 			}
 		}
 		return .Session_Changed
@@ -1369,15 +1070,15 @@ run_slash :: proc(
 			if skills_is_named(sname) {
 				body := skills_invoke_text(sname, arg, context.temp_allocator)
 				if len(body) > 2000 {
-					emit(out, body[:2000])
-					emit(out, "…[truncated; model can use skill tool for full text]")
+					emit_line(out, body[:2000])
+					emit_line(out, "…[truncated; model can use skill tool for full text]")
 				} else {
-					emit(out, body)
+					emit_line(out, body)
 				}
 				return .Continue
 			}
 		}
-		emit(out, fmt.tprintf("aether: unknown command %s (try /help)", cmd))
+		emit_line(out, fmt.tprintf("aether: unknown command %s (try /help)", cmd))
 		return .Continue
 	}
 }

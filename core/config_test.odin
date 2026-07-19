@@ -21,6 +21,7 @@ test_parse_toml_bool_and_int :: proc(t: ^testing.T) {
 @(test)
 test_parse_toml_layer_product_keys :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-cfg-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -104,6 +105,7 @@ test_apply_runtime_flags_and_env_precedence :: proc(t: ^testing.T) {
 @(test)
 test_load_runtime_config_from_aether_config_env :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-cfg-load-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)

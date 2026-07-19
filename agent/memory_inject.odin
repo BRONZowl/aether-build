@@ -120,7 +120,7 @@ build_memory_injection_body :: proc(
 	if !is_greeting_or_short(q) && len(q) >= 20 {
 		args := fmt.tprintf(
 			`{"query":"%s","max_results":2}`,
-			json_escape_simple(q, context.temp_allocator),
+			json_escape(q, context.temp_allocator),
 		)
 		hit := tools.tool_memory_search(args, cwd, context.temp_allocator)
 		if strings.contains(hit, "Found") && !strings.contains(hit, "No memory results") {
@@ -139,31 +139,6 @@ build_memory_injection_body :: proc(
 
 	if !any {
 		return strings.clone("", allocator)
-	}
-	return strings.to_string(b)
-}
-
-// json_escape_simple escapes " and \ and control for embedding in JSON string.
-json_escape_simple :: proc(s: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	for i in 0 ..< len(s) {
-		ch := s[i]
-		switch ch {
-		case '"', '\\':
-			strings.write_byte(&b, '\\')
-			strings.write_byte(&b, ch)
-		case '\n':
-			strings.write_string(&b, "\\n")
-		case '\r':
-			strings.write_string(&b, "\\r")
-		case '\t':
-			strings.write_string(&b, "\\t")
-		case:
-			if ch < 0x20 {
-				continue
-			}
-			strings.write_byte(&b, ch)
-		}
 	}
 	return strings.to_string(b)
 }

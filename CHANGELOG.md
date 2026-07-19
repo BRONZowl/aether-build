@@ -4,12 +4,12 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
-### Cleanup (E1–E3)
+### Cleanup (E1–E3 + emit/json)
 
-- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container (docker/helm, k8s CLIs, argo/flux/istio/vault/consul/nomad, minikube/skaffold, nerdctl/trivy/tflint, npm/swift/dotnet, …)
-- Shared helpers: `bash_nested_allow` for nested list/get subcommands
-- `new_session`: own `aether_sessions_dir` once (no double-clone leak)
-- Slash: shared `slash_ui_bool` for `/vim-mode`, `/timestamps`, `/compact-mode`
+- Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container
+- Shared helpers: `bash_nested_allow`; slash `emit_line`/`emit_lines`; `slash_ui_bool` for UI prefs
+- Drop duplicate `json_escape_simple` (use `json_escape`)
+- `new_session`: own `aether_sessions_dir` once; config tests free `fmt.aprintf` dirs
 
 ### Launcher / defaults
 

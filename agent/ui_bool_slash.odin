@@ -16,14 +16,6 @@ slash_ui_bool :: proc(
 	status_hint: string,
 	out: Slash_Writer,
 ) {
-	emit_line :: proc(out: Slash_Writer, line: string) {
-		if out != nil {
-			out(line)
-		} else {
-			fmt.eprintln(line)
-		}
-	}
-
 	a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
 	switch a {
 	case "", "toggle", "t":
