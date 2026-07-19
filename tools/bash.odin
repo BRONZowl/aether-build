@@ -1,12 +1,13 @@
 package tools
 
 // run_terminal_cmd — product Full FG shell (bg handled in agent).
-// Timeout clamp 300s; sandbox / persistent shell N/A.
+// Timeout clamp 300s; M6: optional bubblewrap / soft workspace sandbox.
 
 import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:time"
+import "aether:core"
 
 // Grok-shaped FG ceiling (ms). Background uses 0 = unlimited separately.
 BASH_FG_DEFAULT_TIMEOUT_MS :: 120_000
@@ -57,9 +58,11 @@ tool_run_terminal_cmd :: proc(
 		return fmt.aprintf("error: pipe stderr: %v", perr2, allocator = allocator)
 	}
 
+	// M6: sandboxed argv when AETHER_OS_SANDBOX=soft|bwrap
+	argv := core.build_sandboxed_shell_argv(workspace, command, context.temp_allocator)
 	child, serr := os.process_start(
 		{
-			command = {"sh", "-c", command},
+			command = argv,
 			working_dir = workspace,
 			stdout = stdout_w,
 			stderr = stderr_w,

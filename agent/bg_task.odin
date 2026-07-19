@@ -921,9 +921,10 @@ bg_shell_worker_proc :: proc(work: ^Bg_Shell_Work) {
 		return
 	}
 
+	bash_argv := core.build_sandboxed_shell_argv(workspace, command, context.temp_allocator)
 	child, serr := os.process_start(
 		{
-			command = {"sh", "-c", command},
+			command = bash_argv,
 			working_dir = workspace,
 			stdout = stdout_w,
 			stderr = stderr_w,

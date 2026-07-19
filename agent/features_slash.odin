@@ -245,6 +245,24 @@ handle_features_slash :: proc(arg: string, allocator := context.allocator) -> st
 		f,
 		&n,
 		&n_on,
+		"tool-pack-hashline",
+		tools.tool_pack_from_env() == .Hashline,
+		"AETHER_TOOL_PACK=hashline · hashline_read/edit/grep",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
+		"os-sandbox",
+		core.effective_sandbox_mode() != .Off,
+		"AETHER_OS_SANDBOX=soft|bwrap · workspace shell isolation",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
 		"web-fetch",
 		web_fetch_enabled(),
 		"AETHER_NO_WEB_FETCH",

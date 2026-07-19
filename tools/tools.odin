@@ -85,13 +85,30 @@ tools_json_schema :: proc(
 	if with_memory {
 		strings.write_string(&b, MEMORY)
 	}
+	// M5: hashline pack tools when selected (still filterable via deny)
+	if tool_pack_from_env() == .Hashline {
+		strings.write_string(&b, HASHLINE_TOOLS_JSON)
+	}
 	strings.write_byte(&b, ']')
 	out := strings.to_string(b)
-	if len(deny_names) == 0 {
+	// Merge pack mutual-exclusion denies
+	pack_deny := deny_for_tool_pack(tool_pack_from_env())
+	all_deny := deny_names
+	if len(pack_deny) > 0 {
+		merged := make([dynamic]string, 0, len(deny_names) + len(pack_deny), context.temp_allocator)
+		for d in deny_names {
+			append(&merged, d)
+		}
+		for d in pack_deny {
+			append(&merged, d)
+		}
+		all_deny = merged[:]
+	}
+	if len(all_deny) == 0 {
 		return out
 	}
 	// Strip denied tool objects by name (best-effort JSON filter).
-	filtered := filter_tools_schema(out, deny_names, allocator)
+	filtered := filter_tools_schema(out, all_deny, allocator)
 	delete(out)
 	return filtered
 }
@@ -215,6 +232,12 @@ dispatch :: proc(
 		return tool_memory_search(arguments_json, workspace, allocator)
 	case "memory_get":
 		return tool_memory_get(arguments_json, allocator)
+	case "hashline_read":
+		return tool_hashline_read(arguments_json, workspace, allocator)
+	case "hashline_edit":
+		return tool_hashline_edit(arguments_json, workspace, allocator)
+	case "hashline_grep":
+		return tool_hashline_grep(arguments_json, workspace, allocator)
 	case:
 		return fmt.aprintf("unknown tool: %s", name, allocator = allocator)
 	}

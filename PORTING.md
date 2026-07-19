@@ -65,11 +65,11 @@ Last updated: 2026-07-19 (product-contract audit vs grok-build `fca5b1f`).
 | Host `grok login` | shell/auth | optional bridge | **R2a demoted** (optional legacy; API key primary) |
 | Config product keys | config* | merge done | **Done**; remote/managed **Drop** |
 | MCP runtime | mcp | Full | **Done**; **R2b doctor in-process** (`/mcp doctor`) |
-| Skills + hooks | skills, hooks | Full | **Done**; OS sandbox **Drop** or later Port |
+| Skills + hooks | skills, hooks | Full | **Done** |
 | Memory file-backed | memory | Full | **Done**; SQLite/embeddings **Drop** |
 | Pager / TUI | pager* | C1–C2 | **Done**; full mermaid engine **Drop** |
 | Sessions / slash | shell* | B2.1–2 | **Done**; multi-client ACP **Drop** (C3 N/A unless reopened) |
-| Soft sandbox | sandbox | FS + soft bash | **Done** soft; Landlock **Drop** or later |
+| Soft sandbox | sandbox | FS + soft bash + M6 | **Done** soft; **M6** bwrap OS wrap |
 | Plugins / marketplace | marketplace | None | **Drop** |
 | Telemetry / Mixpanel | telemetry, mixpanel | stub | **Drop** |
 | Voice / update | voice, update | None | **Drop** |
@@ -199,9 +199,9 @@ make -C aether build vet test smoke-tui
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + doctor; **M3** enroll/set-token auto-reconnect; full browser OAuth DCR still host-assisted N/A |
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
-| Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`); OS sandbox **N/A** until M6 |
+| Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`) |
 | Plugins / marketplace | plugin crates | `agent/plugins` | Full (MVP) | **M4** local `/plugins` list/add/remove/reload + skill roots; remote marketplace residual N/A |
-| Sandbox | `xai-grok-sandbox` | workspace path gates | Full | Soft FS + soft bash ship; OS Landlock/Seatbelt **N/A** (R3c) |
+| Sandbox | `xai-grok-sandbox` | `core/sandbox`, path gates | Full (MVP) | Soft FS + soft bash; **M6** `AETHER_OS_SANDBOX=soft|bwrap` (bubblewrap child wrap; landlock LSM probe for doctor; in-process Landlock apply residual N/A) |
 | Workspace / worktree | `xai-grok-workspace*` | `worktree`, tools | Full | Linked worktrees for subagents; full remote workspace services **N/A** |
 | Subagents | shell + tools task | `subagent`, `bg_task` | Full | explore/plan/gp, bg, resume, worktree; **M9** personas |
 | Plan mode | tools + shell tracker | `plan_mode` | Full | Lifecycle + gate; ACP reverse-request **N/A** |
@@ -219,9 +219,10 @@ make -C aether build vet test smoke-tui
 
 | Tool | Status | Gaps |
 |------|--------|------|
-| `run_terminal_cmd` / bash | Full | BG + kill + terminal log; FG timeout clamp 300s; soft bash hard-deny + readonly auto-allow; **B13–B91** tool inspect surface; OS sandbox N/A; A1.10b |
+| `run_terminal_cmd` / bash | Full | BG + kill + terminal log; FG timeout clamp 300s; soft bash hard-deny + readonly auto-allow; **B13–B91** tool inspect surface; **M6** optional bwrap/soft OS sandbox; A1.10b |
 | `read_file` | Full | Text + neg offset; binary reject; image metadata/inline; **PDF** (pdftotext) + **PPTX** (unzip a:t); `pages` max 20 |
-| `search_replace` | Full | Exact/replace_all/create; **B6–B7** unique flexible match (case / newlines / whitespace-collapse); plan gate; hashline/notebook N/A; A1.7a |
+| `search_replace` | Full | Exact/replace_all/create; **B6–B7** unique flexible match (case / newlines / whitespace-collapse); plan gate; notebook N/A; A1.7a |
+| `hashline_read` / `hashline_edit` / `hashline_grep` | Full (opt-in) | **M5** `AETHER_TOOL_PACK=hashline`; content-only LINE:HASH anchors; mutual exclusion vs read/search_replace/grep/write/delete |
 | `write` | Full | Dedicated tool; plan-file gate; A1.2 |
 | `delete_file` | Full | Dedicated tool; plan-file gate; A1.2 |
 | `grep` | Full | -A/-B/-C, type, multiline; head_limit = output lines; A1.4a |
@@ -420,8 +421,8 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | **M7** | In-process login R0-B | **Complete** (device-code login; `--host` fallback) |
 | **M4** | Plugins / marketplace basics | **Complete** (local list/add/remove/reload; no remote marketplace) |
 | **M9** | Subagent personas | **Complete** |
-| **M5** | Hashline optional tool pack | None |
-| **M6** | OS sandbox (Landlock) | None |
+| **M5** | Hashline optional tool pack | **Complete** (`AETHER_TOOL_PACK=hashline`; content_only_v1 simplified) |
+| **M6** | OS sandbox (Landlock) | **Complete** (soft + bwrap wrap; landlock probe; in-process Landlock residual N/A) |
 | **M8** | Mermaid layout upgrade | None |
 
 ### Phase R — Rust retirement
@@ -434,7 +435,7 @@ See **[Rust retirement](#rust-retirement-odin-only-endgame)** above (R0–R5).
 |-------|--------|---------|
 | R3a | Plugins / marketplace / `/plugins` | **N/A** |
 | R3b | Telemetry / update / voice | **N/A** |
-| R3c | OS Landlock/Seatbelt | **N/A** (soft sandbox Full) |
+| R3c | OS Landlock/Seatbelt | **M6 Complete** (bwrap + soft; in-process Landlock residual N/A) |
 | R3d | C3 ACP multi-client | **N/A** |
 | R3e | Mermaid layout engine | **N/A** (fence labels Full) |
 | R3f | Rich multi-client stream events | **N/A** (agent loop Full for single-process) |
@@ -504,7 +505,8 @@ in Aether or **explicit N/A** — not bit-identical crates or Dropped L4.
 | Outcome | Items |
 |---------|--------|
 | **HIT (Full)** | All default GrokBuild model tools: bash, read/search_replace/grep/list_dir, web_*, todo, ask_user, plan enter/exit, lsp, monitor, scheduler_*, update_goal, image_*, video_*, task/spawn + get/kill/wait, skill, search_tool/use_tool, memory_*, MCP resource/prompt metas |
-| **N/A** | `deploy_app` (service stub); **hashline_*** pack (alternate edit scheme); codex/opencode packs |
+| **N/A** | `deploy_app` (service stub); codex/opencode packs |
+| **Opt-in Full** | **hashline_*** pack (**M5**, `AETHER_TOOL_PACK=hashline`) |
 | **Aether super-set** | `write`, `glob`, `delete_file`, `wait_commands_or_subagents` alias, large soft-bash inspect matrix, many discover slash builtins |
 
 No ship-path model tool **Missing**.
@@ -528,8 +530,9 @@ single-process product).
 |----------|--------|
 | Goal `--budget` token orchestrator | Grok goal_tracker budget auto-pause; Aether `/goal` set/status/pause/resume/clear + `update_goal` only |
 | Hooks folder trust | **M1 shipped** — project hooks gated; plugins still M4 |
-| Browser OIDC, plugins, ACP multi-client, Landlock, voice, update, mermaid engine, Mixpanel | Phase D / R3 Drop |
-| Personas, remote workspace services, SQLite memory | Documented N/A in matrices |
+| Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, mermaid engine, Mixpanel | Phase D / residual N/A |
+| In-process Landlock apply | **M6** uses bwrap when available; LSM probe only |
+| Remote workspace services, SQLite memory | Documented N/A in matrices |
 
 ### Verdict
 

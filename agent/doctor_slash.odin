@@ -113,6 +113,35 @@ handle_doctor_slash :: proc(
 		doctor_line(&b, "warn", "make", "not on PATH", &ok_n, &warn_n, &fail_n)
 	}
 
+	// M5 tool pack + M6 OS sandbox
+	pack := tools.tool_pack_string(tools.tool_pack_from_env())
+	doctor_line(&b, "ok", "tool-pack", fmt.tprintf("%s (AETHER_TOOL_PACK)", pack), &ok_n, &warn_n, &fail_n)
+	sb_line := core.sandbox_status_line(context.temp_allocator)
+	// first line only for doctor table
+	sb_short := sb_line
+	if nl := strings.index_byte(sb_line, '\n'); nl >= 0 {
+		sb_short = sb_line[:nl]
+	}
+	sb_mode := core.effective_sandbox_mode()
+	if sb_mode == .Off {
+		doctor_line(&b, "ok", "os-sandbox", sb_short, &ok_n, &warn_n, &fail_n)
+	} else if sb_mode == .Bwrap {
+		doctor_line(&b, "ok", "os-sandbox", sb_short, &ok_n, &warn_n, &fail_n)
+	} else {
+		doctor_line(&b, "ok", "os-sandbox", sb_short, &ok_n, &warn_n, &fail_n)
+	}
+	if core.sandbox_mode_from_env() == .Bwrap && !core.bwrap_available() {
+		doctor_line(
+			&b,
+			"warn",
+			"bwrap",
+			"AETHER_OS_SANDBOX=bwrap but bubblewrap not on PATH (using soft)",
+			&ok_n,
+			&warn_n,
+			&fail_n,
+		)
+	}
+
 	// --- optional host tools (B39; soft-bash / clipboard / notify ecosystem) ---
 	// Missing → warn only (not fail); product still runs without them.
 	doctor_optional_cmd(&b, "curl", "HTTP helper for bash; web_fetch is built-in", &ok_n, &warn_n, &fail_n)

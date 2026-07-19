@@ -66,9 +66,10 @@ AETHER_EXTRA = ["write", "glob", "delete_file", "wait_commands_or_subagents"]
 # Explicit N/A product tools
 NA_TOOLS = {
     "deploy_app": "Grok stub / app-builder service; keep N/A",
-    "hashline_read": "Alternate GrokBuildHashline pack",
-    "hashline_edit": "Alternate GrokBuildHashline pack",
-    "hashline_grep": "Alternate GrokBuildHashline pack",
+    # hashline_* are opt-in Full (M5) via AETHER_TOOL_PACK=hashline — not default GrokBuild pack
+    "hashline_read": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
+    "hashline_edit": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
+    "hashline_grep": "Opt-in pack M5 (AETHER_TOOL_PACK=hashline)",
 }
 
 # Grok shell BUILTIN_COMMANDS + PROMPT_COMMANDS → Aether mapping
