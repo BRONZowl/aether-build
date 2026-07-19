@@ -8,38 +8,43 @@ import "core:os"
 import "core:strings"
 
 // Height tiers (rows) — art only when the terminal has room.
-BRAND_SMALL_MIN_ROWS :: 14
-BRAND_FULL_MIN_ROWS :: 20
+BRAND_SMALL_MIN_ROWS :: 12
+BRAND_FULL_MIN_ROWS :: 18
 // Width floors (columns) so wordmarks do not wrap badly.
-BRAND_SMALL_MIN_COLS :: 28
-BRAND_FULL_MIN_COLS :: 42
+BRAND_SMALL_MIN_COLS :: 32
+BRAND_FULL_MIN_COLS :: 48
 
 Brand_Tier :: enum {
 	None,
 	Chip,  // single line
-	Small, // ~3 lines
-	Full,  // ~6 lines
+	Small, // ~4 lines
+	Full,  // ~8 lines
 }
 
-// Full wordmark (~6 lines, ~40 cols). Box-drawing + simple peak (aether sky).
-BRAND_ART_FULL := [6]string {
-	`      ╱╲`,
-	`     ╱  ╲     ┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐`,
-	`    ╱ /\ ╲    ├─┤├┤  │ ├─┤├┤ ├┬┘`,
-	`   ╱ /  \ ╲   ┴ ┴└─┘ ┴ ┴ ┴└─┘┴└─`,
-	`  ╱_______\╲  odin agent · xAI`,
-	`              ` + VERSION,
+// Full welcome art — peak monogram centered over framed wordmark (~32 cols).
+// Designed for monochrome terminals; no color dependence.
+BRAND_ART_FULL := [9]string {
+	`             ▲`,
+	`            ╱ ╲`,
+	`           ╱   ╲`,
+	`          ╱  ·  ╲`,
+	`         ╱_______╲`,
+	`    ╭──────────────────────╮`,
+	`    │     A  E  T  H  E  R │`,
+	`    │  odin coding agent   │`,
+	`    ╰──────────────────────╯`,
 }
 
-// Small wordmark (~3 lines).
-BRAND_ART_SMALL := [3]string {
-	`  ╱╲  aether`,
-	` ╱__╲ odin · grok`,
-	`      ` + VERSION,
+// Small wordmark (~4 lines) for mid-size terminals.
+BRAND_ART_SMALL := [4]string {
+	`     ▲`,
+	`    ╱ ╲   A E T H E R`,
+	`   ╱___╲  odin · xAI`,
+	`          ` + VERSION,
 }
 
 // Chip for tiny terminals or compact header.
-BRAND_ART_CHIP :: "◇ aether"
+BRAND_ART_CHIP :: "◇ aether · odin"
 
 // brand_art_enabled: AETHER_NO_ASCII_ART or AETHER_ASCII_ART=off disables.
 brand_art_enabled :: proc() -> bool {

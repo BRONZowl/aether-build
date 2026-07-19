@@ -20,8 +20,8 @@ test_brand_pick_tier_sizes :: proc(t: ^testing.T) {
 	}
 
 	testing.expect(t, brand_pick_tier(10, 80) == .Chip)
-	testing.expect(t, brand_pick_tier(16, 30) == .Small || brand_pick_tier(16, 30) == .Chip)
-	testing.expect(t, brand_pick_tier(16, 40) == .Small)
+	testing.expect(t, brand_pick_tier(14, 30) == .Chip || brand_pick_tier(14, 30) == .Small)
+	testing.expect(t, brand_pick_tier(14, 40) == .Small)
 	testing.expect(t, brand_pick_tier(24, 80) == .Full)
 }
 
@@ -54,15 +54,18 @@ test_brand_art_lines_content :: proc(t: ^testing.T) {
 		}
 	}
 	full := brand_art_lines(.Full)
-	testing.expect(t, len(full) == 6)
+	testing.expect(t, len(full) == 9)
 	joined := strings.join(full, "\n", context.temp_allocator)
-	// wordmark uses box-drawing aether block (┌─┐… or peak ╱)
-	testing.expect(t, strings.contains(joined, "╱") || strings.contains(joined, "┌"))
-	testing.expect(t, strings.contains(joined, "odin") || strings.contains(joined, "aether"))
+	// peak + framed wordmark
+	testing.expect(t, strings.contains(joined, "▲") || strings.contains(joined, "╱"))
+	testing.expect(t, strings.contains(joined, "A  E  T  H  E  R") || strings.contains(joined, "A E T H E R"))
+	testing.expect(t, strings.contains(joined, "odin"))
+	testing.expect(t, strings.contains(joined, "╭") && strings.contains(joined, "╯"))
 
 	small := brand_art_lines(.Small)
-	testing.expect(t, len(small) == 3)
-	testing.expect(t, strings.contains(small[0], "aether"))
+	testing.expect(t, len(small) == 4)
+	small_j := strings.join(small, "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(small_j, "A E T H E R") || strings.contains(small_j, "▲"))
 
 	chip := brand_art_lines(.Chip)
 	testing.expect(t, len(chip) == 1)
