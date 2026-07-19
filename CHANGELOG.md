@@ -40,3 +40,7 @@ Phases **A** (tools), **B** (shell/slash/TUI chrome), **C1–C2** (pager), **S0�
 ## Intentional residuals (not bugs)
 
 ACP multi-client, remote marketplace, Mixpanel/voice/self-update, mermaid PNG/SVG, in-process Landlock, full MCP browser OAuth DCR, SQLite memory, remote Auto classifier — documented N/A in PORTING.
+
+## Known test hygiene (non-blocking)
+
+Full `odin test agent` suite occasionally SIGSEGV in `test_slash_help_and_unknown` / `test_slash_new_session_changed` when run after heavy tests (heap/leak noise). Same tests pass in isolation; pre-existed final polish. `tools` / `core` / `tui` / `smoke-tui` green.
