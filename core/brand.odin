@@ -1,11 +1,8 @@
-// Package core — Aether brand / welcome Braille art (V1 visual parity).
+// Package core — Aether brand / welcome art.
 //
-// Layout matches Grok Build welcome logos (logo07 / logo05):
-//   - U+2800 Braille block medium
-//   - Fixed canvas: full 14×7 cells, small 10×5 cells (every line same width)
-//   - Open form, soft strokes, top-right fleck, bottom-left taper
-//   - Height-tiered pick (small / full / chip)
-// Glyph is an open Aether "A" monogram — same layout language, not Grok's mark.
+// Opening screen uses the same Braille logo assets and canvas as Grok Build
+// (logo07 full / logo05 small from xai-grok-pager), height-tiered the same way.
+// Product chrome (title, menu labels, tips) says Aether.
 package core
 
 import "core:fmt"
@@ -13,15 +10,17 @@ import "core:os"
 import "core:strings"
 import "core:unicode/utf8"
 
-// Height tiers — same spirit as Grok's 22/26 window floors; slightly more
-// permissive so mid-size panes still get a monogram.
+// Grok Build thresholds (window/content height).
+// Slightly relaxed floors so mid-size panes still show a mark.
 BRAND_SMALL_MIN_ROWS :: 14
 BRAND_FULL_MIN_ROWS :: 20
-// Width floors (columns) so fixed-width monograms do not clip.
 BRAND_SMALL_MIN_COLS :: 20
 BRAND_FULL_MIN_COLS :: 28
 
-// Fixed canvas sizes (braille cells) — match Grok logo05 / logo07.
+// Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
+BRAND_HERO_MIN_COLS :: 90
+
+// Fixed canvas sizes (braille cells) — Grok logo05 / logo07.
 BRAND_FULL_CELLS_W :: 14
 BRAND_FULL_CELLS_H :: 7
 BRAND_SMALL_CELLS_W :: 10
@@ -29,34 +28,47 @@ BRAND_SMALL_CELLS_H :: 5
 
 Brand_Tier :: enum {
 	None,
-	Chip,  // single line
-	Small, // logo05 scale (10×5)
-	Full,  // logo07 scale (14×7)
+	Chip,
+	Small,
+	Full,
 }
 
-// Full welcome art — open "A" on Grok logo07 canvas (14 cells × 7 rows).
-// Same layout envelope: top cap + right fleck, open body, bottom arc, left taper.
+// Exact Grok Build logo07.txt (full welcome mark).
 BRAND_ART_FULL := [7]string {
-	`⠀⠀⠀⠀⠀⣀⣠⣤⣤⡀⠀⠀⡠⠀`,
-	`⠀⠀⠀⣠⣾⠟⠁⡀⠙⢿⣦⡾⠀⠀`,
-	`⠀⠀⣾⡟⢁⡴⠋⠉⠳⣄⠙⣿⡆⠀`,
-	`⠀⠀⣿⡷⠋⠀⠀⠀⠀⠈⢷⣿⠃⠀`,
-	`⠀⠀⠹⣷⡀⠀⠀⠀⠀⣠⣾⠏⠀⠀`,
-	`⠀⠀⠀⠙⠿⣶⣶⣶⣾⣿⠷⠂⠀⠀`,
-	`⠠⠊⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`,
+	`⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`,
+	`⠀⠀⠀⣠⣾⠿⠛⠛⠛⠛⢀⡴⠁⠀`,
+	`⠀⠀⣼⡟⠁⠀⠀⠀⢀⡴⠻⣿⡀⠀`,
+	`⠀⠀⣿⡇⠀⠀⠀⠔⠁⠀⠀⣿⡇⠀`,
+	`⠀⠀⢹⣷⠀⠀⠀⠀⠀⢀⣴⡿⠀⠀`,
+	`⠀⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋⠀⠀⠀`,
+	`⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`,
 }
 
-// Small monogram — Grok logo05 canvas (10 cells × 5 rows).
+// Exact Grok Build logo05.txt (small welcome mark).
 BRAND_ART_SMALL := [5]string {
-	`⠀⠀⢀⣤⡶⢶⣤⡀⡠⠂`,
-	`⢀⣴⡿⣫⠴⠦⣝⢿⣧⡀`,
-	`⣿⡟⠈⠁⠀⠀⠈⠁⣿⡗`,
-	`⠈⠳⣄⣀⣤⣤⣤⡔⠛⠁`,
-	`⠐⠀⠀⠉⠉⠉⠁⠀⠀⠀`,
+	`⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`,
+	`⠀⢀⡾⠋⠁⠀⢁⢴⡎⠀`,
+	`⠀⢸⡇⠀⠀⠐⠁⢀⣿⠀`,
+	`⠀⢈⠗⢀⣀⣀⣠⡾⠃⠀`,
+	`⠐⠁⠀⠈⠉⠉⠉⠀⠀⠀`,
 }
 
-// Chip for tiny terminals or compact header.
 BRAND_ART_CHIP :: "⣿ aether · odin"
+
+// Welcome menu (stacked + hero) — Grok layout: label left, shortcut right.
+// Keys match Aether TUI bindings (Ctrl+N / Ctrl+S / Ctrl+Q).
+Brand_Menu_Item :: struct {
+	label: string,
+	key:   string,
+}
+
+BRAND_MENU := [3]Brand_Menu_Item {
+	{"New session", "ctrl+n"},
+	{"Resume session", "ctrl+s"},
+	{"Quit", "ctrl+q"},
+}
+
+BRAND_SUBTITLE :: "Thanks for trying Aether — /about · /help · /feedback"
 
 // brand_art_enabled: AETHER_NO_ASCII_ART or AETHER_ASCII_ART=off disables.
 brand_art_enabled :: proc() -> bool {
@@ -79,13 +91,12 @@ brand_art_enabled :: proc() -> bool {
 	return true
 }
 
-// brand_pick_tier: size-aware tier (Grok layout floors, Aether art).
+// brand_pick_tier: Grok-shaped height tiers.
 brand_pick_tier :: proc(rows, cols: int) -> Brand_Tier {
 	if !brand_art_enabled() {
 		return .None
 	}
 	if rows < 1 && cols < 1 {
-		// unknown size: prefer small for REPL/about
 		return .Small
 	}
 	r := rows
@@ -108,8 +119,21 @@ brand_pick_tier :: proc(rows, cols: int) -> Brand_Tier {
 	return .Chip
 }
 
-// brand_art_lines: static string views for the tier (do not free).
-// Returns empty slice for .None.
+// brand_use_hero: wide side-by-side logo+menu (Grok hero box).
+brand_use_hero :: proc(rows, cols: int) -> bool {
+	if !brand_art_enabled() {
+		return false
+	}
+	if cols < BRAND_HERO_MIN_COLS {
+		return false
+	}
+	// Need room for full logo height + chrome
+	if rows < BRAND_FULL_CELLS_H + 6 {
+		return false
+	}
+	return true
+}
+
 brand_art_lines :: proc(tier: Brand_Tier) -> []string {
 	switch tier {
 	case .None:
@@ -124,25 +148,24 @@ brand_art_lines :: proc(tier: Brand_Tier) -> []string {
 	return nil
 }
 
-// brand_chip_slice: addressable chip line.
 brand_chip_slice :: proc() -> []string {
 	return BRAND_CHIP_LINES[:]
 }
 
 BRAND_CHIP_LINES := [1]string{BRAND_ART_CHIP}
 
-// brand_pick_art: convenience — lines for rows/cols.
 brand_pick_art :: proc(rows, cols: int) -> []string {
+	// Hero always uses full logo (Grok full_logo_* helpers).
+	if brand_use_hero(rows, cols) {
+		return BRAND_ART_FULL[:]
+	}
 	return brand_art_lines(brand_pick_tier(rows, cols))
 }
 
-// brand_line_cells: braille / rune count (Grok visual width uses unicode width;
-// braille cells are 1 col each in modern terminals).
 brand_line_cells :: proc(line: string) -> int {
 	return utf8.rune_count_in_string(line)
 }
 
-// brand_art_visual_width: max cell width of art lines for a tier.
 brand_art_visual_width :: proc(tier: Brand_Tier) -> int {
 	lines := brand_art_lines(tier)
 	max_w := 0
@@ -152,11 +175,27 @@ brand_art_visual_width :: proc(tier: Brand_Tier) -> int {
 			max_w = w
 		}
 	}
+	if max_w == 0 {
+		return 24
+	}
 	return max_w
 }
 
-// brand_center_line: left-pad with spaces so `line` is centered in `cols`.
-// Returns a temp-allocator or given-allocator string; empty pad if cols too narrow.
+// brand_menu_width: Grok menu column — max(logo width, 30, content).
+brand_menu_width :: proc(tier: Brand_Tier) -> int {
+	w := brand_art_visual_width(tier)
+	if w < 30 {
+		w = 30
+	}
+	for item in BRAND_MENU {
+		need := len(item.label) + 4 + len(item.key)
+		if need > w {
+			w = need
+		}
+	}
+	return w
+}
+
 brand_center_line :: proc(line: string, cols: int, allocator := context.allocator) -> string {
 	if cols <= 0 {
 		return strings.clone(line, allocator)
@@ -177,13 +216,30 @@ brand_center_line :: proc(line: string, cols: int, allocator := context.allocato
 	return strings.to_string(b)
 }
 
-// brand_render: joined art, owned by allocator.
-// When cols > 0, each line is centered like Grok's Alignment::Center logo.
+// brand_menu_row: "Label          key" padded to menu_w (Grok render_menu).
+brand_menu_row :: proc(label, key: string, menu_w: int, allocator := context.allocator) -> string {
+	// label left, key right, spaces between
+	lw := len(label)
+	kw := len(key)
+	if menu_w < lw + kw + 1 {
+		return fmt.aprintf("%s %s", label, key, allocator = allocator)
+	}
+	gap := menu_w - lw - kw
+	b := strings.builder_make(allocator)
+	strings.write_string(&b, label)
+	for i := 0; i < gap; i += 1 {
+		strings.write_byte(&b, ' ')
+	}
+	strings.write_string(&b, key)
+	return strings.to_string(b)
+}
+
+// brand_render: joined logo lines (optional center). For REPL /about.
 brand_render :: proc(
 	rows: int = 24,
 	cols: int = 80,
 	allocator := context.allocator,
-	force_tier: Brand_Tier = .None, // .None = auto pick; else force when enabled
+	force_tier: Brand_Tier = .None,
 ) -> string {
 	if !brand_art_enabled() {
 		return strings.clone("", allocator)
@@ -211,20 +267,60 @@ brand_render :: proc(
 	return strings.to_string(b)
 }
 
-// brand_render_for_about: full-tier art when enabled (ignore tiny rows).
+// brand_render_welcome: full stacked welcome (logo + menu + tip) for REPL.
+// Matches Grok stacked welcome content (no box).
+brand_render_welcome :: proc(
+	rows: int = 24,
+	cols: int = 80,
+	allocator := context.allocator,
+) -> string {
+	if !brand_art_enabled() {
+		return strings.clone("", allocator)
+	}
+	tier := brand_pick_tier(rows, cols)
+	if brand_use_hero(rows, cols) {
+		tier = .Full
+	}
+	lines := brand_art_lines(tier)
+	if len(lines) == 0 {
+		return strings.clone("", allocator)
+	}
+	menu_w := brand_menu_width(tier)
+	b := strings.builder_make(allocator)
+	for line, i in lines {
+		if i > 0 {
+			strings.write_byte(&b, '\n')
+		}
+		strings.write_string(&b, brand_center_line(line, cols, context.temp_allocator))
+	}
+	strings.write_byte(&b, '\n') // logo_gap
+	for item in BRAND_MENU {
+		strings.write_byte(&b, '\n')
+		row := brand_menu_row(item.label, item.key, menu_w, context.temp_allocator)
+		strings.write_string(&b, brand_center_line(row, cols, context.temp_allocator))
+	}
+	strings.write_byte(&b, '\n')
+	strings.write_byte(&b, '\n')
+	tip := brand_welcome_tips(context.temp_allocator)
+	strings.write_string(&b, brand_center_line(tip, cols, context.temp_allocator))
+	return strings.to_string(b)
+}
+
 brand_render_for_about :: proc(allocator := context.allocator) -> string {
 	if !brand_art_enabled() {
 		return strings.clone("", allocator)
 	}
-	return brand_render(24, 80, allocator)
+	return brand_render(24, 80, allocator, .Full)
 }
 
-// brand_welcome_tips: short discover line under art (Grok: menu/tips under logo).
 brand_welcome_tips :: proc(allocator := context.allocator) -> string {
-	return strings.clone("/about · /help · /keys · /tools · /exit", allocator)
+	return strings.clone("type a message · /about · /help · /keys · /exit", allocator)
 }
 
-// brand_status_line: one-liner for headers when full art hidden.
 brand_status_line :: proc(allocator := context.allocator) -> string {
 	return fmt.aprintf("%s  %s", BRAND_ART_CHIP, version_string(), allocator = allocator)
+}
+
+brand_hero_subtitle :: proc() -> string {
+	return BRAND_SUBTITLE
 }

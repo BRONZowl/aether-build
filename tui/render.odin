@@ -52,26 +52,9 @@ flatten_blocks :: proc(
 		pref := "·" if compact else "· "
 		wrap_push(out, styles, block_idxs, -1, fmt.tprintf("%s%s", pref, n), .Dim, w, allocator)
 	}
-	// V1: empty-session welcome art (no transcript blocks, not streaming).
-	// Grok layout: centered Braille monogram, gap, tips line (stacked welcome).
-	if len(s.blocks) == 0 && !s.streaming && core.brand_art_enabled() {
-		rows_hint := term_rows if term_rows > 0 else 24
-		art_lines := core.brand_pick_art(rows_hint, cols)
-		for line in art_lines {
-			// Center like Grok logo Paragraph Alignment::Center
-			centered := core.brand_center_line(line, cols, context.temp_allocator)
-			mark_line(out, styles, block_idxs, -1, centered, .Dim, allocator)
-		}
-		if len(art_lines) > 0 {
-			// one blank gap after logo (Grok logo_gap = 1)
-			mark_line(out, styles, block_idxs, -1, "", .Dim, allocator)
-			tips := core.brand_welcome_tips(context.temp_allocator)
-			centered_tips := core.brand_center_line(tips, cols, context.temp_allocator)
-			mark_line(out, styles, block_idxs, -1, centered_tips, .Dim, allocator)
-			// blank separator before compose area content
-			mark_line(out, styles, block_idxs, -1, "", .Dim, allocator)
-		}
-	}
+	// Empty-session welcome is painted by write_welcome_body (Grok stacked/hero
+	// layout) — not as scrollable transcript lines.
+
 	for bi in 0 ..< len(s.blocks) {
 		bl := s.blocks[bi]
 		ts := format_block_hhmm(bl.time_unix) // B37: optional HH:MM prefix
@@ -450,13 +433,16 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	}
 	write_row(&b, header, cols, .Bar_Reverse, true)
 
-	// body rows (or modal overlays)
+	// body rows (or modal overlays / Grok-parity welcome)
 	if s.ask_active {
 		write_ask_body(&b, s, cols, body_h)
 	} else if s.picker.active {
 		write_picker_body(&b, &s.picker, cols, body_h)
 	} else if s.model_picker.active {
 		write_model_picker_body(&b, &s.model_picker, cols, body_h)
+	} else if welcome_is_active(s) {
+		// Opening layout matches Grok Build: stacked logo+menu or hero box
+		write_welcome_body(&b, s, cols, body_h)
 	} else {
 		painted := 0
 		for i in start ..< end {
