@@ -1,6 +1,7 @@
 // Package core — Aether brand / welcome ASCII art (V1 visual parity).
-// Pattern reference: Grok height-tiered welcome logo (not Grok Braille assets).
-// Original Aether wordmark for dual-product identity.
+// Same medium as Grok Build welcome logos: U+2800 Braille block monogram,
+// height-tiered (full / small / chip). Glyph is an Aether "A" peak monogram —
+// not a copy of Grok's mark.
 package core
 
 import "core:fmt"
@@ -8,43 +9,43 @@ import "core:os"
 import "core:strings"
 
 // Height tiers (rows) — art only when the terminal has room.
+// Slightly more permissive than Grok's 22/26 so mid-size panes still get art.
 BRAND_SMALL_MIN_ROWS :: 12
 BRAND_FULL_MIN_ROWS :: 18
-// Width floors (columns) so wordmarks do not wrap badly.
-BRAND_SMALL_MIN_COLS :: 32
-BRAND_FULL_MIN_COLS :: 48
+// Width floors (columns) so monograms do not clip badly.
+BRAND_SMALL_MIN_COLS :: 24
+BRAND_FULL_MIN_COLS :: 36
 
 Brand_Tier :: enum {
 	None,
 	Chip,  // single line
-	Small, // ~4 lines
-	Full,  // ~8 lines
+	Small, // ~5 lines (Grok logo05 scale)
+	Full,  // ~7 lines (Grok logo07 scale)
 }
 
-// Full welcome art — peak monogram centered over framed wordmark (~32 cols).
-// Designed for monochrome terminals; no color dependence.
-BRAND_ART_FULL := [9]string {
-	`             ▲`,
-	`            ╱ ╲`,
-	`           ╱   ╲`,
-	`          ╱  ·  ╲`,
-	`         ╱_______╲`,
-	`    ╭──────────────────────╮`,
-	`    │     A  E  T  H  E  R │`,
-	`    │  odin coding agent   │`,
-	`    ╰──────────────────────╯`,
+// Full welcome art — dense Braille "A" monogram (~14 cells × 7 rows).
+// Same U+2800 block medium as Grok Build's logo07.txt.
+BRAND_ART_FULL := [7]string {
+	`⠀⠀⠀⠀⠀⠀⢸⣿⠀⠀⠀⠀⠀⠀`,
+	`⠀⠀⠀⠀⠀⢀⣾⢿⣆⠀⠀⠀⠀⠀`,
+	`⠀⠀⠀⠀⢀⣾⠏⠈⢿⣆⠀⠀⠀⠀`,
+	`⠀⠀⠀⢀⣾⣯⣤⣤⣬⣿⣆⠀⠀⠀`,
+	`⠀⠀⢀⣾⠏⠉⠉⠉⠉⠉⢿⣆⠀⠀`,
+	`⠀⢀⣾⠏⠀⠀⠀⠀⠀⠀⠈⢿⣆⠀`,
+	`⢀⣾⣿⣶⣶⣶⣶⣶⣶⣶⣶⣾⣿⣆`,
 }
 
-// Small wordmark (~4 lines) for mid-size terminals.
-BRAND_ART_SMALL := [4]string {
-	`     ▲`,
-	`    ╱ ╲   A E T H E R`,
-	`   ╱___╲  odin · xAI`,
-	`          ` + VERSION,
+// Small monogram (~9 cells × 5 rows) — Grok logo05 scale.
+BRAND_ART_SMALL := [5]string {
+	`⠀⠀⠀⠀⣿⡇⠀⠀⠀`,
+	`⠀⠀⠀⢰⡏⣷⠀⠀⠀`,
+	`⠀⠀⢠⣿⣤⣼⣧⠀⠀`,
+	`⠀⢀⡿⠉⠉⠉⠹⣇⠀`,
+	`⢀⣾⣥⣤⣤⣤⣤⣽⣆`,
 }
 
-// Chip for tiny terminals or compact header.
-BRAND_ART_CHIP :: "◇ aether · odin"
+// Chip for tiny terminals or compact header (braille peak + word).
+BRAND_ART_CHIP :: "⣿ aether · odin"
 
 // brand_art_enabled: AETHER_NO_ASCII_ART or AETHER_ASCII_ART=off disables.
 brand_art_enabled :: proc() -> bool {

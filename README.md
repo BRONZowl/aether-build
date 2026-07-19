@@ -136,7 +136,7 @@ Tool failures (`error:…` results) show as **fail:** in the status bar and as `
 
 ## Brand / welcome art (V1)
 
-Empty TUI sessions, interactive REPL startup, and **`/about`** show an **Aether** wordmark (size-aware tiers). Not a copy of Grok’s Braille logo.
+Empty TUI sessions, interactive REPL startup, and **`/about`** show an **Aether** Braille monogram (size-aware tiers: full / small / chip) — same U+2800 medium as Grok Build’s welcome logo, Aether “A” mark (not Grok’s glyph).
 
 - Off: `AETHER_NO_ASCII_ART=1` or `AETHER_ASCII_ART=off`
 - `/features` row: `ascii-art`

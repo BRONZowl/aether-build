@@ -54,18 +54,24 @@ test_brand_art_lines_content :: proc(t: ^testing.T) {
 		}
 	}
 	full := brand_art_lines(.Full)
-	testing.expect(t, len(full) == 9)
+	testing.expect(t, len(full) == 7)
 	joined := strings.join(full, "\n", context.temp_allocator)
-	// peak + framed wordmark
-	testing.expect(t, strings.contains(joined, "▲") || strings.contains(joined, "╱"))
-	testing.expect(t, strings.contains(joined, "A  E  T  H  E  R") || strings.contains(joined, "A E T H E R"))
-	testing.expect(t, strings.contains(joined, "odin"))
-	testing.expect(t, strings.contains(joined, "╭") && strings.contains(joined, "╯"))
+	// Grok-style Braille monogram (U+2800 block) — Aether "A" peak
+	testing.expect(t, strings.contains(joined, "⣿") || strings.contains(joined, "⣾"))
+	// first braille plane starts at U+2800; dense cells use high bits
+	has_braille := false
+	for r in joined {
+		if r >= 0x2800 && r <= 0x28FF {
+			has_braille = true
+			break
+		}
+	}
+	testing.expect(t, has_braille)
 
 	small := brand_art_lines(.Small)
-	testing.expect(t, len(small) == 4)
+	testing.expect(t, len(small) == 5)
 	small_j := strings.join(small, "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(small_j, "A E T H E R") || strings.contains(small_j, "▲"))
+	testing.expect(t, strings.contains(small_j, "⣿") || strings.contains(small_j, "⣾"))
 
 	chip := brand_art_lines(.Chip)
 	testing.expect(t, len(chip) == 1)
