@@ -128,6 +128,7 @@ test_memory_inject_opt_out :: proc(t: ^testing.T) {
 @(test)
 test_maybe_auto_dream_silent_without_logs :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-autodream-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -165,6 +166,7 @@ test_maybe_auto_dream_silent_without_logs :: proc(t: ^testing.T) {
 @(test)
 test_maybe_auto_dream_with_enough_sessions :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-autodream2-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

@@ -228,29 +228,9 @@ auth_source_string :: proc(s: Mcp_Auth_Source) -> string {
 
 // --- credentials write (A3.1) ---
 
-// json_escape_str for embedding in JSON string values.
+// json_escape_str for embedding in JSON string values (shared core helper).
 json_escape_str :: proc(s: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	for i in 0 ..< len(s) {
-		ch := s[i]
-		switch ch {
-		case '"', '\\':
-			strings.write_byte(&b, '\\')
-			strings.write_byte(&b, ch)
-		case '\n':
-			strings.write_string(&b, "\\n")
-		case '\r':
-			strings.write_string(&b, "\\r")
-		case '\t':
-			strings.write_string(&b, "\\t")
-		case:
-			if ch < 0x20 {
-				continue
-			}
-			strings.write_byte(&b, ch)
-		}
-	}
-	return strings.to_string(b)
+	return core.json_string_escape(s, allocator)
 }
 
 // load_credentials_object reads path into a root object; missing → empty object.

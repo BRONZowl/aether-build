@@ -57,6 +57,7 @@ test_parse_event_name :: proc(t: ^testing.T) {
 @(test)
 test_load_hooks_from_file :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hooks-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -110,6 +111,7 @@ test_load_hooks_from_file :: proc(t: ^testing.T) {
 @(test)
 test_run_hook_deny_exit_2 :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hook-run-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -142,6 +144,7 @@ exit 2
 @(test)
 test_run_hook_allow_and_missing_fail_open :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hook-allow-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -195,6 +198,7 @@ test_hooks_disabled_env :: proc(t: ^testing.T) {
 @(test)
 test_post_tool_and_session_end :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hook-post-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -270,6 +274,7 @@ test_post_tool_and_session_end :: proc(t: ^testing.T) {
 @(test)
 test_user_prompt_submit_deny :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hook-ups-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -352,6 +357,7 @@ test_validate_hook_url_ssrf :: proc(t: ^testing.T) {
 @(test)
 test_load_http_hook_from_file :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-hooks-http-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -420,6 +426,7 @@ test_run_hook_http_local_deny :: proc(t: ^testing.T) {
 	}
 	port := 18765 + (os.get_pid() % 1000)
 	dir := fmt.aprintf("/tmp/aether-http-hook-srv-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -550,6 +557,7 @@ test_hooks_paths_add_remove_and_validate :: proc(t: ^testing.T) {
 test_project_hooks_require_folder_trust :: proc(t: ^testing.T) {
 	dir, err := os.make_directory_temp("/tmp", "aether-ht-", context.allocator)
 	testing.expect(t, err == nil)
+	defer delete(dir)
 	defer os.remove_all(dir)
 
 	prev_h := os.get_env("GROK_HOME", context.temp_allocator)

@@ -8,8 +8,8 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 - Soft-bash: unify `bash_sub_in` → `bash_token_in`; table-drive matchers across pkg/tools/cloud/container
 - Shared helpers: `bash_nested_allow`; slash `emit_line`/`emit_lines`; `slash_ui_bool` for UI prefs
-- Drop duplicate `json_escape_simple` (use `json_escape`)
-- `new_session`: own `aether_sessions_dir` once; config tests free `fmt.aprintf` dirs
+- `core.json_string_escape` shared by agent/hooks/mcp/tools (thin package aliases)
+- `new_session` sessions_dir own-once; test suites free `fmt.aprintf` / temp dir path strings
 
 ### Launcher / defaults
 

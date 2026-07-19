@@ -10,6 +10,7 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:sync"
+import "aether:core"
 import "aether:tools"
 
 MAX_GOAL_PROGRESS :: 20
@@ -243,27 +244,9 @@ goal_prompt_blurb :: proc(allocator := context.allocator) -> string {
 	)
 }
 
-// goal_json_escape for session embedding (avoid fmt `{` issues).
+// goal_json_escape for session embedding (shared core helper).
 goal_json_escape :: proc(s: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	for i in 0 ..< len(s) {
-		ch := s[i]
-		switch ch {
-		case '"':
-			strings.write_string(&b, `\"`)
-		case '\\':
-			strings.write_string(&b, `\\`)
-		case '\n':
-			strings.write_string(&b, `\n`)
-		case '\r':
-			strings.write_string(&b, `\r`)
-		case '\t':
-			strings.write_string(&b, `\t`)
-		case:
-			strings.write_byte(&b, ch)
-		}
-	}
-	return strings.to_string(b)
+	return core.json_string_escape(s, allocator)
 }
 
 // goal_snapshot_json_object: `{"status":...,"objective":...,"blocked":...,"progress":[...]}`

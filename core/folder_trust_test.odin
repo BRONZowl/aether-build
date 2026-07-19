@@ -108,6 +108,7 @@ test_project_hooks_gated_by_trust :: proc(t: ^testing.T) {
 	// hooks package tests project gate separately if needed.
 	dir, err := os.make_directory_temp("/tmp", "aether-ft2-", context.allocator)
 	testing.expect(t, err == nil)
+	defer delete(dir)
 	defer os.remove_all(dir)
 
 	prev_h := os.get_env("GROK_HOME", context.temp_allocator)

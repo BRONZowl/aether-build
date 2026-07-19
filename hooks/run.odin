@@ -5,6 +5,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
+import "aether:core"
 
 MAX_HOOK_STDOUT :: 64 * 1024
 DENY_EXIT_CODE :: 2
@@ -46,28 +47,9 @@ build_session_start_envelope :: proc(cwd: string, allocator := context.allocator
 	)
 }
 
+// json_escape: shared core helper (control → \u00xx).
 json_escape :: proc(s: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	for i in 0 ..< len(s) {
-		ch := s[i]
-		switch ch {
-		case '"', '\\':
-			strings.write_byte(&b, '\\')
-			strings.write_byte(&b, ch)
-		case '\n':
-			strings.write_string(&b, "\\n")
-		case '\r':
-			strings.write_string(&b, "\\r")
-		case '\t':
-			strings.write_string(&b, "\\t")
-		case:
-			if ch < 0x20 {
-				continue
-			}
-			strings.write_byte(&b, ch)
-		}
-	}
-	return strings.to_string(b)
+	return core.json_string_escape(s, allocator)
 }
 
 // needs_shell true if command needs sh -c.

@@ -23,6 +23,7 @@ test_estimate_tokens_and_pct :: proc(t: ^testing.T) {
 @(test)
 test_format_context_status :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-ctx-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

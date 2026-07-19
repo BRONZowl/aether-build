@@ -21,6 +21,7 @@ test_process_paste_path_to_image_token :: proc(t: ^testing.T) {
 	defer image_reg_clear()
 
 	dir := fmt.aprintf("/tmp/aether-img-paste-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -64,6 +65,7 @@ test_write_user_content_json_multimodal :: proc(t: ^testing.T) {
 	os.unset_env("AETHER_NO_MULTIMODAL")
 
 	dir := fmt.aprintf("/tmp/aether-img-mm-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -109,6 +111,7 @@ test_save_clipboard_image_bytes :: proc(t: ^testing.T) {
 	image_reg_clear()
 	defer image_reg_clear()
 	dir := fmt.aprintf("/tmp/aether-media-test-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	os.set_env("AETHER_MEDIA_DIR", dir)

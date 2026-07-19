@@ -64,6 +64,7 @@ test_flush_heuristic_writes_session_log :: proc(t: ^testing.T) {
 	}
 
 	dir := fmt.aprintf("/tmp/aether-flush-sess-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

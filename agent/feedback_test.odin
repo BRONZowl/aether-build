@@ -9,6 +9,7 @@ import "core:testing"
 @(test)
 test_append_session_feedback_jsonl :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-feedback-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -53,6 +54,7 @@ test_append_session_feedback_jsonl :: proc(t: ^testing.T) {
 @(test)
 test_feedback_slash_help_and_save :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-feedback-slash-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

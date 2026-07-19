@@ -19,6 +19,7 @@ test_path_is_executable_and_look_path_bin :: proc(t: ^testing.T) {
 @(test)
 test_find_grok_cli_env_override :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-grok-bin-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -79,6 +80,7 @@ test_host_login_missing_message :: proc(t: ^testing.T) {
 @(test)
 test_run_host_login_with_fake_binary :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-login-run-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -107,6 +109,7 @@ test_run_host_login_with_fake_binary :: proc(t: ^testing.T) {
 @(test)
 test_run_host_mcp_doctor_and_list :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-mcp-host-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)

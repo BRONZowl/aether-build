@@ -56,6 +56,7 @@ test_dream_heuristic_writes_memory_md :: proc(t: ^testing.T) {
 	}
 
 	dir := fmt.aprintf("/tmp/aether-dream-sess-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -114,6 +115,7 @@ test_dream_heuristic_writes_memory_md :: proc(t: ^testing.T) {
 @(test)
 test_dream_slash_help_and_empty :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-dream-slash-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

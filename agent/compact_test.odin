@@ -30,6 +30,7 @@ test_extract_summary_block :: proc(t: ^testing.T) {
 @(test)
 test_compact_heuristic_rewrites_history :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-compact-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -122,6 +123,7 @@ test_should_auto_compact_threshold :: proc(t: ^testing.T) {
 @(test)
 test_maybe_auto_compact_reduces :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-autocompact-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)
@@ -168,6 +170,7 @@ test_maybe_auto_compact_reduces :: proc(t: ^testing.T) {
 @(test)
 test_compact_empty_history :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-compact-empty-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	_ = os.make_directory_all(dir)

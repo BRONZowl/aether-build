@@ -13,6 +13,7 @@ test_file_rewind_write_create_and_undo :: proc(t: ^testing.T) {
 	os.unset_env("AETHER_NO_FILE_REWIND")
 
 	dir := fmt.aprintf("/tmp/aether-rewind-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -38,6 +39,7 @@ test_file_rewind_edit_restore :: proc(t: ^testing.T) {
 	os.unset_env("AETHER_NO_FILE_REWIND")
 
 	dir := fmt.aprintf("/tmp/aether-rewind-e-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -66,6 +68,7 @@ test_file_rewind_delete_restore :: proc(t: ^testing.T) {
 	os.unset_env("AETHER_NO_FILE_REWIND")
 
 	dir := fmt.aprintf("/tmp/aether-rewind-d-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)
@@ -92,6 +95,7 @@ test_file_rewind_disabled :: proc(t: ^testing.T) {
 	defer os.unset_env("AETHER_NO_FILE_REWIND")
 
 	dir := fmt.aprintf("/tmp/aether-rewind-off-%d", os.get_pid())
+	defer delete(dir)
 	_ = os.remove_all(dir)
 	defer os.remove_all(dir)
 	testing.expect(t, os.make_directory_all(dir) == nil)

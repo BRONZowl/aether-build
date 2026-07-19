@@ -208,31 +208,9 @@ scheduler_store_path :: proc(allocator := context.allocator) -> string {
 	return joined
 }
 
-// scheduler_json_escape: minimal JSON string escape (no printf braces).
+// scheduler_json_escape: shared core helper (no printf braces in callers).
 scheduler_json_escape :: proc(s: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	for i in 0 ..< len(s) {
-		ch := s[i]
-		switch ch {
-		case '"':
-			strings.write_string(&b, `\"`)
-		case '\\':
-			strings.write_string(&b, `\\`)
-		case '\n':
-			strings.write_string(&b, `\n`)
-		case '\r':
-			strings.write_string(&b, `\r`)
-		case '\t':
-			strings.write_string(&b, `\t`)
-		case:
-			if ch < 0x20 {
-				fmt.sbprintf(&b, "\\u%04x", ch)
-			} else {
-				strings.write_byte(&b, ch)
-			}
-		}
-	}
-	return strings.to_string(b)
+	return core.json_string_escape(s, allocator)
 }
 
 // scheduler_persist_unlocked writes durable tasks only. Caller holds g_sched_mu.
