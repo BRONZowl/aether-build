@@ -1,0 +1,105 @@
+# Aether-Grok project runtime defaults.
+# Derived from ~/.grok/config.toml with Aether-appropriate tweaks.
+# Not read by the Odin compiler. Runtime load is planned for the agent port.
+# Secrets (auth tokens) stay in ~/.grok/auth.json — never commit them here.
+
+[cli]
+installer = "internal"
+
+[ui]
+max_thoughts_width = 120
+fork_secondary_model = "grok-build"
+yolo = false
+compact_mode = false
+permission_mode = "always-approve"
+remember_tool_approvals = true
+default_selected_permission = "allow_once"
+vim_mode = true
+theme = "tokyonight"
+
+[marketplace]
+official_marketplace_auto_installed = true
+
+[[marketplace.sources]]
+name = "xAI Official"
+git = "https://github.com/xai-org/plugin-marketplace.git"
+
+[memory]
+enabled = true
+
+[memory.session]
+save_on_end = true
+
+[memory.initial_injection]
+enabled = true
+
+[memory.search]
+max_results = 8
+min_score = 0.3
+
+[sandbox]
+profile = "workspace"
+
+[plugins]
+enabled = [
+    "superpowers",
+    "firecrawl",
+    "axiom",
+    "chrome-devtools-mcp",
+    "sentry",
+]
+
+[models]
+default = "grok-4.5"
+default_reasoning_effort = "medium"
+
+[features]
+lsp_tools = true
+codebase_indexing = true
+telemetry = false
+
+[tools]
+respect_gitignore = true
+auto_format = true
+
+[subagents]
+enabled = true
+max_subagents = 2
+
+[subagents.toggle]
+explore = true
+plan = true
+general-purpose = true
+
+[subagents.models]
+explore = "grok-build"
+plan = "grok-build"
+general-purpose = "grok-build"
+
+[permission]
+allow = [
+    "Bash(git *)",
+    "Bash(gh *)",
+    "Bash(ruff *)",
+    "Bash(pyright *)",
+    "Bash(stylua *)",
+    "Bash(shfmt *)",
+    "Bash(clang-format *)",
+    "Bash(make *)",
+    "Bash(npm *)",
+    "Bash(cargo *)",
+    "Bash(pytest *)",
+    "Bash(python -m pytest *)",
+    "Bash(./scripts/*)",
+    # Aether / Odin port tooling
+    "Bash(odin *)",
+    "Bash(odinfmt *)",
+    "Bash(.tools/bin/*)",
+]
+deny = [
+    "Bash(rm -rf /)",
+    "Bash(rm -rf /*)",
+    "Bash(sudo rm *)",
+    "Bash(mkfs *)",
+    "Bash(dd if=*)",
+]

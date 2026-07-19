@@ -1,0 +1,53 @@
+# Standalone Aether CI (S4 extract). Odin only — no Cargo/Rust.
+name: Aether (Odin)
+
+on:
+  push:
+    branches: [aether, main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: aether-odin-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: build · vet · test · smoke-tui
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            clang \
+            llvm \
+            llvm-dev \
+            libcurl4-openssl-dev \
+            ripgrep \
+            bsdutils
+
+      - name: Bootstrap Odin
+        run: bash scripts/bootstrap-odin.sh
+
+      - name: Build, vet, test, smoke-tui
+        env:
+          AETHER_NO_DESKTOP_NOTIFY: "1"
+        run: |
+          for d in "${GITHUB_WORKSPACE}/.tools"; do
+            if [[ -x "$d/bin/odin" ]]; then
+              export PATH="$d/bin:${PATH}"
+              export ODIN_ROOT="$d/odin"
+              break
+            fi
+          done
+          make build vet test smoke-tui
+
+      - name: Binary version
+        run: ./out/aether --version
