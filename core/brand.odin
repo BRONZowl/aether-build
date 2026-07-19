@@ -1,8 +1,8 @@
 // Package core — Aether brand / welcome art.
 //
-// Opening screen uses the same Braille logo assets and canvas as Grok Build
-// (logo07 full / logo05 small from xai-grok-pager), height-tiered the same way.
-// Product chrome (title, menu labels, tips) says Aether.
+// Opening layout matches Grok Build (stacked / hero, height tiers, fixed canvas).
+// Glyph is an original Aether open-"A" Braille monogram (not Grok's mark), on the
+// same U+2800 medium and logo05/logo07 cell sizes (10×5 / 14×7).
 package core
 
 import "core:fmt"
@@ -10,7 +10,7 @@ import "core:os"
 import "core:strings"
 import "core:unicode/utf8"
 
-// Grok Build thresholds (window/content height).
+// Grok Build–shaped thresholds (window/content height).
 // Slightly relaxed floors so mid-size panes still show a mark.
 BRAND_SMALL_MIN_ROWS :: 14
 BRAND_FULL_MIN_ROWS :: 20
@@ -20,7 +20,7 @@ BRAND_FULL_MIN_COLS :: 28
 // Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
 BRAND_HERO_MIN_COLS :: 90
 
-// Fixed canvas sizes (braille cells) — Grok logo05 / logo07.
+// Fixed canvas sizes (braille cells) — same as Grok logo05 / logo07.
 BRAND_FULL_CELLS_W :: 14
 BRAND_FULL_CELLS_H :: 7
 BRAND_SMALL_CELLS_W :: 10
@@ -33,24 +33,25 @@ Brand_Tier :: enum {
 	Full,
 }
 
-// Exact Grok Build logo07.txt (full welcome mark).
+// Full welcome mark — Aether open "A" on logo07 canvas (14×7).
+// Layout language: open form, soft strokes, top-right fleck, bottom-left taper.
 BRAND_ART_FULL := [7]string {
-	`⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⠀⢀⠄`,
-	`⠀⠀⠀⣠⣾⠿⠛⠛⠛⠛⢀⡴⠁⠀`,
-	`⠀⠀⣼⡟⠁⠀⠀⠀⢀⡴⠻⣿⡀⠀`,
-	`⠀⠀⣿⡇⠀⠀⠀⠔⠁⠀⠀⣿⡇⠀`,
-	`⠀⠀⢹⣷⠀⠀⠀⠀⠀⢀⣴⡿⠀⠀`,
-	`⠀⢀⠞⠁⠠⢶⣶⣶⣶⠿⠋⠀⠀⠀`,
-	`⠐⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀`,
+	`⠀⠀⠀⠀⠀⢀⣀⣤⣤⡀⠀⠀⡠⠀`,
+	`⠀⠀⠀⢀⣴⡿⠋⣀⠙⢿⣦⡾⠀⠀`,
+	`⠀⠀⣴⡿⠋⣠⠞⠉⠳⣄⠙⢿⣦⠀`,
+	`⠀⠀⣿⣧⠞⠁⠀⠀⠀⠈⢳⣼⡿⠀`,
+	`⠀⠀⢻⣧⠀⠀⠀⠀⠀⠀⣠⣿⠃⠀`,
+	`⠀⠀⠀⠻⢷⣤⣴⣶⣶⣾⡿⠇⠀⠀`,
+	`⠠⠊⠀⠀⠀⠈⠉⠉⠉⠁⠀⠀⠀⠀`,
 }
 
-// Exact Grok Build logo05.txt (small welcome mark).
+// Small welcome mark — Aether open "A" on logo05 canvas (10×5).
 BRAND_ART_SMALL := [5]string {
-	`⠀⠀⠀⣀⣤⣤⣀⠀⠀⡠`,
-	`⠀⢀⡾⠋⠁⠀⢁⢴⡎⠀`,
-	`⠀⢸⡇⠀⠀⠐⠁⢀⣿⠀`,
-	`⠀⢈⠗⢀⣀⣀⣠⡾⠃⠀`,
-	`⠐⠁⠀⠈⠉⠉⠉⠀⠀⠀`,
+	`⠀⠀⣠⣴⠶⢶⣤⡀⡠⠂`,
+	`⣠⣾⠟⣡⠴⢤⡙⢿⣧⡀`,
+	`⣿⡟⠈⠁⠀⠀⠉⠸⣿⡗`,
+	`⠈⠳⣤⣀⣠⣤⣤⡴⠛⠁`,
+	`⠐⠀⠀⠉⠉⠉⠁⠀⠀⠀`,
 }
 
 BRAND_ART_CHIP :: "⣿ aether · odin"
