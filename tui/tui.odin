@@ -211,7 +211,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			st.quit_first_ns = 0
 			st.new_first_ns = 0
 			if st.streaming {
-				g_cancel = true
+				stream_set_cancel()
 				state_set_status(&st, "cancelling…")
 				dirty = true
 			} else if st.focus == .Scrollback {
@@ -785,12 +785,10 @@ tui_new_session :: proc(
 	perm: core.Permission_Mode,
 	opts: agent.Headless_Options,
 ) -> bool {
-	g_slash_state = st
-	defer g_slash_state = nil
+	stream_bind_slash(st)
+	defer stream_clear_slash()
 	slash_out :: proc(msg: string) {
-		if g_slash_state != nil {
-			state_add_notice(g_slash_state, msg)
-		}
+		stream_notice_slash(msg)
 	}
 	// perm is by-value here; use stack pointer for slash mutability
 	perm_mut := perm
@@ -999,42 +997,27 @@ tui_run_auto_wake :: proc(
 	strings.builder_reset(&st.live_assist)
 	st.streaming = true
 	stream_pin_bottom(st)
-	g_cancel = false
 	ask_turn_allow := false
-	g_perm = perm
-	g_perm_before = perm_before
+	stream_bind(st, term, sess, perm, perm_before)
+	defer stream_clear()
 	render(term, st)
 
-	g_stream_state = st
-	g_stream_term = term
-	g_sess = sess
 	agent.set_content_delta_handler(stream_delta)
-	g_status_state = st
-	g_status_term = term
-
 	status_cb :: proc(text: string) {
 		peek_turn_keys()
-		if g_status_state != nil {
+		if stream_st() != nil {
 			if strings.has_prefix(text, "tool:") {
-				strings.builder_reset(&g_status_state.live_assist)
+				strings.builder_reset(&stream_st().live_assist)
 			}
-			state_set_status(g_status_state, text)
-			if g_status_term != nil {
-				render(g_status_term, g_status_state)
+			state_set_status(stream_st(), text)
+			if stream_term() != nil {
+				render(stream_term(), stream_st())
 			}
 		}
 	}
 	history_cb :: proc() {
 		peek_turn_keys()
-		if g_stream_state == nil || g_sess == nil {
-			return
-		}
-		rebuild_blocks(g_stream_state, g_sess.msgs[:])
-		// B31: only stick to bottom when follow is on
-		stream_maybe_pin_bottom(g_stream_state)
-		if g_stream_term != nil {
-			render(g_stream_term, g_stream_state)
-		}
+		stream_tool_done_cb()
 	}
 
 	turn := agent.Turn_Options {
@@ -1053,7 +1036,7 @@ tui_run_auto_wake :: proc(
 		on_ask_user       = tui_ask_user_question,
 		on_plan_enter     = tui_plan_enter_ask,
 		on_plan_exit      = tui_plan_exit_ask,
-		cancel            = &g_cancel,
+		cancel            = stream_cancel_ptr(),
 		on_poll           = peek_turn_keys,
 		mcp_enabled       = agent.mcp_enabled_for_turn(),
 		skills_enabled    = agent.skills_enabled_for_turn(),
@@ -1063,13 +1046,6 @@ tui_run_auto_wake :: proc(
 	_ = code
 
 	agent.set_content_delta_handler(nil)
-	g_stream_state = nil
-	g_stream_term = nil
-	g_status_state = nil
-	g_status_term = nil
-	g_sess = nil
-	g_perm = nil
-	g_perm_before = nil
 
 	st.streaming = false
 	strings.builder_reset(&st.live_assist)
@@ -1082,7 +1058,6 @@ tui_run_auto_wake :: proc(
 	rebuild_blocks(st, sess.msgs[:])
 	stream_pin_bottom(st)
 	clamp_selected_block(st)
-	g_cancel = false
 	if ran {
 		state_set_status(st, "ready")
 	}
@@ -1137,42 +1112,28 @@ handle_submit :: proc(
 	strings.builder_reset(&st.live_assist)
 	st.streaming = true
 	stream_pin_bottom(st)
-	g_cancel = false
 	ask_turn_allow := false
-	g_perm = perm
-	g_perm_before = perm_before
+	stream_bind(st, term, sess, perm, perm_before)
+	defer stream_clear()
 	render(term, st)
 
-	g_stream_state = st
-	g_stream_term = term
-	g_sess = sess
 	agent.set_content_delta_handler(stream_delta)
-	g_status_state = st
-	g_status_term = term
 	status_cb :: proc(text: string) {
 		peek_turn_keys()
-		if g_status_state != nil {
+		if stream_st() != nil {
 			// When tools start, drop live stream so it doesn't double with history
 			if strings.has_prefix(text, "tool:") {
-				strings.builder_reset(&g_status_state.live_assist)
+				strings.builder_reset(&stream_st().live_assist)
 			}
-			state_set_status(g_status_state, text)
-			if g_status_term != nil {
-				render(g_status_term, g_status_state)
+			state_set_status(stream_st(), text)
+			if stream_term() != nil {
+				render(stream_term(), stream_st())
 			}
 		}
 	}
 	history_cb :: proc() {
 		peek_turn_keys()
-		if g_stream_state == nil || g_sess == nil {
-			return
-		}
-		rebuild_blocks(g_stream_state, g_sess.msgs[:])
-		// B31: stick to bottom only while stream_follow (user scrolled up → keep place)
-		stream_maybe_pin_bottom(g_stream_state)
-		if g_stream_term != nil {
-			render(g_stream_term, g_stream_state)
-		}
+		stream_tool_done_cb()
 	}
 
 	turn := agent.Turn_Options {
@@ -1191,7 +1152,7 @@ handle_submit :: proc(
 		on_ask_user       = tui_ask_user_question,
 		on_plan_enter     = tui_plan_enter_ask,
 		on_plan_exit      = tui_plan_exit_ask,
-		cancel            = &g_cancel,
+		cancel            = stream_cancel_ptr(),
 		on_poll           = peek_turn_keys,
 		mcp_enabled       = agent.mcp_enabled_for_turn(),
 		skills_enabled    = agent.skills_enabled_for_turn(),
@@ -1202,13 +1163,6 @@ handle_submit :: proc(
 	final_text, code := agent.run_agent_turn(creds^, model^, &sess.msgs, turn)
 
 	agent.set_content_delta_handler(nil)
-	g_stream_state = nil
-	g_stream_term = nil
-	g_status_state = nil
-	g_status_term = nil
-	g_sess = nil
-	g_perm = nil
-	g_perm_before = nil
 
 	st.streaming = false
 	if len(strings.to_string(st.live_assist)) > 0 {
@@ -1266,7 +1220,6 @@ handle_submit :: proc(
 	rebuild_blocks(st, sess.msgs[:])
 	stream_pin_bottom(st)
 	clamp_selected_block(st)
-	g_cancel = false
 	return true
 }
 
@@ -1371,12 +1324,10 @@ handle_slash :: proc(
 	}
 
 	// Capture notices via package-level sink target
-	g_slash_state = st
-	defer g_slash_state = nil
+	stream_bind_slash(st)
+	defer stream_clear_slash()
 	slash_out :: proc(msg: string) {
-		if g_slash_state != nil {
-			state_add_notice(g_slash_state, msg)
-		}
+		stream_notice_slash(msg)
 	}
 
 	action := agent.run_slash(sess, line, opts, model, cwd, perm, slash_out)

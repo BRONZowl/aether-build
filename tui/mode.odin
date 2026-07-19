@@ -53,8 +53,8 @@ cycle_mode :: proc(
 	cwd: string,
 ) {
 	sync_sess_plan :: proc() {
-		if g_sess != nil {
-			g_sess.plan_mode =
+		if stream_sess() != nil {
+			stream_sess().plan_mode =
 				agent.plan_mode_is_active() ||
 				agent.plan_mode_is_pending() ||
 				agent.plan_mode_is_exit_pending()

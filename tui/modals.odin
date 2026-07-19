@@ -23,8 +23,8 @@ tui_modal_ask :: proc(
 	title, name, summary: string,
 	allow_always := true,
 ) -> core.Ask_Decision {
-	st := g_stream_state
-	term := g_stream_term
+	st := stream_st()
+	term := stream_term()
 	if st == nil || term == nil {
 		return .Deny
 	}
@@ -254,8 +254,8 @@ tui_ask_user_question :: proc(arguments_json: string) -> string {
 	if err != "" {
 		return fmt.tprintf("error: %s", err)
 	}
-	st := g_stream_state
-	term := g_stream_term
+	st := stream_st()
+	term := stream_term()
 	if st == nil || term == nil {
 		return agent.ASK_USER_CANCEL_TEXT
 	}
@@ -326,8 +326,8 @@ tui_ask_tool :: proc(name, summary: string) -> core.Ask_Decision {
 		title = fmt.tprintf("approve %s? y/n", name)
 	}
 	dec := tui_modal_ask(title, name, summary, allow_always = true)
-	st := g_stream_state
-	term := g_stream_term
+	st := stream_st()
+	term := stream_term()
 	if st != nil {
 		switch dec {
 		case .Once:
@@ -349,8 +349,8 @@ tui_ask_tool :: proc(name, summary: string) -> core.Ask_Decision {
 // tui_plan_enter_ask: approve model enter_plan_mode tool.
 tui_plan_enter_ask :: proc() -> bool {
 	ok := tui_modal_yn("enter plan mode? y/n", "enter_plan_mode", "explore first; only .grok/plan.md writable")
-	st := g_stream_state
-	term := g_stream_term
+	st := stream_st()
+	term := stream_term()
 	if st != nil {
 		if ok {
 			state_set_status(st, "plan mode enter approved")
@@ -370,8 +370,8 @@ tui_plan_exit_ask :: proc(plan_path, plan_preview: string) -> agent.Plan_Exit_Re
 	if sum == "" {
 		sum = "(empty plan file)"
 	}
-	st := g_stream_state
-	term := g_stream_term
+	st := stream_st()
+	term := stream_term()
 	res := agent.Plan_Exit_Result {
 		outcome = .Cancelled,
 	}
@@ -434,13 +434,13 @@ tui_plan_exit_ask :: proc(plan_path, plan_preview: string) -> agent.Plan_Exit_Re
 	switch res.outcome {
 	case .Approved:
 		state_set_status(st, "plan exit approved")
-		if g_sess != nil {
-			g_sess.plan_mode = false
+		if stream_sess() != nil {
+			stream_sess().plan_mode = false
 		}
 	case .Abandoned:
 		state_set_status(st, "plan abandoned")
-		if g_sess != nil {
-			g_sess.plan_mode = false
+		if stream_sess() != nil {
+			stream_sess().plan_mode = false
 		}
 	case .Cancelled:
 		state_set_status(st, "plan revise — still planning")

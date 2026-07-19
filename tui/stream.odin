@@ -6,35 +6,126 @@ import "core:os"
 import "core:strings"
 import "core:sys/posix"
 import "core:time"
-import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
-import "aether:tools"
 
-// Stream / mid-turn globals + peek handlers (extract from tui.odin).
+// Stream / mid-turn UI context for agent callbacks (on_ask, on_poll, stream deltas).
+// One active turn at a time — bind at turn start, clear at turn end.
 
-// Cooperative cancel + live permission, visible to stream/status/HTTP poll callbacks.
-// Cooperative cancel + live permission, visible to stream/status/HTTP poll callbacks.
+Stream_Ctx :: struct {
+	cancel:      bool,
+	perm:        ^core.Permission_Mode,
+	perm_before: ^core.Permission_Mode,
+	st:          ^App_State,
+	term:        ^Term_State,
+	status_st:   ^App_State,
+	status_term: ^Term_State,
+	sess:        ^agent.Session,
+	slash_st:    ^App_State,
+}
+
+// Package-level active context (callbacks have no user-data slot).
 @(private)
-g_cancel: bool
-@(private)
-g_perm: ^core.Permission_Mode
-@(private)
-g_perm_before: ^core.Permission_Mode
+g_rt: Stream_Ctx
 
-g_slash_state:  ^App_State
-g_stream_state: ^App_State
-g_stream_term:  ^Term_State
-g_status_state: ^App_State
-g_status_term:  ^Term_State
-g_sess:         ^agent.Session
+// stream_bind wires UI + permission pointers for an agent turn / slash status.
+stream_bind :: proc(
+	st: ^App_State,
+	term: ^Term_State,
+	sess: ^agent.Session,
+	perm: ^core.Permission_Mode,
+	perm_before: ^core.Permission_Mode,
+) {
+	g_rt.st = st
+	g_rt.term = term
+	g_rt.status_st = st
+	g_rt.status_term = term
+	g_rt.sess = sess
+	g_rt.perm = perm
+	g_rt.perm_before = perm_before
+	g_rt.cancel = false
+}
 
+// stream_clear drops all turn pointers (safe after turn ends).
+stream_clear :: proc() {
+	g_rt = {}
+}
+
+// stream_bind_slash / stream_clear_slash: notice callback during slash handling.
+stream_bind_slash :: proc(st: ^App_State) {
+	g_rt.slash_st = st
+}
+
+stream_clear_slash :: proc() {
+	g_rt.slash_st = nil
+}
+
+// stream_cancel_ptr: address for Turn_Options.cancel (set true to abort).
+stream_cancel_ptr :: proc() -> ^bool {
+	return &g_rt.cancel
+}
+
+// stream_set_cancel marks cooperative cancel (Ctrl+C mid-turn).
+stream_set_cancel :: proc() {
+	g_rt.cancel = true
+}
+
+// stream_is_cancel reports cancel flag.
+stream_is_cancel :: proc() -> bool {
+	return g_rt.cancel
+}
+
+// stream_sess / stream_st / stream_term accessors for modals & mode.
+stream_sess :: proc() -> ^agent.Session {
+	return g_rt.sess
+}
+
+stream_st :: proc() -> ^App_State {
+	return g_rt.st
+}
+
+stream_term :: proc() -> ^Term_State {
+	return g_rt.term
+}
+
+// stream_notice_slash delivers a notice to the bound slash UI state.
+stream_notice_slash :: proc(msg: string) {
+	if g_rt.slash_st != nil {
+		state_add_notice(g_rt.slash_st, msg)
+	}
+}
+
+// stream_status_cb: Turn_Options.on_status — updates status line + optional live clear.
+stream_status_cb :: proc(text: string) {
+	if g_rt.status_st == nil {
+		return
+	}
+	if text == "" || text == "ready" {
+		strings.builder_reset(&g_rt.status_st.live_assist)
+	}
+	state_set_status(g_rt.status_st, text)
+	if g_rt.status_term != nil {
+		render(g_rt.status_term, g_rt.status_st)
+	}
+}
+
+// stream_tool_done_cb: rebuild blocks after a tool finishes mid-turn.
+stream_tool_done_cb :: proc() {
+	if g_rt.st == nil || g_rt.sess == nil {
+		return
+	}
+	rebuild_blocks(g_rt.st, g_rt.sess.msgs[:])
+	stream_maybe_pin_bottom(g_rt.st)
+	if g_rt.term != nil {
+		render(g_rt.term, g_rt.st)
+	}
+}
 
 // Non-blocking peek during long turns: Ctrl+C cancel, Ctrl+O yolo, Shift+Tab cycle,
 // and B31 scroll keys (so stream_follow can detach while tokens/tools still run).
 // Also used as agent on_poll during in-flight HTTP.
 peek_turn_keys :: proc() {
-	if g_cancel {
+	if g_rt.cancel {
 		return
 	}
 	old: posix.termios
@@ -54,45 +145,45 @@ peek_turn_keys :: proc() {
 	// Scan for cancel first (any position)
 	for i in 0 ..< n {
 		if buf[i] == 0x03 { // Ctrl+C
-			g_cancel = true
-			if g_stream_state != nil {
-				state_set_status(g_stream_state, "cancelling…")
+			g_rt.cancel = true
+			if g_rt.st != nil {
+				state_set_status(g_rt.st, "cancelling…")
 			}
 			return
 		}
 	}
-	if g_stream_state == nil {
+	if g_rt.st == nil {
 		return
 	}
 	// Mode keys only when we have live permission + UI state
-	if g_perm != nil && g_perm_before != nil {
+	if g_rt.perm != nil && g_rt.perm_before != nil {
 		// Ctrl+O = 0x0f
 		for i in 0 ..< n {
 			if buf[i] == 0x0f {
-				toggle_yolo(g_stream_state, g_perm, g_perm_before)
-				if g_stream_term != nil {
-					render(g_stream_term, g_stream_state)
+				toggle_yolo(g_rt.st, g_rt.perm, g_rt.perm_before)
+				if g_rt.term != nil {
+					render(g_rt.term, g_rt.st)
 				}
 				return
 			}
 		}
-		// Shift+Tab: ESC [ Z  or  ESC [ 1 ; 2 Z  (and similar CSI ending in Z)
+		// Shift+Tab: ESC [ Z  or CSI-u 9;2u / modifyOtherKeys
 		if peek_is_shift_tab(buf[:n]) {
 			cwd := "."
-			if g_sess != nil && g_sess.cwd != "" {
-				cwd = g_sess.cwd
+			if g_rt.sess != nil && g_rt.sess.cwd != "" {
+				cwd = g_rt.sess.cwd
 			}
-			cycle_mode(g_stream_state, g_perm, g_perm_before, cwd)
-			if g_stream_term != nil {
-				render(g_stream_term, g_stream_state)
+			cycle_mode(g_rt.st, g_rt.perm, g_rt.perm_before, cwd)
+			if g_rt.term != nil {
+				render(g_rt.term, g_rt.st)
 			}
 			return
 		}
 	}
 	// B31: mid-turn scroll (Ctrl+U/J/K, arrows, PgUp/Dn, wheel)
 	if peek_apply_stream_scroll(buf[:n]) {
-		if g_stream_term != nil {
-			render(g_stream_term, g_stream_state)
+		if g_rt.term != nil {
+			render(g_rt.term, g_rt.st)
 		}
 	}
 }
@@ -100,12 +191,12 @@ peek_turn_keys :: proc() {
 // peek_apply_stream_scroll handles common scroll chords from a raw stdin peek buffer.
 // Returns true if scroll/follow changed.
 peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
-	if g_stream_state == nil || len(buf) == 0 {
+	if g_rt.st == nil || len(buf) == 0 {
 		return false
 	}
 	half := 12
-	if g_stream_term != nil {
-		half = max(1, g_stream_term.rows / 2)
+	if g_rt.term != nil {
+		half = max(1, g_rt.term.rows / 2)
 	}
 	changed := false
 	i := 0
@@ -113,21 +204,21 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 		b := buf[i]
 		// Ctrl+U half-page up (older)
 		if b == 0x15 {
-			stream_scroll_adjust(g_stream_state, half)
+			stream_scroll_adjust(g_rt.st, half)
 			changed = true
 			i += 1
 			continue
 		}
 		// Ctrl+K line up
 		if b == 0x0b {
-			stream_scroll_adjust(g_stream_state, 1)
+			stream_scroll_adjust(g_rt.st, 1)
 			changed = true
 			i += 1
 			continue
 		}
 		// Ctrl+J line down
 		if b == 0x0a {
-			stream_scroll_adjust(g_stream_state, -1)
+			stream_scroll_adjust(g_rt.st, -1)
 			changed = true
 			i += 1
 			continue
@@ -138,10 +229,10 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 			if buf[i + 1] == 'O' && i + 2 < len(buf) {
 				switch buf[i + 2] {
 				case 'A':
-					stream_scroll_adjust(g_stream_state, 1)
+					stream_scroll_adjust(g_rt.st, 1)
 					changed = true
 				case 'B':
-					stream_scroll_adjust(g_stream_state, -1)
+					stream_scroll_adjust(g_rt.st, -1)
 					changed = true
 				}
 				i += 3
@@ -156,18 +247,18 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 						// final
 						ps := string(buf[i + 2:j])
 						if fb == 'A' {
-							stream_scroll_adjust(g_stream_state, 1)
+							stream_scroll_adjust(g_rt.st, 1)
 							changed = true
 						} else if fb == 'B' {
-							stream_scroll_adjust(g_stream_state, -1)
+							stream_scroll_adjust(g_rt.st, -1)
 							changed = true
 						} else if fb == '~' {
 							// ESC [ 5 ~ PgUp, ESC [ 6 ~ PgDn
 							if ps == "5" {
-								stream_scroll_adjust(g_stream_state, half)
+								stream_scroll_adjust(g_rt.st, half)
 								changed = true
 							} else if ps == "6" {
-								stream_scroll_adjust(g_stream_state, -half)
+								stream_scroll_adjust(g_rt.st, -half)
 								changed = true
 							}
 						} else if fb == 'M' || fb == 'm' {
@@ -183,10 +274,10 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 									btn_n = btn_n * 10 + int(btn_str[k] - '0')
 								}
 								if btn_n == 64 || btn_n == 68 || btn_n == 72 || btn_n == 80 {
-									stream_scroll_adjust(g_stream_state, 3)
+									stream_scroll_adjust(g_rt.st, 3)
 									changed = true
 								} else if btn_n == 65 || btn_n == 69 || btn_n == 73 || btn_n == 81 {
-									stream_scroll_adjust(g_stream_state, -3)
+									stream_scroll_adjust(g_rt.st, -3)
 									changed = true
 								}
 							}
@@ -214,18 +305,18 @@ peek_cancel_keys :: proc() {
 }
 
 stream_delta :: proc(text: string) {
-	if g_stream_state == nil {
+	if g_rt.st == nil {
 		return
 	}
 	peek_turn_keys()
-	strings.write_string(&g_stream_state.live_assist, text)
-	g_stream_state.streaming = true
+	strings.write_string(&g_rt.st.live_assist, text)
+	g_rt.st.streaming = true
 	now := time.now()._nsec
-	if g_stream_term != nil && (now - g_stream_state.last_redraw_ns) >= STREAM_REDRAW_NS {
-		g_stream_state.last_redraw_ns = now
-		if g_cancel {
-			state_set_status(g_stream_state, "cancelling…")
+	if g_rt.term != nil && (now - g_rt.st.last_redraw_ns) >= STREAM_REDRAW_NS {
+		g_rt.st.last_redraw_ns = now
+		if g_rt.cancel {
+			state_set_status(g_rt.st, "cancelling…")
 		}
-		render(g_stream_term, g_stream_state)
+		render(g_rt.term, g_rt.st)
 	}
 }

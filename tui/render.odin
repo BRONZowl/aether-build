@@ -398,12 +398,12 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	compact := core.compact_mode_enabled()
 	// B26: live context usage chip (session msgs + streaming draft)
 	ctx_chip := ""
-	if g_sess != nil {
+	if stream_sess() != nil {
 		live := ""
 		if s.streaming {
 			live = strings.to_string(s.live_assist)
 		}
-		ctx_chip = format_context_chip(g_sess.msgs[:], live, compact)
+		ctx_chip = format_context_chip(stream_sess().msgs[:], live, compact)
 	}
 	header: string
 	if compact {
