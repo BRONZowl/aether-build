@@ -221,7 +221,7 @@ print_help :: proc() {
 	fmt.println("  aether [flags] -p \"prompt\"     One-shot headless turn")
 	fmt.println("  aether login | whoami | help | version")
 	fmt.println()
-	fmt.println("Agent (requires session via `aether login` → ~/.grok/auth.json):")
+	fmt.println("Agent flags (auth: XAI_API_KEY or ~/.grok/auth.json):")
 	fmt.println("  -p, --print, --single TEXT   One-shot session, print answer, exit")
 	fmt.println("  -m, --model ID               Model override (default from aether.toml)")
 	fmt.println("  --max-turns N                Cap tool loop turns per prompt (default 20)")

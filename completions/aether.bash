@@ -11,7 +11,7 @@ _aether_grok_odin() {
     prev="${COMP_WORDS[COMP_CWORD-1]}"
   fi
 
-  local cmds="chat repl tui whoami help version"
+  local cmds="chat repl tui login whoami help version"
   local opts="
     -p --print --single
     -m --model
@@ -33,7 +33,7 @@ _aether_grok_odin() {
 
   case "$prev" in
     --permission-mode)
-      COMPREPLY=( $(compgen -W "always-approve read-only ask" -- "$cur") )
+      COMPREPLY=( $(compgen -W "always-approve auto read-only ask" -- "$cur") )
       return
       ;;
     -m|--model)

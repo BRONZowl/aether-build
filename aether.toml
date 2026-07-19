@@ -1,81 +1,45 @@
-# Aether-Grok project runtime defaults.
-# Derived from ~/.grok/config.toml with Aether-appropriate tweaks.
-# Not read by the Odin compiler. Runtime load is planned for the agent port.
-# Secrets (auth tokens) stay in ~/.grok/auth.json — never commit them here.
+# Aether project runtime defaults (sample).
+# Loaded at process start and merged (low→high): defaults → ~/.grok/config.toml → this file → CLI.
+# Only the sections/keys below are read by Aether. Extra Grok product keys may live in
+# ~/.grok/config.toml for the Rust CLI; they are ignored here unless listed.
+# Secrets stay in ~/.grok/auth.json — never commit tokens.
 
-[cli]
-installer = "internal"
-
-[ui]
-max_thoughts_width = 120
-fork_secondary_model = "grok-build"
-yolo = false
-compact_mode = false
-permission_mode = "always-approve"
-remember_tool_approvals = true
-default_selected_permission = "allow_once"
-vim_mode = true
-theme = "tokyonight"
-
-[marketplace]
-official_marketplace_auto_installed = true
-
-[[marketplace.sources]]
-name = "xAI Official"
-git = "https://github.com/xai-org/plugin-marketplace.git"
-
-[memory]
-enabled = true
-
-[memory.session]
-save_on_end = true
-
-[memory.initial_injection]
-enabled = true
-
-[memory.search]
-max_results = 8
-min_score = 0.3
-
-[sandbox]
-profile = "workspace"
-
-[plugins]
-enabled = [
-    "superpowers",
-    "firecrawl",
-    "axiom",
-    "chrome-devtools-mcp",
-    "sentry",
-]
-
+# Loaded: [models] default, default_reasoning_effort
 [models]
 default = "grok-4.5"
 default_reasoning_effort = "medium"
 
-[features]
-lsp_tools = true
-codebase_indexing = true
-telemetry = false
+# Loaded: permission_mode, yolo, auto_compact, auto_compact_pct, theme, vim_mode, compact_mode, timestamps
+[ui]
+permission_mode = "always-approve"
+yolo = false
+compact_mode = false
+vim_mode = true
+theme = "tokyonight"
+# timestamps = false
 
-[tools]
-respect_gitignore = true
-auto_format = true
+# Loaded: [compact] enabled, threshold_pct / auto_compact_pct
+# [compact]
+# enabled = true
+# threshold_pct = 80
 
+# Loaded: [agent] max_turns
+# [agent]
+# max_turns = 20
+
+# Loaded: [memory] enabled, auto_dream; [memory.initial_injection] enabled
+[memory]
+enabled = true
+# auto_dream = true
+
+[memory.initial_injection]
+enabled = true
+
+# Loaded: [subagents] enabled only (max/types/models are Grok-side; ignored)
 [subagents]
 enabled = true
-max_subagents = 2
 
-[subagents.toggle]
-explore = true
-plan = true
-general-purpose = true
-
-[subagents.models]
-explore = "grok-build"
-plan = "grok-build"
-general-purpose = "grok-build"
-
+# Loaded: [permission] allow / deny (Bash/Edit rule globs)
 [permission]
 allow = [
     "Bash(git *)",
@@ -91,7 +55,6 @@ allow = [
     "Bash(pytest *)",
     "Bash(python -m pytest *)",
     "Bash(./scripts/*)",
-    # Aether / Odin port tooling
     "Bash(odin *)",
     "Bash(odinfmt *)",
     "Bash(.tools/bin/*)",

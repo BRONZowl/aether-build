@@ -434,9 +434,9 @@ Ship path has **no unowned Partial/None** rows remaining.
 2. ~~**`write` / `delete_file`**~~ — **done** (Full)  
 3. ~~**`wait_*` / multi-task wait**~~ — **done** (Full)  
 4. **Close Partial tools** — **done through A1.12** (all model tools Full or N/A)  
-5. **Media** — Image#N done; multimodal paste deferred  
+5. **Media** — Image#N + multimodal paste/vision (M1) **done**  
 6. **Subagent** — core Full; personas N/A  
-7. **Epic A1 closed** — next **A2 memory writers** / A3 MCP OAuth / B1 slash builtins
+7. **Epic A1 closed** — A2–A5 / B / C1–C2 / S0–S4 complete (see epic tables above)
 
 Also check: DENY for explore should filter "task" from schema - tool_name_denied already uses deny list.
 
@@ -454,16 +454,11 @@ Run tests.
 
 ---
 
-## Metrics snapshot (kickoff)
+## Metrics snapshot (S4 / 2026-07-19)
 
-| Tag | Approx. subsystem rows | Approx. tool rows |
-|-----|------------------------|-------------------|
-| Full | 0 | 0 |
-| Partial | many | many |
-| Thin | many | few |
-| None | hooks, plugins, pager, compact, … | glob, wait, delete_file, … |
-
-Recompute after each epic.
+Ship-path subsystem and model-tool rows are **Full** or intentional **N/A** (Drop).
+No unowned Partial/None on the Odin daily-driver path. Historical kickoff
+counts (Full: 0) are obsolete; re-read the matrices above when status changes.
 
 ---
 

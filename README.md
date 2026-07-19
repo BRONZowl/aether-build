@@ -267,7 +267,7 @@ For ambiguous or multi-step work, the model (or you via **`/plan`**) can enter *
 - User toggle injects a `<system-reminder>` on the **next** agent turn so the model knows plan is on (or off after Shift+Tab leave).
 - Opt out of plan (and of plan in the Shift+Tab ring): `AETHER_NO_PLAN_MODE=1`.
 
-**Not yet:** mid-turn Pending/ExitPending ACP state machine; remote Auto-mode classifier (local **auto**/accept-edits is in the Shift+Tab ring).
+**Residual N/A:** remote Auto-mode classifier (local **auto**/accept-edits is in the Shift+Tab ring). Plan lifecycle (`Inactive` → `Pending` → `Active` → `Exit_Pending`) is implemented.
 
 ## Subagents
 
