@@ -127,6 +127,13 @@ Sessions are stored under `~/.grok/aether/sessions/` (override with `AETHER_SESS
 
 Tool failures (`error:…` results) show as **fail:** in the status bar and as `· fail ·` on collapsed TUI tool cards (auto-expanded when first shown).
 
+## Brand / welcome art (V1)
+
+Empty TUI sessions, interactive REPL startup, and **`/about`** show an **Aether** wordmark (size-aware tiers). Not a copy of Grok’s Braille logo.
+
+- Off: `AETHER_NO_ASCII_ART=1` or `AETHER_ASCII_ART=off`
+- `/features` row: `ascii-art`
+
 ## TUI (`aether tui`)
 
 Fullscreen raw-terminal chat aligned with **Grok Build** muscle memory where practical. Requires a TTY. Mid-turn: live token stream, tool cards as results land, status for sampling/tools/errors, and an **ask-mode** modal (`y`/`n`) for write/shell tools when permission is `ask`.
@@ -209,7 +216,7 @@ Session path defaults to `https://cli-chat-proxy.grok.com/v1` with Bearer + `X-X
 | `memory_search` / `memory_get` | File memory; writers `/flush`/`/dream`; first-turn inject; auto-dream on exit/new |
 | `search_tool` / `use_tool` | MCP discovery + call (when servers connect) |
 | `skill` | Load discovered SKILL.md by name; marketplace N/A |
-| `spawn_subagent` / `task` | Child agent: explore/plan/gp; bg + resume + worktree; **`task` alias**; personas N/A |
+| `spawn_subagent` / `task` | Child agent: explore/plan/gp; bg + resume + worktree; **`task` alias**; optional **`persona=`** (M9) |
 | `get_task_output` / `kill_task` | Poll / stop background tasks (subagents or shell); `timeout_ms`>0 waits |
 | `wait_tasks` / `wait_commands_or_subagents` | Multi-id wait-all (default) or wait_any; default timeout 30s; max 20 ids; Read |
 | `enter_plan_mode` / `exit_plan_mode` | Plan-first workflow; only `.grok/plan.md` is writable while active |

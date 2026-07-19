@@ -70,7 +70,7 @@ Last updated: 2026-07-19 (product-contract audit vs grok-build `fca5b1f`).
 | Pager / TUI | pager* | C1–C2 + M8 | **Done**; Unicode mermaid layout **M8**; PNG/SVG residual N/A |
 | Sessions / slash | shell* | B2.1–2 | **Done**; multi-client ACP **Drop** (C3 N/A unless reopened) |
 | Soft sandbox | sandbox | FS + soft bash + M6 | **Done** soft; **M6** bwrap OS wrap |
-| Plugins / marketplace | marketplace | None | **Drop** |
+| Plugins / marketplace | marketplace | Local MVP | **Done (M4 local)**; remote marketplace **Drop** |
 | Telemetry / Mixpanel | telemetry, mixpanel | stub | **Drop** |
 | Voice / update | voice, update | None | **Drop** |
 | Multi-client ACP | acp-lib, shell ACP | None | **Drop** |
@@ -197,7 +197,7 @@ make -C aether build vet test smoke-tui
 | Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; **M8** Unicode mermaid layout (flowchart + sequence); PNG/SVG residual N/A |
 | Markdown render | `xai-grok-markdown*` | `tui/markdown`, `tui/mermaid` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; **M8** mermaid Unicode art |
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + doctor; **M3** enroll/set-token auto-reconnect; full browser OAuth DCR still host-assisted N/A |
-| Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; marketplace **N/A** until M4 |
+| Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; remote marketplace **N/A** |
 | Memory | `xai-grok-memory` | `tools/memory*`, flush/dream/inject | Full | file-backed + flush/dream/inject; SQLite/embeddings **N/A** |
 | Hooks | `xai-grok-hooks` | `hooks/` | Full | Command + HTTP (A4.1–7); **folder trust M1** (`/hooks trust|untrust`, `trusted_folders.toml`) |
 | Plugins / marketplace | plugin crates | `agent/plugins` | Full (MVP) | **M4** local `/plugins` list/add/remove/reload + skill roots; remote marketplace residual N/A |
@@ -424,6 +424,17 @@ Defers ACP multi-client, Mixpanel, voice, self-update unless reopened again.
 | **M5** | Hashline optional tool pack | **Complete** (`AETHER_TOOL_PACK=hashline`; content_only_v1 simplified) |
 | **M6** | OS sandbox (Landlock) | **Complete** (soft + bwrap wrap; landlock probe; in-process Landlock residual N/A) |
 | **M8** | Mermaid layout upgrade | **Complete** (Unicode flowchart/sequence art; framed fallback; PNG/SVG residual N/A) |
+| **V1** | Visual parity / Aether brand ASCII art | **Complete** (welcome art TUI/REPL/`/about`; size tiers; `AETHER_NO_ASCII_ART`) |
+
+### Visual surfaces
+
+| Surface | Status | Residual |
+|---------|--------|----------|
+| Welcome / brand art | **Full (V1)** — Aether original wordmark, height tiers | Grok Braille logo + shimmer N/A |
+| Mermaid Unicode layout | **Full (M8)** | PNG/SVG N/A |
+| GFM tables box-drawing | **Full** | — |
+| Themes / compact chrome | **Full** | — |
+| Tool cards / header chips | **Full** | dense Grok affordance chrome N/A |
 
 ### Phase R — Rust retirement
 
@@ -433,7 +444,7 @@ See **[Rust retirement](#rust-retirement-odin-only-endgame)** above (R0–R5).
 
 | Batch | Items | Outcome |
 |-------|--------|---------|
-| R3a | Plugins / marketplace / `/plugins` | **N/A** |
+| R3a | Plugins / marketplace / `/plugins` | **M4 Complete** (local); remote marketplace residual N/A |
 | R3b | Telemetry / update / voice | **N/A** |
 | R3c | OS Landlock/Seatbelt | **M6 Complete** (bwrap + soft; in-process Landlock residual N/A) |
 | R3d | C3 ACP multi-client | **N/A** |
@@ -454,7 +465,8 @@ Ship path has **no unowned Partial/None** rows remaining.
 3. ~~**`wait_*` / multi-task wait**~~ — **done** (Full)  
 4. **Close Partial tools** — **done through A1.12** (all model tools Full or N/A)  
 5. **Media** — Image#N + multimodal paste/vision (M1) **done**  
-6. **Subagent** — core Full; personas N/A  
+6. **Subagent** — core Full; **M9** personas shipped  
+
 7. **Epic A1 closed** — A2–A5 / B / C1–C2 / S0–S4 complete (see epic tables above)
 
 Also check: DENY for explore should filter "task" from schema - tool_name_denied already uses deny list.
@@ -528,10 +540,9 @@ single-process product).
 
 | Residual | Notes |
 |----------|--------|
-| Goal `--budget` token orchestrator | Grok goal_tracker budget auto-pause; Aether `/goal` set/status/pause/resume/clear + `update_goal` only |
-| Hooks folder trust | **M1 shipped** — project hooks gated; plugins still M4 |
 | Full browser OAuth DCR, remote marketplace, ACP multi-client, voice, self-update, Mixpanel | Phase D / residual N/A |
 | Mermaid PNG/SVG raster pipeline | **M8** ships Unicode art; Grok PNG affordance residual N/A |
+| Grok Braille welcome logo + shimmer | **V1** ships Aether original art (pattern parity only) |
 | In-process Landlock apply | **M6** uses bwrap when available; LSM probe only |
 | Remote workspace services, SQLite memory | Documented N/A in matrices |
 

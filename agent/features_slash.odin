@@ -284,6 +284,15 @@ handle_features_slash :: proc(arg: string, allocator := context.allocator) -> st
 		f,
 		&n,
 		&n_on,
+		"ascii-art",
+		core.brand_art_enabled(),
+		"AETHER_ASCII_ART · AETHER_NO_ASCII_ART · welcome brand art",
+	)
+	features_write_row(
+		&b,
+		f,
+		&n,
+		&n_on,
 		"web-fetch",
 		web_fetch_enabled(),
 		"AETHER_NO_WEB_FETCH",

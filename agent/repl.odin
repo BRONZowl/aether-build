@@ -55,6 +55,13 @@ run_repl :: proc(opts: Headless_Options) -> int {
 			title,
 			sess.auto_save,
 		)
+		// V1: brand ASCII art on REPL start (stderr), then tips
+		if core.brand_art_enabled() {
+			art := core.brand_render(24, 80, context.temp_allocator)
+			if art != "" {
+				fmt.eprintf("%s\n", art)
+			}
+		}
 		// B55: discover tips on REPL start
 		fmt.eprintf("aether: interactive mode — /about · /help · /keys · /exit\n")
 	}

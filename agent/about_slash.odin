@@ -8,6 +8,14 @@ import "aether:core"
 // handle_about_slash: short product identity + discoverability tips.
 handle_about_slash :: proc(allocator := context.allocator) -> string {
 	b := strings.builder_make(allocator)
+	// V1: brand art above blurb when enabled
+	if core.brand_art_enabled() {
+		art := core.brand_render_for_about(context.temp_allocator)
+		if art != "" {
+			strings.write_string(&b, art)
+			strings.write_string(&b, "\n\n")
+		}
+	}
 	strings.write_string(&b, "## aether\n")
 	strings.write_string(
 		&b,

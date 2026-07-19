@@ -32,6 +32,7 @@ format_context_chip :: proc(
 
 // flatten_blocks → display rows for current width (temp allocator strings).
 // block_idxs[i] = transcript block index for line i, or -1 for notices/live.
+// term_rows: terminal height for welcome art tier (0 = assume 24).
 flatten_blocks :: proc(
 	s: ^App_State,
 	cols: int,
@@ -39,6 +40,7 @@ flatten_blocks :: proc(
 	styles: ^[dynamic]Line_Style,
 	block_idxs: ^[dynamic]int,
 	allocator := context.allocator,
+	term_rows: int = 0,
 ) {
 	clear(out)
 	clear(styles)
@@ -49,6 +51,20 @@ flatten_blocks :: proc(
 	for n in s.notices {
 		pref := "·" if compact else "· "
 		wrap_push(out, styles, block_idxs, -1, fmt.tprintf("%s%s", pref, n), .Dim, w, allocator)
+	}
+	// V1: empty-session welcome art (no transcript blocks, not streaming)
+	if len(s.blocks) == 0 && !s.streaming && core.brand_art_enabled() {
+		rows_hint := term_rows if term_rows > 0 else 24
+		art_lines := core.brand_pick_art(rows_hint, cols)
+		for line in art_lines {
+			mark_line(out, styles, block_idxs, -1, line, .Dim, allocator)
+		}
+		if len(art_lines) > 0 {
+			tips := core.brand_welcome_tips(context.temp_allocator)
+			mark_line(out, styles, block_idxs, -1, tips, .Dim, allocator)
+			// blank separator before compose area content
+			mark_line(out, styles, block_idxs, -1, "", .Dim, allocator)
+		}
 	}
 	for bi in 0 ..< len(s.blocks) {
 		bl := s.blocks[bi]
@@ -345,7 +361,7 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	lines := make([dynamic]string, 0, 128, context.temp_allocator)
 	styles := make([dynamic]Line_Style, 0, 128, context.temp_allocator)
 	block_idxs := make([dynamic]int, 0, 128, context.temp_allocator)
-	flatten_blocks(s, cols, &lines, &styles, &block_idxs, context.temp_allocator)
+	flatten_blocks(s, cols, &lines, &styles, &block_idxs, context.temp_allocator, rows)
 
 	total := len(lines)
 	max_scroll := max(0, total - body_h)

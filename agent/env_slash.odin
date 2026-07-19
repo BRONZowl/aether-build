@@ -39,6 +39,8 @@ ENV_CATALOG := []Env_Row {
 	{"AETHER_NO_OS_SANDBOX", "force OS sandbox off", false},
 	{"AETHER_RENDER_MERMAID", "mermaid layout: auto|on|off (Unicode art; default auto)", false},
 	{"AETHER_NO_MERMAID", "disable mermaid Unicode layout (raw fence only)", false},
+	{"AETHER_ASCII_ART", "welcome brand art: auto|on|off (default auto)", false},
+	{"AETHER_NO_ASCII_ART", "disable Aether welcome ASCII art (REPL/TUI/about)", false},
 	{"AETHER_NO_MCP", "disable MCP", false},
 	{"AETHER_NO_SKILLS", "disable skills discovery", false},
 	{"AETHER_NO_DESKTOP_NOTIFY", "disable desktop notifications", false},

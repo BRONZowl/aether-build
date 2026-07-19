@@ -953,7 +953,7 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 		lines := make([dynamic]string, 0, 128, context.temp_allocator)
 		styles := make([dynamic]Line_Style, 0, 128, context.temp_allocator)
 		block_idxs := make([dynamic]int, 0, 128, context.temp_allocator)
-		flatten_blocks(st, cols, &lines, &styles, &block_idxs, context.temp_allocator)
+		flatten_blocks(st, cols, &lines, &styles, &block_idxs, context.temp_allocator, rows)
 		total := len(lines)
 		max_scroll := max(0, total - body_h)
 		scroll := st.scroll
