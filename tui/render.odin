@@ -405,6 +405,12 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		write_extensions_hub_body(&b, &s.extensions_hub, cols, body_h)
 	} else if s.dashboard.active {
 		write_dashboard_body(&b, &s.dashboard, cols, body_h)
+	} else if s.command_palette.active {
+		write_command_palette_body(&b, &s.command_palette, cols, body_h)
+	} else if s.docs_picker.active {
+		write_docs_picker_body(&b, &s.docs_picker, cols, body_h)
+	} else if s.personas_modal.active {
+		write_personas_modal_body(&b, &s.personas_modal, cols, body_h)
 	} else if welcome_is_active(s) {
 		// Opening layout matches Grok Build: stacked logo+menu or hero box
 		write_welcome_body(&b, s, cols, body_h)
@@ -492,6 +498,12 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		)
 	} else if s.dashboard.active {
 		status = fmt.tprintf(" %s  | Enter load · k kill · r refresh · Esc", st)
+	} else if s.command_palette.active {
+		status = fmt.tprintf(" %s  | Enter insert · type filter · Esc", st)
+	} else if s.docs_picker.active {
+		status = fmt.tprintf(" %s  | Enter open · Esc", st)
+	} else if s.personas_modal.active {
+		status = fmt.tprintf(" %s  | Enter open · n new · Esc", st)
 	} else if s.search.active {
 		// status already set by search_set_status
 		status = fmt.tprintf(" %s  | n/N next · Esc close", st)

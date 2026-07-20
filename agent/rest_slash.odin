@@ -213,40 +213,33 @@ handle_release_notes_slash :: proc(cwd: string, allocator := context.allocator) 
 	return strings.to_string(b)
 }
 
-// handle_privacy_slash: local-only product privacy status.
+// handle_privacy_slash: persist local coding_data_share preference.
 handle_privacy_slash :: proc(arg: string, allocator := context.allocator) -> string {
 	a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
-	b := strings.builder_make(allocator)
-	strings.write_string(&b, "## privacy\n")
 	switch a {
 	case "":
-		strings.write_string(
-			&b,
-			"Aether keeps sessions, memory, and feedback on disk under ~/.grok (local).\n" +
-			"There is no Grok cloud “coding data sharing” toggle in this product.\n" +
-			"Inference uses your signed-in account or XAI_API_KEY (see /whoami, /login).\n" +
-			"Usage: /privacy [opt-in|opt-out] — notes only; no remote preference store.\n",
-		)
+		return core.privacy_status_text(allocator)
 	case "opt-in", "in", "share":
-		strings.write_string(
-			&b,
-			"aether: noted opt-in preference locally (no remote coding-data API).\n" +
-			"Sessions remain under ~/.grok unless you export/share them yourself.\n",
-		)
+		pe := core.set_privacy_coding_data_share(true)
+		msg := "aether: privacy opt-in saved (coding_data_share=true in config.toml).\n" +
+			"Still no remote coding-data API — local preference only.\n"
+		if pe != "" {
+			msg = fmt.tprintf("%s(persist note: %s)\n", msg, pe)
+		}
+		return strings.clone(msg, allocator)
 	case "opt-out", "out", "private":
-		strings.write_string(
-			&b,
-			"aether: noted opt-out preference locally (default posture).\n" +
-			"No extra telemetry is sent beyond the inference API you already use.\n",
-		)
+		pe := core.set_privacy_coding_data_share(false)
+		msg := "aether: privacy opt-out saved (coding_data_share=false).\n"
+		if pe != "" {
+			msg = fmt.tprintf("%s(persist note: %s)\n", msg, pe)
+		}
+		return strings.clone(msg, allocator)
 	case:
-		strings.write_string(
-			&b,
-			"aether: usage: /privacy [opt-in|opt-out]\n" +
-			"Aliases: in, share | out, private\n",
+		return strings.clone(
+			"aether: usage: /privacy [opt-in|opt-out]\nAliases: in, share | out, private\n",
+			allocator,
 		)
 	}
-	return strings.to_string(b)
 }
 
 // handle_terminal_setup_slash: environment / color / clipboard diagnostics.
@@ -473,16 +466,33 @@ handle_transcript_slash :: proc(sess: Session, allocator := context.allocator) -
 	)
 }
 
-// handle_share_slash: no public URL share; point at export.
+// handle_share_slash: local share — export markdown + copy path to clipboard.
 handle_share_slash :: proc(sess: ^Session, allocator := context.allocator) -> string {
 	if sess == nil {
 		return strings.clone("aether: no active session to share", allocator)
 	}
+	path, e := session_export_markdown(sess^, "", context.temp_allocator)
+	if e != "" {
+		return strings.clone(
+			fmt.tprintf(
+				"aether: share export failed: %s\n  Session file: %s\n",
+				e,
+				sess.path,
+			),
+			allocator,
+		)
+	}
+	// Clipboard gets path (and a short hint); public URL N/A
+	clip := fmt.tprintf("%s\n", path)
+	cst := copy_text_to_clipboard(clip)
 	return strings.clone(
 		fmt.tprintf(
-			"aether: public URL share is not available in Aether.\n" +
-			"  Export: /export or /transcript\n" +
-			"  Session file: %s\n",
+			"aether: local share ready (no public URL).\n" +
+			"  transcript: %s\n" +
+			"  clipboard: %s\n" +
+			"  session: %s\n",
+			path,
+			cst,
 			sess.path,
 		),
 		allocator,
@@ -534,41 +544,7 @@ handle_config_agents_slash :: proc(cwd: string, allocator := context.allocator) 
 	return strings.to_string(b)
 }
 
-// handle_import_claude_slash: scan for Claude settings; report (no full modal import yet).
-handle_import_claude_slash :: proc(cwd: string, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	strings.write_string(&b, "## import-claude\n")
-	home, _ := os.user_home_dir(context.temp_allocator)
-	cands := make([dynamic]string, 0, 8, context.temp_allocator)
-	if home != "" {
-		append(&cands, fmt.tprintf("%s/.claude.json", home))
-		append(&cands, fmt.tprintf("%s/.claude/settings.json", home))
-		append(&cands, fmt.tprintf("%s/.claude/settings.local.json", home))
-	}
-	base := cwd if cwd != "" else "."
-	append(&cands, fmt.tprintf("%s/.claude/settings.json", base))
-	append(&cands, fmt.tprintf("%s/.mcp.json", base))
-	append(&cands, fmt.tprintf("%s/.claude.json", base))
-
-	found := 0
-	for p in cands {
-		if os.exists(p) && !os.is_directory(p) {
-			fmt.sbprintf(&b, "  found: %s\n", p)
-			found += 1
-		}
-	}
-	if found == 0 {
-		strings.write_string(&b, "  (no Claude settings files found near home/cwd)\n")
-	}
-	strings.write_string(
-		&b,
-		"\nAether does not auto-merge Claude settings yet.\n" +
-		"  Sessions: /import <path.json>\n" +
-		"  MCP: edit ~/.grok config / project MCP files · /mcps\n" +
-		"  Hooks: /hooks · Plugins: /plugins add\n",
-	)
-	return strings.to_string(b)
-}
+// import-claude lives in import_claude.odin (scan/apply merge).
 
 // handle_dashboard_slash: text snapshot (TUI opens interactive dashboard).
 handle_dashboard_slash :: proc(sess: ^Session, allocator := context.allocator) -> string {

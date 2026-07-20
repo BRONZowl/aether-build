@@ -256,8 +256,8 @@ SLASH_CATALOG := [?]Slash_Entry {
 		primary = "/share",
 		section = "Session",
 		help_left = "/share",
-		help_right = "export path (no public URL share)",
-		desc = "Share this session via URL",
+		help_right = "export transcript + copy path (local)",
+		desc = "Export transcript and copy path for local share",
 		in_menu = true,
 	},
 	{
@@ -384,9 +384,9 @@ SLASH_CATALOG := [?]Slash_Entry {
 		primary = "/voice",
 		section = "TUI & chrome",
 		help_left = "/voice",
-		help_right = "dictation (not available in Aether)",
-		desc = "Toggle dictation (not available in Aether)",
-		in_menu = true,
+		help_right = "dictation N/A (no STT stack)",
+		desc = "Dictation is not available in Aether",
+		in_menu = false,
 	},
 	{
 		primary = "/loop",
@@ -442,8 +442,8 @@ SLASH_CATALOG := [?]Slash_Entry {
 		primary = "/privacy",
 		section = "Model & auth",
 		help_left = "/privacy [opt-in|opt-out]",
-		help_right = "privacy / data-retention status",
-		desc = "Show or toggle privacy & data retention status",
+		help_right = "local coding_data_share preference",
+		desc = "Show or toggle local privacy preference",
 		in_menu = true,
 	},
 	{
@@ -473,9 +473,9 @@ SLASH_CATALOG := [?]Slash_Entry {
 	{
 		primary = "/import-claude",
 		section = "Session",
-		help_left = "/import-claude",
-		help_right = "scan Claude settings paths (no modal merge)",
-		desc = "Open the Claude settings import modal",
+		help_left = "/import-claude [apply]",
+		help_right = "scan/merge Claude mcpServers into config",
+		desc = "Import Claude MCP settings (scan or apply)",
 		in_menu = true,
 	},
 	{

@@ -96,6 +96,32 @@ handle_slash :: proc(
 		state_set_status(st, "settings")
 		return true
 	}
+	// /help bare → command palette
+	if line == "/help" || line == "/?" {
+		input_clear(st)
+		command_palette_open(&st.command_palette)
+		state_set_status(st, "command palette")
+		return true
+	}
+	// /docs bare → docs picker
+	if line == "/docs" || line == "/howto" || line == "/guides" {
+		input_clear(st)
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		docs_picker_open(&st.docs_picker, ws)
+		state_set_status(st, "docs")
+		return true
+	}
+	// /personas /config-agents → personas modal
+	if line == "/personas" ||
+	   line == "/persona" ||
+	   line == "/config-agents" ||
+	   line == "/agents" {
+		input_clear(st)
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		personas_modal_open(&st.personas_modal, ws)
+		state_set_status(st, "agents / personas")
+		return true
+	}
 	// Wave 3: /dashboard → overview (sessions + bg + scheduled)
 	if line == "/dashboard" || line == "/agents-dashboard" {
 		input_clear(st)

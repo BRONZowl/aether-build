@@ -205,6 +205,24 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 			continue
 		}
+		if st.command_palette.active {
+			if handle_command_palette_key(&st, key) {
+				dirty = true
+			}
+			continue
+		}
+		if st.docs_picker.active {
+			if handle_docs_picker_key_term(&st, &term, key) {
+				dirty = true
+			}
+			continue
+		}
+		if st.personas_modal.active {
+			if handle_personas_modal_key(&st, &term, key) {
+				dirty = true
+			}
+			continue
+		}
 		// Scrollback find mode
 		if st.search.active {
 			if handle_search_key(&st, key) {

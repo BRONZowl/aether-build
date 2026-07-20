@@ -19,6 +19,9 @@ Overlay_Kind :: enum {
 	Settings,
 	Extensions,
 	Dashboard,
+	Command_Palette,
+	Docs_Picker,
+	Personas,
 }
 
 // overlay_kind: highest-priority active overlay (ask steals first).
@@ -52,6 +55,15 @@ overlay_kind :: proc(s: ^App_State) -> Overlay_Kind {
 	}
 	if s.dashboard.active {
 		return .Dashboard
+	}
+	if s.command_palette.active {
+		return .Command_Palette
+	}
+	if s.docs_picker.active {
+		return .Docs_Picker
+	}
+	if s.personas_modal.active {
+		return .Personas
 	}
 	return .None
 }

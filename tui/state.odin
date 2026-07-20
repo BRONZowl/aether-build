@@ -108,6 +108,10 @@ App_State :: struct {
 	extensions_hub:  Extensions_Hub,
 	// Wave 3: agent dashboard
 	dashboard:       Dashboard,
+	// Remaining surfaces
+	command_palette: Command_Palette,
+	docs_picker:     Docs_Picker,
+	personas_modal:  Personas_Modal,
 	// Mid-turn prompt queue (Grok /queue)
 	prompt_queue:       [dynamic]string, // owned FIFO
 	queue_pane_active:  bool,
@@ -150,6 +154,9 @@ state_init :: proc(s: ^App_State) {
 	settings_modal_init(&s.settings_modal)
 	extensions_hub_init(&s.extensions_hub)
 	dashboard_init(&s.dashboard)
+	command_palette_init(&s.command_palette)
+	docs_picker_init(&s.docs_picker)
+	personas_modal_init(&s.personas_modal)
 	prompt_queue_init(s)
 	s.ask_active = false
 	s.ask_name = ""
@@ -210,6 +217,9 @@ state_destroy :: proc(s: ^App_State) {
 	settings_modal_destroy(&s.settings_modal)
 	extensions_hub_destroy(&s.extensions_hub)
 	dashboard_destroy(&s.dashboard)
+	command_palette_destroy(&s.command_palette)
+	docs_picker_destroy(&s.docs_picker)
+	personas_modal_destroy(&s.personas_modal)
 	prompt_queue_destroy(s)
 	delete(s.ask_name)
 	delete(s.ask_summary)

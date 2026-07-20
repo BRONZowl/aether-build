@@ -602,7 +602,7 @@ run_slash :: proc(
 		return .Continue
 	case "/import-claude":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit_lines(out, handle_import_claude_slash(ws, context.temp_allocator))
+		emit_lines(out, handle_import_claude_slash(arg, ws, context.temp_allocator))
 		return .Continue
 	case "/dashboard", "/agents-dashboard":
 		emit_lines(out, handle_dashboard_slash(sess, context.temp_allocator))

@@ -4,6 +4,17 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Remaining surfaces (except billing)
+
+- **Command palette** (`/help`): searchable slash list; Enter inserts into composer
+- **Docs picker** (`/docs`): local markdown + web Build docs + discover shortcuts
+- **Personas/agents modal** (`/personas`, `/config-agents`): list types/personas, open in pager, `n` scaffold stub
+- **Privacy persist**: `/privacy opt-in|opt-out` → `[privacy] coding_data_share` in config.toml
+- **Import Claude apply**: `/import-claude apply` merges `mcpServers` into ~/.grok/config.toml
+- **Share local**: `/share` exports transcript + copies path to clipboard
+- **Settings**: cycle theme/permission, open model picker, privacy toggle (still no billing)
+- Voice remains **N/A**; billing remains **N/A**
+
 ### Wave 4 — btw + recap
 
 - `/btw <question>`: short side-agent completion (not appended to session history); offline → local note
