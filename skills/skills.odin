@@ -45,7 +45,12 @@ start_registry :: proc(cwd: string, quiet: bool, allocator := context.allocator)
 	}
 	reg := new(Skill_Registry, ha)
 	reg.skills = list
-	if !quiet {
+	// Discovery is silent by default (Grok-quiet headless). Opt in:
+	// AETHER_VERBOSE_SKILLS=1 or caller quiet=false with AETHER_VERBOSE=1.
+	_ = quiet
+	if v := os.get_env("AETHER_VERBOSE_SKILLS", context.temp_allocator); v == "1" ||
+	   strings.equal_fold(v, "true") ||
+	   strings.equal_fold(v, "yes") {
 		n_dis := 0
 		n_cmd := 0
 		for s in reg.skills {

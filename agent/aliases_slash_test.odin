@@ -11,7 +11,10 @@ test_handle_aliases_slash_basic :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(out, "/m") || strings.contains(out, "/model"), out)
 	testing.expect(t, strings.contains(out, "/yolo") || strings.contains(out, "/always-approve"), out)
 	testing.expect(t, strings.contains(out, "/cm") || strings.contains(out, "/compact"), out)
-	testing.expect(t, strings.contains(out, "/q") || strings.contains(out, "/exit"), out)
+	testing.expect(t, strings.contains(out, "/quit"), out)
+	testing.expect(t, strings.contains(out, "/exit") || strings.contains(out, "/q"), out)
+	testing.expect(t, strings.contains(out, "/settings"), out)
+	testing.expect(t, strings.contains(out, "/mcps") || strings.contains(out, "/mcp"), out)
 }
 
 @(test)

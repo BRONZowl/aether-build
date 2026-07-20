@@ -62,7 +62,7 @@ run_repl :: proc(opts: Headless_Options) -> int {
 				fmt.eprintf("%s\n", art)
 			}
 		} else {
-			fmt.eprintf("aether: interactive mode — /about · /help · /keys · /exit\n")
+			fmt.eprintf("%s\n", core.brand_repl_no_art_banner(context.temp_allocator))
 		}
 	}
 

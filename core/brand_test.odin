@@ -96,6 +96,30 @@ test_brand_welcome_has_menu :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_brand_startup_slash_tips_consistent :: proc(t: ^testing.T) {
+	set := brand_startup_slash_tips(context.allocator)
+	defer delete(set)
+	testing.expect(t, strings.contains(set, "/quit"), set)
+	testing.expect(t, strings.contains(set, "/help"), set)
+	testing.expect(t, !strings.contains(set, "/exit"), set)
+
+	welcome := brand_welcome_tips(context.allocator)
+	defer delete(welcome)
+	testing.expect(t, strings.contains(welcome, set), welcome)
+	testing.expect(t, strings.has_prefix(welcome, "type a message"), welcome)
+
+	resume := brand_resume_tips_notice(context.allocator)
+	defer delete(resume)
+	testing.expect(t, strings.contains(resume, set), resume)
+	testing.expect(t, strings.has_prefix(resume, "tips:"), resume)
+
+	repl := brand_repl_no_art_banner(context.allocator)
+	defer delete(repl)
+	testing.expect(t, strings.contains(repl, set), repl)
+	testing.expect(t, !strings.contains(repl, "/exit"), repl)
+}
+
+@(test)
 test_brand_hero_gate :: proc(t: ^testing.T) {
 	prev := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator)
 	_ = os.unset_env("AETHER_NO_ASCII_ART")

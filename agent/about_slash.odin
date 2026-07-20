@@ -36,13 +36,14 @@ handle_about_slash :: proc(allocator := context.allocator) -> string {
 	strings.write_string(&b, "  /keys       TUI keyboard shortcuts\n")
 	strings.write_string(&b, "  /tools      model tools for this process\n")
 	strings.write_string(&b, "  /status     auth / model / session snapshot\n")
-	strings.write_string(&b, "  /config     effective settings + env overrides\n")
+	strings.write_string(&b, "  /settings   effective settings + env overrides (/config)\n")
 	strings.write_string(&b, "  /doctor     health check (deps, paths, soft systems)\n")
 	strings.write_string(&b, "  /soft-bash  shell hard-deny + inspect auto-allow\n")
 	strings.write_string(&b, "  /permissions  ask/auto/yolo/read-only modes (/perm)\n")
 	strings.write_string(&b, "  /env         AETHER_* kill-switches + product env\n")
 	strings.write_string(&b, "  /paths      config / sessions / memory locations\n")
 	strings.write_string(&b, "  /features   process feature flags on/off\n")
+	strings.write_string(&b, "  /mcps       MCP servers (/mcp)\n")
 	strings.write_string(&b, "  /context    estimated context window usage\n\n")
 	strings.write_string(
 		&b,

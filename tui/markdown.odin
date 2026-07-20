@@ -1,38 +1,60 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 // Package tui — lightweight markdown → ANSI for assistant scrollback (C1.1/C1.2).
+// TUI: render Grok-style; headless/NO_COLOR: keep markdown source visible.
 package tui
 
 import "core:fmt"
 import "core:strings"
 import "core:unicode/utf8"
+import "aether:core"
 
 // write_md_inline paints one logical line with markdown markers into b.
 // Returns visible rune count (markers do not count). Caps at cols.
-// Supports: `code`, **bold**, *italic*, leading # headers, list "- "/"* ".
+// Supports: `code`, **bold** / __bold__, *italic*, # headers, list "- "/"* ".
+// Always applies structural SGR (bold/dim/reverse) so markdown is visible even
+// when NO_COLOR=1 (chroma colors are optional).
 write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
+	color := !core.ui_color_disabled()
 	visible := 0
 	i := 0
 	in_code := false
 	in_bold := false
 	in_italic := false
+	heading := false
 
-	// Line-prefix: headings / bullets (once at start)
+	// Line-prefix: headings / bullets
 	if len(text) > 0 {
-		// #{1,6} space → bold line body
 		h := 0
 		for h < len(text) && h < 6 && text[h] == '#' {
 			h += 1
 		}
 		if h > 0 && h < len(text) && text[h] == ' ' {
-			strings.write_string(b, "\x1b[1m")
+			// Dim hashes stay so headings read as markdown structure
+			strings.write_string(b, "\x1b[2m")
+			for k in 0 ..< h {
+				if visible >= cols {
+					break
+				}
+				strings.write_byte(b, '#')
+				visible += 1
+			}
+			if visible < cols {
+				strings.write_byte(b, ' ')
+				visible += 1
+			}
+			strings.write_string(b, "\x1b[22m\x1b[1m")
 			in_bold = true
+			heading = true
 			i = h + 1
 		} else if len(text) >= 2 &&
 		          (text[0] == '-' || text[0] == '*') &&
 		          text[1] == ' ' {
-			// list bullet (not italic)
 			if visible + 2 <= cols {
-				strings.write_string(b, "• ")
+				if color {
+					strings.write_string(b, "\x1b[36m•\x1b[0m ")
+				} else {
+					strings.write_string(b, "• ")
+				}
 				visible += 2
 			}
 			i = 2
@@ -40,19 +62,31 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 	}
 
 	for i < len(text) && visible < cols {
-		// **bold**
-		if !in_code && i + 1 < len(text) && text[i] == '*' && text[i + 1] == '*' {
-			if in_bold {
-				strings.write_string(b, "\x1b[22m")
-				in_bold = false
-			} else {
-				strings.write_string(b, "\x1b[1m")
-				in_bold = true
+		// **bold** or __bold__
+		if !in_code && i + 1 < len(text) {
+			dbl :=
+				(text[i] == '*' && text[i + 1] == '*') ||
+				(text[i] == '_' && text[i + 1] == '_')
+			if dbl {
+				if in_bold && !heading {
+					strings.write_string(b, "\x1b[22m")
+					if color {
+						strings.write_string(b, "\x1b[39m")
+					}
+					in_bold = false
+				} else if !in_bold {
+					if color {
+						strings.write_string(b, "\x1b[1m\x1b[97m")
+					} else {
+						strings.write_string(b, "\x1b[1m")
+					}
+					in_bold = true
+				}
+				i += 2
+				continue
 			}
-			i += 2
-			continue
 		}
-		// *italic* (single asterisk, not list — lists handled at prefix)
+		// *italic*
 		if !in_code && text[i] == '*' {
 			if in_italic {
 				strings.write_string(b, "\x1b[23m")
@@ -68,6 +102,9 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		if text[i] == '`' {
 			if in_code {
 				strings.write_string(b, "\x1b[27m")
+				if color {
+					strings.write_string(b, "\x1b[39m")
+				}
 				in_code = false
 			} else {
 				strings.write_string(b, "\x1b[7m")
@@ -84,7 +121,7 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		visible += 1
 		i += sz
 	}
-	if in_code || in_bold || in_italic {
+	if in_code || in_bold || in_italic || heading {
 		strings.write_string(b, "\x1b[0m")
 	}
 	return visible

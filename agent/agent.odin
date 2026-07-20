@@ -62,7 +62,8 @@ run_headless :: proc(opts: Headless_Options) -> int {
 	}
 	defer destroy_credentials(&creds)
 
-	if !opts.quiet {
+	// Headless: keep stderr clean (Grok -p prints answer only). Auth line is verbose-only.
+	if !opts.quiet && opts.verbose {
 		who := creds.email if creds.email != "" else (creds.user_id if creds.user_id != "" else "api-key")
 		mode := "session" if creds.kind == .Session else "api-key"
 		fmt.eprintf(

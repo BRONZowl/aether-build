@@ -4,6 +4,35 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Transcript / tool output (Grok-shaped)
+
+- User lines use `❯` (Grok prompt arrow) instead of `>`
+- Tool cards: human titles (`Read path`, `$ cmd`, `Edited path`, …) — no `▸ [tool] name · (N lines)`
+- Expanded tools show result body only (hide raw `args:…---` dump in the card)
+- Tool cards stay **collapsed** by default (press expand for detail)
+- **Slash menu dedupe:** `/session` → alias of `/session-info`; `/sessions` → alias of `/resume`; discover dumps (`/env`, `/paths`, `/doctor`, …) stay in `/help` but off bare-`/` list
+- **Prefix matches:** at most one dropdown row per command (primary preferred over alias; no `/session` + `/session-info` twin rows)
+- **Grok behavior align:** `/clear` = `/new`; `/usage`/`/cost` honest billing-N/A + context fallback; TUI bare `/sessions` opens session picker like `/resume`; catalog descs honest for non-modal cmds — see `docs/COMMAND_PARITY.md`
+- **Remaining Grok slash commands** (text/TUI equivalents; honest N/A where blocked):
+  - `/docs` (`/howto`), `/home` (`/welcome`), `/cd`, `/transcript` (`/log` + `$PAGER`), `/expand`, `/tasks`, `/queue`
+  - `/release-notes` (`/changelog`), `/privacy`, `/terminal-setup`, `/toggle-mouse-reporting`
+  - `/logout`, `/recap`, `/dashboard`, `/marketplace`, `/config-agents` (`/agents`), `/import-claude`, `/share`, `/voice`
+  - Catalog order tracks Grok `builtin_commands()` for shared names
+- **Output cleanup (Grok-shaped):**
+  - **TUI:** blank gap between blocks; tool cards `│ Read path` / `│ $ cmd`; assistant markdown always styled (bold/code/headings) even with `NO_COLOR`
+  - **Headless `-p`:** print **final answer only** (no mid-tool chatter, no auth banner); `AETHER_STREAM_STDOUT=1` for live tokens
+  - stderr quiet unless `--verbose` or real errors
+
+
+### Displayed slash commands (Grok-facing primaries)
+
+- Single catalog `core/slash_catalog.odin` drives `/help`, `/aliases`, and the bare-`/` menu
+- Primaries aligned with Grok Build where implemented: **`/quit`**, **`/settings`**, **`/mcps`**, **`/context`**, plus the rest of the Grok shared set (old names remain aliases)
+- Bare `/` menu lists primaries only; typing an alias prefix still completes (e.g. `/ex` → `/exit`)
+- **Startup banners** share `BRAND_STARTUP_SLASH_TIPS` (`/about · /help · /keys · /quit`): welcome tip, REPL no-art line, resume notice, CLI help uses `/quit`
+- **Slash dropdown** matches Grok Build layout: top rule + count, `❯ /name` + description column, bottom rule; Grok-facing descriptions for shared commands
+- **Bare-`/` menu order** follows Grok `builtin_commands()` for shared cmds (`/quit`, `/help`, `/docs`, `/home`, `/new`, …); Aether-only cmds after
+
 ### TUI chrome (Grok-shaped)
 
 - Top bar: git branch + `~/cwd` (left) · plan/goal/todos/ctx/mode/model chips (right)

@@ -45,6 +45,56 @@ handle_slash :: proc(
 		state_set_status(st, "multiline on" if st.multiline_mode else "multiline off")
 		return true
 	}
+	// Grok /expand — expand last tool card (fullscreen TUI equivalent of minimal re-print)
+	if line == "/expand" {
+		input_clear(st)
+		if toggle_last_tool_expand(st) {
+			// force expanded (toggle may have collapsed if already open)
+			for i := len(st.blocks) - 1; i >= 0; i -= 1 {
+				if st.blocks[i].kind == .Tool {
+					st.blocks[i].expanded = true
+					break
+				}
+			}
+			state_set_status(st, "expanded last tool")
+			state_add_notice(st, "aether: expanded last tool card")
+		} else {
+			state_set_status(st, "no tool card to expand")
+			state_add_notice(st, "aether: no tool card to expand")
+		}
+		return true
+	}
+	// Grok /toggle-mouse-reporting
+	if line == "/toggle-mouse-reporting" {
+		input_clear(st)
+		on := term_toggle_mouse(term)
+		msg := "mouse reporting on" if on else "mouse reporting off"
+		state_set_status(st, msg)
+		state_add_notice(st, fmt.tprintf("aether: %s", msg))
+		return true
+	}
+	// Grok /transcript|/log — export markdown and open in $PAGER
+	if line == "/transcript" || line == "/log" {
+		input_clear(st)
+		path, eerr := agent.handle_transcript_export(sess^, context.allocator)
+		if eerr != "" {
+			state_set_status(st, eerr)
+			state_add_notice(st, fmt.tprintf("aether: transcript failed: %s", eerr))
+			return true
+		}
+		state_add_notice(st, fmt.tprintf("aether: transcript → %s", path))
+		term_suspend_for_pager(term)
+		perr := agent.run_transcript_pager(path)
+		term_resume_after_pager(term)
+		if perr != "" {
+			state_add_notice(st, fmt.tprintf("aether: pager: %s", perr))
+			state_set_status(st, "transcript saved (pager failed)")
+		} else {
+			state_set_status(st, "transcript pager closed")
+		}
+		delete(path)
+		return true
+	}
 	// B40: bare /copy with a scrollback selection → copy that block (else agent Nth assistant)
 	if line == "/copy" {
 		if st.selected_block >= 0 && st.selected_block < len(st.blocks) {
@@ -56,7 +106,8 @@ handle_slash :: proc(
 		}
 		// no selection: fall through to agent /copy (latest assistant)
 	}
-	if line == "/resume" || line == "/sessions-ui" {
+	// Grok /resume → session picker. Bare /sessions is alias of /resume.
+	if line == "/resume" || line == "/sessions" || line == "/sessions-ui" {
 		input_clear(st)
 		err := picker_open(&st.picker, sess.sessions_dir)
 		if err != "" {
@@ -134,17 +185,26 @@ handle_slash :: proc(
 		// refresh header + blocks + history
 		delete(st.model)
 		st.model = strings.clone(model^)
+		state_set_cwd(st, cwd^)
 		state_set_session_meta(st, sess.id, sess.title)
 		rebuild_blocks(st, sess.msgs[:])
 		seed_prompt_history(st, sess.msgs[:])
 		stream_pin_bottom(st)
-		// B56: /clear and /new drop ephemeral notice spam
-		if line == "/clear" || line == "/new" || strings.has_prefix(line, "/new ") {
+		// B56: /clear, /new, /home drop ephemeral notice spam
+		if line == "/clear" ||
+		   line == "/new" ||
+		   strings.has_prefix(line, "/new ") ||
+		   line == "/home" ||
+		   line == "/welcome" {
 			state_clear_notices(st)
 		}
 		state_set_status(st, "ready")
 		return true
 	case .Continue:
+		// keep top-bar cwd in sync after /cd
+		if line == "/cd" || strings.has_prefix(line, "/cd ") {
+			state_set_cwd(st, cwd^)
+		}
 		// show last notice in status if any
 		if len(st.notices) > 0 {
 			state_set_status(st, st.notices[len(st.notices) - 1])

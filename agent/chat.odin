@@ -384,7 +384,6 @@ chat_completion_stream :: proc(
 	allocator := context.allocator,
 	http_opts: Chat_Http_Opts = {},
 ) -> (Assistant_Turn, string /* error */) {
-	_ = quiet // progress quiet is handled by caller; tokens always stream when enabled
 	http_opts := http_opts
 	http_opts.verbose = verbose || http_opts.verbose
 
@@ -403,6 +402,15 @@ chat_completion_stream :: proc(
 		on_poll           = http_opts.on_poll,
 	}
 
+	// Headless output policy (clean, Grok-scriptable):
+	//   default → buffer; agent loop prints the *final* answer once (no mid-tool noise)
+	//   AETHER_STREAM_STDOUT=1 → live-stream tokens like Grok plain progressive mode
+	// TUI sets g_content_delta and never writes tokens to stdout.
+	live_stdout :=
+		g_content_delta == nil &&
+		!quiet &&
+		os_env_truthy("AETHER_STREAM_STDOUT")
+
 	last_err := ""
 	for attempt in 0 ..= 2 {
 		if http_opts.cancel != nil && http_opts.cancel^ {
@@ -410,7 +418,7 @@ chat_completion_stream :: proc(
 		}
 
 		accum: Stream_Accum
-		accum.live_print = true
+		accum.live_print = live_stdout
 		accum.content = strings.builder_make(context.temp_allocator)
 		accum.tool_ids = make([dynamic]string, context.temp_allocator)
 		accum.tool_names = make([dynamic]string, context.temp_allocator)
@@ -489,9 +497,14 @@ chat_completion_stream :: proc(
 		   strings.builder_len(accum.content) == 0 &&
 		   len(accum.tool_ids) == 0 {
 			turn, err := parse_chat_completions_response(full_body, allocator)
-			if err == "" && turn.content != "" {
-				// Not progressive — print once so callers that skip println still show output
-				fmt.println(turn.content)
+			// Non-stream JSON body: print once like a completed plain stream (Grok plain).
+			if err == "" && turn.content != "" && live_stdout && len(turn.tool_calls) == 0 {
+				fmt.print(turn.content)
+				if len(turn.content) == 0 || turn.content[len(turn.content) - 1] != '\n' {
+					fmt.println()
+				} else {
+					// already ends with \n — still ensure shell prompt sits cleanly
+				}
 				turn.streamed_to_stdout = true
 			}
 			return turn, err
@@ -499,7 +512,7 @@ chat_completion_stream :: proc(
 
 		turn := assemble_stream_turn(&accum, allocator)
 		if turn.streamed_to_stdout {
-			// Ensure the streamed answer ends with a newline for the next prompt / shell
+			// Grok plain on_end: trailing newline after streamed answer
 			if !accum.saw_tool_calls && accum.printed_any {
 				content := strings.to_string(accum.content)
 				if len(content) == 0 || content[len(content) - 1] != '\n' {
@@ -515,9 +528,10 @@ chat_completion_stream :: proc(
 assemble_stream_turn :: proc(accum: ^Stream_Accum, allocator := context.allocator) -> Assistant_Turn {
 	turn: Assistant_Turn
 	turn.content = strings.clone(strings.to_string(accum.content), allocator)
-	// Callers skip println when we already printed live content (including tool turns
-	// that briefly streamed prose before tool_calls).
-	turn.streamed_to_stdout = accum.printed_any
+	// Final answer only: do not treat tool-prep prose as "already printed final".
+	// That would skip printing the real post-tool answer.
+	turn.streamed_to_stdout =
+		accum.printed_any && !accum.saw_tool_calls && len(accum.tool_ids) == 0
 	if len(accum.tool_ids) > 0 {
 		tcs := make([dynamic]Tool_Call, 0, len(accum.tool_ids), allocator)
 		for i in 0 ..< len(accum.tool_ids) {

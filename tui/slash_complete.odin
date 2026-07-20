@@ -1,117 +1,11 @@
 // Package tui — slash command Tab autocomplete (B20 / Grok-shaped).
+// Match list from core.SLASH_CATALOG: bare `/` = primaries; longer prefix
+// also matches aliases (type /ex → /exit still completes).
 package tui
 
 import "core:fmt"
 import "core:strings"
-
-// Product slash commands (names only; aliases included for matching).
-// Keep roughly in /help order; Tab cycles matches for the typed prefix.
-SLASH_COMMANDS := []string {
-	"/help",
-	"/?",
-	"/about",
-	"/aliases",
-	"/alias",
-	"/keys",
-	"/bindings",
-	"/shortcuts",
-	"/tools",
-	"/tool",
-	"/soft-bash",
-	"/bash-soft",
-	"/softbash",
-	"/permissions",
-	"/permission",
-	"/perm",
-	"/perms",
-	"/env",
-	"/environ",
-	"/environment",
-	"/paths",
-	"/path",
-	"/where",
-	"/features",
-	"/feature",
-	"/flags",
-	"/status",
-	"/config",
-	"/settings",
-	"/preferences",
-	"/prefs",
-	"/doctor",
-	"/version",
-	"/session",
-	"/session-info",
-	"/sessions",
-	"/resume",
-	"/save",
-	"/load",
-	"/rename",
-	"/title",
-	"/fork",
-	"/export",
-	"/import",
-	"/rewind",
-	"/undo-file",
-	"/copy",
-	"/history",
-	"/model",
-	"/m",
-	"/effort",
-	"/new",
-	"/clear",
-	"/whoami",
-	"/login",
-	"/always-approve",
-	"/yolo",
-	"/auto",
-	"/mcp",
-	"/hooks",
-	"/skills",
-	"/create-skill",
-	"/createskill",
-	"/new-skill",
-	"/plugins",
-	"/plugin",
-	"/personas",
-	"/persona",
-	"/skill",
-	"/plan",
-	"/view-plan",
-	"/show-plan",
-	"/plan-view",
-	"/todos",
-	"/todo",
-	"/goal",
-	"/loop",
-	"/imagine",
-	"/imagine-video",
-	"/theme",
-	"/t",
-	"/vim-mode",
-	"/vim",
-	"/compact-mode",
-	"/cm",
-	"/timestamps",
-	"/timestamp",
-	"/flush",
-	"/remember",
-	"/dream",
-	"/memory",
-	"/context",
-	"/usage",
-	"/cost",
-	"/diff",
-	"/compact",
-	"/btw",
-	"/feedback",
-	"/find",
-	"/multiline",
-	"/ml",
-	"/exit",
-	"/quit",
-	"/q",
-}
+import "aether:core"
 
 // slash_token_prefix: text from last newline (or start) to cursor if it is a
 // partial slash command (starts with `/`, no space). Returns ("", false) otherwise.
@@ -142,15 +36,15 @@ slash_token_prefix :: proc(text: string, cursor: int) -> (prefix: string, ok: bo
 	return frag, true
 }
 
-// collect_slash_matches appends commands that have_prefix(prefix) (case-sensitive).
-// Empty prefix "/" matches all.
+// collect_slash_matches appends command names that have_prefix(prefix).
+// Bare "/" → menu primaries only; longer prefix → primary + matching aliases.
 collect_slash_matches :: proc(prefix: string, out: ^[dynamic]string) {
-	clear(out)
-	for cmd in SLASH_COMMANDS {
-		if strings.has_prefix(cmd, prefix) {
-			append(out, cmd)
-		}
-	}
+	core.slash_collect_matches(prefix, out)
+}
+
+// collect_slash_match_rows: name + description for Grok-shaped dropdown.
+collect_slash_match_rows :: proc(prefix: string, out: ^[dynamic]core.Slash_Match) {
+	core.slash_collect_match_rows(prefix, out)
 }
 
 // common_slash_prefix of a non-empty match list (longest shared prefix).
@@ -276,6 +170,22 @@ slash_menu_matches :: proc(
 	s: ^App_State,
 	out: ^[dynamic]string,
 ) -> bool {
+	rows := make([dynamic]core.Slash_Match, 0, 16, context.temp_allocator)
+	if !slash_menu_match_rows(s, &rows) {
+		return false
+	}
+	clear(out)
+	for r in rows {
+		append(out, r.name)
+	}
+	return true
+}
+
+// slash_menu_match_rows: name + description for Grok-shaped dropdown.
+slash_menu_match_rows :: proc(
+	s: ^App_State,
+	out: ^[dynamic]core.Slash_Match,
+) -> bool {
 	if s == nil || s.focus != .Prompt {
 		return false
 	}
@@ -287,11 +197,10 @@ slash_menu_matches :: proc(
 	if !ok {
 		return false
 	}
-	collect_slash_matches(prefix, out)
+	collect_slash_match_rows(prefix, out)
 	if len(out) == 0 {
 		return false
 	}
-	// clamp selection
 	if s.slash_menu_sel < 0 {
 		s.slash_menu_sel = 0
 	}
@@ -302,6 +211,7 @@ slash_menu_matches :: proc(
 }
 
 // slash_menu_height: rows reserved above status for the suggestion list.
+// Grok chrome: top rule (+count) + item rows (+ optional bottom rule).
 // term_rows / input_h cap the menu so header+body(1)+menu+status+input fit.
 slash_menu_height :: proc(s: ^App_State, term_rows: int = 0, input_h: int = 1) -> int {
 	ms := make([dynamic]string, 0, 16, context.temp_allocator)
@@ -312,15 +222,15 @@ slash_menu_height :: proc(s: ^App_State, term_rows: int = 0, input_h: int = 1) -
 	if n > SLASH_MENU_MAX {
 		n = SLASH_MENU_MAX
 	}
-	// +1 for header "slash commands"
-	want := n + 1
+	// +1 top border; +1 bottom border when enough space (Grok panel chrome)
+	want := n + 2
 	if term_rows > 0 {
 		// chrome: header(1) + min body(1) + status(1) + input_h
 		ih := input_h if input_h > 0 else 1
 		budget := term_rows - 1 - 1 - 1 - ih // remaining for menu
 		if budget < 2 {
-			// still show at least header + 1 match if possible
-			budget = max(0, term_rows - 1 - 1 - ih) // drop min body reserve if tiny
+			// still show at least top rule + 1 match if possible
+			budget = max(0, term_rows - 1 - 1 - ih)
 		}
 		if budget < 2 {
 			return 0 // terminal too short for a useful menu

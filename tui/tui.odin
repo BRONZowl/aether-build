@@ -73,7 +73,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 	// B55: discover notice only when transcript already has content.
 	// Empty sessions get tips under brand art in flatten_blocks (V1).
 	if len(sess.msgs) > 0 {
-		state_add_notice(&st, "tips: /about · /keys · /tools · /help")
+		state_add_notice(&st, core.brand_resume_tips_notice(context.temp_allocator))
 	}
 	rebuild_blocks(&st, sess.msgs[:])
 	seed_prompt_history(&st, sess.msgs[:])

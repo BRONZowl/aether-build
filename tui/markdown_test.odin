@@ -1,8 +1,42 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
+import "core:os"
 import "core:strings"
 import "core:testing"
+
+@(test)
+test_write_md_inline_visible_styles :: proc(t: ^testing.T) {
+	// Color path: force color on for this test (CI often sets NO_COLOR=1)
+	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
+	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
+	_ = os.unset_env("NO_COLOR")
+	_ = os.unset_env("AETHER_NO_COLOR")
+	defer {
+		if prev_nc != "" {
+			_ = os.set_env("NO_COLOR", prev_nc)
+		}
+		if prev_ac != "" {
+			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
+		}
+	}
+
+	b: strings.Builder
+	strings.builder_init(&b, context.temp_allocator)
+	n := write_md_inline(&b, "# Title", 80)
+	s := strings.to_string(b)
+	testing.expect(t, n >= 5)
+	testing.expect(t, strings.contains(s, "Title"), s)
+	testing.expect(t, strings.contains(s, "\x1b[1m") || strings.contains(s, "#"), s)
+
+	strings.builder_reset(&b)
+	n = write_md_inline(&b, "say **bold** and `code`", 80)
+	s = strings.to_string(b)
+	testing.expect(t, n >= 10)
+	testing.expect(t, strings.contains(s, "bold"), s)
+	testing.expect(t, !strings.contains(s, "**"), s) // markers consumed when color on
+	testing.expect(t, strings.contains(s, "\x1b[1m") || strings.contains(s, "\x1b[7m"), s)
+}
 
 @(test)
 test_fence_body_start_and_lang :: proc(t: ^testing.T) {

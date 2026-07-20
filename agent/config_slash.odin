@@ -1,4 +1,4 @@
-// Package agent — /config effective settings dump (B34 / Grok-shaped /settings alias).
+// Package agent — /settings effective settings dump (B34; aliases /config /preferences /prefs).
 // Read-only view of process-effective product knobs; no secrets.
 package agent
 

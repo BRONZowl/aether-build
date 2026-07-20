@@ -65,7 +65,7 @@ run_slash :: proc(
 	}
 
 	switch cmd {
-	case "/exit", "/quit", "/q":
+	case "/quit", "/exit", "/q":
 		// SessionEnd hooks before dream/leave (latch; host defer is no-op after)
 		maybe_stop_hooks("exit")
 		// Best-effort auto-dream before leave (gates apply).
@@ -306,8 +306,19 @@ run_slash :: proc(
 		fb := handle_feedback_slash(sess, arg, context.temp_allocator)
 		emit_lines(out, fb)
 		return .Continue
-	case "/context", "/usage", "/cost":
-		// /usage and /cost alias /context (B25)
+	case "/context":
+		// Grok: /context → context window usage (not billing)
+		ctx_out := handle_context_slash(sess, arg, context.temp_allocator)
+		emit_lines(out, ctx_out)
+		return .Continue
+	case "/usage", "/cost":
+		// Grok: /usage|/cost → credit/billing UI. Aether has no billing surface.
+		// Match Grok name/aliases for discovery; show honest fallback + context stats.
+		emit_line(
+			out,
+			"aether: /usage credit/billing UI is not available (Grok Build only).",
+		)
+		emit_line(out, "Showing context window usage instead (/context):")
 		ctx_out := handle_context_slash(sess, arg, context.temp_allocator)
 		emit_lines(out, ctx_out)
 		return .Continue
@@ -546,7 +557,87 @@ run_slash :: proc(
 			emit_line(out, "login ok — try /whoami")
 		}
 		return .Continue
-	case "/mcp":
+	case "/logout":
+		emit_lines(out, handle_logout_slash(context.temp_allocator))
+		return .Continue
+	case "/docs", "/howto", "/guides":
+		emit_lines(out, handle_docs_slash(arg, context.temp_allocator))
+		return .Continue
+	case "/release-notes", "/changelog":
+		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
+		emit_lines(out, handle_release_notes_slash(dcwd, context.temp_allocator))
+		return .Continue
+	case "/privacy":
+		emit_lines(out, handle_privacy_slash(arg, context.temp_allocator))
+		return .Continue
+	case "/terminal-setup", "/terminal-check", "/terminal-info":
+		emit_lines(out, handle_terminal_setup_slash(context.temp_allocator))
+		return .Continue
+	case "/tasks":
+		emit_lines(out, handle_tasks_slash(context.temp_allocator))
+		return .Continue
+	case "/queue":
+		emit_lines(out, handle_queue_slash(context.temp_allocator))
+		return .Continue
+	case "/transcript", "/log":
+		emit_lines(out, handle_transcript_slash(sess^, context.temp_allocator))
+		return .Continue
+	case "/recap":
+		emit_lines(out, handle_recap_slash(sess, context.temp_allocator))
+		return .Continue
+	case "/share":
+		emit_lines(out, handle_share_slash(sess, context.temp_allocator))
+		return .Continue
+	case "/voice":
+		emit_lines(out, handle_voice_slash(context.temp_allocator))
+		return .Continue
+	case "/marketplace":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		emit_lines(out, handle_marketplace_slash(ws, context.temp_allocator))
+		return .Continue
+	case "/config-agents", "/agents":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		emit_lines(out, handle_config_agents_slash(ws, context.temp_allocator))
+		return .Continue
+	case "/import-claude":
+		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		emit_lines(out, handle_import_claude_slash(ws, context.temp_allocator))
+		return .Continue
+	case "/dashboard", "/agents-dashboard":
+		emit_lines(out, handle_dashboard_slash(sess, context.temp_allocator))
+		return .Continue
+	case "/expand":
+		// TUI expands last tool card; REPL documents it
+		emit_lines(out, handle_expand_slash(context.temp_allocator))
+		return .Continue
+	case "/toggle-mouse-reporting":
+		emit_line(out, "aether: /toggle-mouse-reporting is TUI-only (toggles SGR mouse capture)")
+		return .Continue
+	case "/cd":
+		cur := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+		// msg is temp; new_path is heap-owned when non-empty
+		msg, new_path := handle_cd_slash(arg, cur, context.allocator)
+		emit_lines(out, msg)
+		delete(msg)
+		if new_path != "" {
+			if cwd != nil {
+				delete(cwd^)
+				cwd^ = strings.clone(new_path)
+			}
+			if sess != nil {
+				delete(sess.cwd)
+				sess.cwd = strings.clone(new_path)
+				if sess.auto_save {
+					if e := session_save(sess); e != "" {
+						emit_line(out, fmt.tprintf("aether: cwd set but save failed: %s", e))
+					}
+				}
+			}
+			delete(new_path)
+		}
+		return .Continue
+	case "/mcp", "/mcps":
+		// /mcps is Grok primary; /mcp kept as alias (display catalog)
 		mcp_out := handle_mcp_slash(arg, opts.no_mcp, opts.quiet, context.temp_allocator)
 		emit_lines(out, mcp_out)
 		return .Continue
@@ -674,7 +765,7 @@ run_slash :: proc(
 		st_out := handle_status_slash(sess, m, perm_mode(perm), context.temp_allocator)
 		emit_lines(out, st_out)
 		return .Continue
-	case "/config", "/settings", "/preferences", "/prefs":
+	case "/settings", "/config", "/preferences", "/prefs":
 		// B34: effective product settings (no modal; no secrets)
 		m := model^ if model != nil else ""
 		cfg_out := handle_config_slash(sess, m, perm_mode(perm), context.temp_allocator)
@@ -685,7 +776,8 @@ run_slash :: proc(
 		doc_out := handle_doctor_slash(sess, dcwd, context.temp_allocator)
 		emit_lines(out, doc_out)
 		return .Continue
-	case "/session", "/session-info":
+	case "/session-info", "/session":
+		// Grok primary: /session-info; /session is alias (always show full info)
 		emit_line(out, fmt.tprintf("id:        %s", sess.id))
 		emit_line(out, fmt.tprintf("title:     %s", sess.title if sess.title != "" else "(none)"))
 		emit_line(out, fmt.tprintf("path:      %s", sess.path))
@@ -693,26 +785,25 @@ run_slash :: proc(
 		emit_line(out, fmt.tprintf("cwd:       %s", sess.cwd))
 		emit_line(out, fmt.tprintf("messages:  %d", len(sess.msgs)))
 		emit_line(out, fmt.tprintf("autosave:  %v", sess.auto_save))
-		if cmd == "/session-info" {
-			chars := estimate_message_chars(sess.msgs[:])
-			toks := estimate_tokens(chars)
-			window := default_context_window()
-			pct := context_usage_pct(toks, window)
-			emit_line(
-				out,
-				fmt.tprintf(
-					"context:   ~%d/%d tokens (%d%%)  auto-compact %s@%d%%",
-					toks,
-					window,
-					pct,
-					"on" if auto_compact_enabled() else "off",
-					auto_compact_threshold_pct(),
-				),
-			)
-			emit_line(out, fmt.tprintf("permission: %s", core.permission_mode_string(perm_mode(perm))))
-		}
+		chars := estimate_message_chars(sess.msgs[:])
+		toks := estimate_tokens(chars)
+		window := default_context_window()
+		pct := context_usage_pct(toks, window)
+		emit_line(
+			out,
+			fmt.tprintf(
+				"context:   ~%d/%d tokens (%d%%)  auto-compact %s@%d%%",
+				toks,
+				window,
+				pct,
+				"on" if auto_compact_enabled() else "off",
+				auto_compact_threshold_pct(),
+			),
+		)
+		emit_line(out, fmt.tprintf("permission: %s", core.permission_mode_string(perm_mode(perm))))
 		return .Continue
-	case "/sessions", "/resume":
+	case "/resume", "/sessions":
+		// Grok primary: /resume; /sessions is alias (list/filter/delete)
 		// /sessions delete|rm|search|N
 		arg_trim := strings.trim_space(arg)
 		arg_l := strings.to_lower(arg_trim, context.temp_allocator)
@@ -1021,7 +1112,9 @@ run_slash :: proc(
 			),
 		)
 		return .Session_Changed
-	case "/new":
+	case "/new", "/clear", "/home", "/welcome":
+		// Grok: /clear = /new; /home|/welcome return to empty welcome session
+		is_home := cmd == "/home" || cmd == "/welcome"
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
 				emit_line(out, fmt.tprintf("aether: autosave failed before new: %s", e))
@@ -1049,18 +1142,10 @@ run_slash :: proc(
 		delete(m)
 		delete(c)
 		delete(dir)
-		emit_line(out, fmt.tprintf("aether: new session %s", sess.id))
-		return .Session_Changed
-	case "/clear":
-		for len(sess.msgs) > 1 {
-			last, _ := pop_safe(&sess.msgs)
-			destroy_message(&last)
-		}
-		emit_line(out, "aether: history cleared (same session id)")
-		if sess.auto_save {
-			if e := session_save(sess); e != "" {
-				emit_line(out, fmt.tprintf("aether: autosave failed: %s", e))
-			}
+		if is_home {
+			emit_line(out, fmt.tprintf("aether: welcome (session %s)", sess.id))
+		} else {
+			emit_line(out, fmt.tprintf("aether: new session %s", sess.id))
 		}
 		return .Session_Changed
 	case:

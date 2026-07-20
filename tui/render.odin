@@ -55,15 +55,28 @@ flatten_blocks :: proc(
 	// Empty-session welcome is painted by write_welcome_body (Grok stacked/hero
 	// layout) — not as scrollable transcript lines.
 
+	prev_kind: Block_Kind = .User // force no leading blank before first real block
+	first_block := true
 	for bi in 0 ..< len(s.blocks) {
 		bl := s.blocks[bi]
+		// skip empty assistant/user noise
+		if (bl.kind == .Assistant || bl.kind == .User) && strings.trim_space(bl.text) == "" {
+			continue
+		}
+		// Grok-like vertical gap between different block kinds
+		if !first_block && !compact {
+			mark_line(out, styles, block_idxs, -1, "", .Normal, allocator)
+		}
+		first_block = false
+		prev_kind = bl.kind
+		_ = prev_kind
 		ts := format_block_hhmm(bl.time_unix) // B37: optional HH:MM prefix
 		switch bl.kind {
 		case .User:
-			up := ">" if compact else "> "
+			// Grok user blocks: prompt arrow ❯
+			up := "❯" if compact else "❯ "
 			wrap_push(out, styles, block_idxs, bi, fmt.tprintf("%s%s%s", ts, up, bl.text), .User, w, allocator)
 		case .Assistant:
-			// stamp only first line of assistant body
 			if ts != "" {
 				push_assistant(out, styles, block_idxs, bi, fmt.tprintf("%s%s", ts, bl.text), w, allocator)
 			} else {
@@ -72,52 +85,42 @@ flatten_blocks :: proc(
 		case .Tool:
 			name := bl.tool_name if bl.tool_name != "" else "tool"
 			failed := tool_body_looks_error(bl.text)
+			// Grok-shaped title: "Read path", "$ cmd", "Edited path", …
+			title := tool_display_title(name, bl.text)
+			if failed {
+				title = fmt.tprintf("%s · fail", title)
+			}
+			// Left accent like Grok tool chrome (│ title)
+			accent := "│ " if !compact else "│"
 			if bl.expanded {
-				head: string
-				if compact {
-					head = fmt.tprintf("%s▾ %s%s", ts, name, " · fail" if failed else "")
-				} else if failed {
-					head = fmt.tprintf("%s▾ [tool] %s · fail  (e collapse)", ts, name)
-				} else {
-					head = fmt.tprintf("%s▾ [tool] %s  (e collapse)", ts, name)
-				}
+				head := fmt.tprintf("%s%s▾ %s", ts, accent, title)
 				mark_line(out, styles, block_idxs, bi, head, .Tool, allocator)
-				lines := strings.split_lines(bl.text, context.temp_allocator)
+				result := tool_result_section(bl.text)
+				// Trim trailing blank lines in tool output
+				result = strings.trim_right_space(result)
+				lines := strings.split_lines(result, context.temp_allocator)
 				n := min(TOOL_EXPAND_MAX_LINES, len(lines))
-				ind := " " if compact else "  "
+				ind := "│ " if !compact else "│"
 				for i in 0 ..< n {
+					// skip pure empty trailing already trimmed; keep internal blanks
 					wrap_push(out, styles, block_idxs, bi, fmt.tprintf("%s%s", ind, lines[i]), .Dim, w, allocator)
 				}
 				if len(lines) > n {
-					extra := fmt.tprintf(" … +%d", len(lines) - n) if compact else fmt.tprintf("  … +%d lines", len(lines) - n)
+					extra := fmt.tprintf("%s… +%d", ind, len(lines) - n)
 					mark_line(out, styles, block_idxs, bi, extra, .Dim, allocator)
 				}
 			} else {
-				preview := tool_preview(tool_result_section(bl.text), 36 if compact else 48)
-				line_count := 1 + strings.count(bl.text, "\n")
-				line: string
-				if compact {
-					if failed {
-						line = fmt.tprintf("%s▸ %s · fail · %s", ts, name, preview)
-					} else if preview == "" || preview == "…" {
-						line = fmt.tprintf("%s▸ %s", ts, name)
-					} else {
-						line = fmt.tprintf("%s▸ %s · %s", ts, name, preview)
-					}
-				} else if failed {
-					line = fmt.tprintf("%s▸ [tool] %s · fail · %s (%d lines)", ts, name, preview, line_count)
-				} else if preview == "" || preview == "…" {
-					line = fmt.tprintf("%s▸ [tool] %s · (empty) (%d lines)", ts, name, line_count)
-				} else {
-					line = fmt.tprintf("%s▸ [tool] %s · %s (%d lines)", ts, name, preview, line_count)
-				}
+				line := fmt.tprintf("%s%s%s", ts, accent, title)
 				mark_line(out, styles, block_idxs, bi, line, .Tool, allocator)
 			}
 		}
 	}
 	if s.streaming {
 		live := strings.to_string(s.live_assist)
-		if live != "" {
+		if strings.trim_space(live) != "" {
+			if !first_block && !compact {
+				mark_line(out, styles, block_idxs, -1, "", .Normal, allocator)
+			}
 			push_assistant(out, styles, block_idxs, -1, live, w, allocator)
 		}
 	}
@@ -403,8 +406,24 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 				i < len(block_idxs) &&
 				block_idxs[i] == s.selected_block
 			if sel {
-				// reverse highlight selected block lines
-				write_row(&b, fmt.tprintf("›%s", lines[i]), cols, .Bar_Reverse, true)
+				// reverse highlight; still paint assistant markdown (not raw markers)
+				if i < len(styles) && styles[i] == .Assistant {
+					// bar reverse + md
+					th := active_theme()
+					if th.bar_reverse != "" {
+						strings.write_string(&b, th.bar_reverse)
+					} else {
+						strings.write_string(&b, "\x1b[7m")
+					}
+					strings.write_string(&b, "›")
+					_ = write_md_inline(&b, lines[i], max(1, cols - 1))
+					strings.write_string(&b, "\x1b[0m")
+					// pad
+					// (approx — write_md_inline already capped)
+					strings.write_string(&b, "\r\n")
+				} else {
+					write_row(&b, fmt.tprintf("›%s", lines[i]), cols, .Bar_Reverse, true)
+				}
 			} else {
 				write_row_content(&b, lines[i], styles[i], cols, true)
 			}
@@ -535,16 +554,16 @@ write_row_content :: proc(b: ^strings.Builder, text: string, style: Line_Style, 
 		strings.write_string(b, on)
 	}
 	vis: int
+	// Assistant + selected-looking prose: always run markdown painter.
+	// (Code fences use .Code and stay literal / highlighted as code blocks.)
 	if style == .Assistant {
 		vis = write_md_inline(b, text, cols)
 	} else {
 		vis = write_fit(b, text, cols)
 	}
-	if off != "" {
-		strings.write_string(b, off)
-	} else {
-		strings.write_string(b, "\x1b[0m")
-	}
+	// Always reset SGR so bold/code from write_md_inline cannot leak into chrome
+	strings.write_string(b, "\x1b[0m")
+	_ = off
 	for i := vis; i < cols; i += 1 {
 		strings.write_byte(b, ' ')
 	}
@@ -569,22 +588,49 @@ write_fit :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 
 // write_md_inline lives in markdown.odin (C1.1).
 
-// write_slash_menu: live autocomplete list for `/` tokens (above status/input).
+// write_slash_menu: Grok-shaped slash dropdown above the composer.
+// Layout (xai-grok-pager slash_dropdown):
+//   ───────────── N  (top rule + match count)
+//   ❯ /command-name  description…
+//     /other         description…
+//   ─────────────    (bottom rule when space)
 write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: int) {
-	ms := make([dynamic]string, 0, 16, context.temp_allocator)
-	if !slash_menu_matches(s, &ms) || menu_h <= 0 {
+	if menu_h <= 0 {
+		return
+	}
+	rows := make([dynamic]core.Slash_Match, 0, 16, context.temp_allocator)
+	if !slash_menu_match_rows(s, &rows) {
 		for i := 0; i < menu_h; i += 1 {
 			write_row(b, "", cols, .Bar_Dim, true)
 		}
 		return
 	}
-	// header
-	write_row(b, " slash commands · Tab accept · ↑↓", cols, .Bar_Dim, true)
-	shown := menu_h - 1
-	if shown > len(ms) {
-		shown = len(ms)
+	// Chrome: 1 top border (+ optional bottom) + item rows.
+	// Prefer items; use top border always when height >= 2.
+	has_top := menu_h >= 2
+	has_bot := menu_h >= 3 && menu_h > len(rows) + 1
+	item_budget := menu_h
+	if has_top {
+		item_budget -= 1
 	}
-	// scroll window so selection is visible
+	if has_bot {
+		item_budget -= 1
+	}
+	if item_budget < 1 {
+		item_budget = 1
+		has_bot = false
+		if menu_h >= 2 {
+			has_top = true
+			item_budget = menu_h - 1
+		} else {
+			has_top = false
+			item_budget = menu_h
+		}
+	}
+	shown := item_budget
+	if shown > len(rows) {
+		shown = len(rows)
+	}
 	start := 0
 	if s.slash_menu_sel >= shown {
 		start = s.slash_menu_sel - shown + 1
@@ -592,23 +638,119 @@ write_slash_menu :: proc(b: ^strings.Builder, s: ^App_State, cols: int, menu_h: 
 	if start < 0 {
 		start = 0
 	}
-	if start + shown > len(ms) {
-		start = max(0, len(ms) - shown)
+	if start + shown > len(rows) {
+		start = max(0, len(rows) - shown)
+	}
+
+	// Label column: max name width among *visible* rows, cap 40, budget 60% like Grok.
+	PREFIX_W :: 2 // "❯ " or "  "
+	LABEL_GAP :: 2
+	LABEL_CAP :: 40
+	content_w := cols
+	if content_w < 8 {
+		content_w = 8
+	}
+	budget := (content_w * 3 / 5)
+	if budget > LABEL_CAP {
+		budget = LABEL_CAP
+	}
+	label_col_w := 0
+	for row := 0; row < shown; row += 1 {
+		i := start + row
+		if i >= len(rows) {
+			break
+		}
+		nw := len(rows[i].name) // command names are ASCII
+		if nw > label_col_w {
+			label_col_w = nw
+		}
+	}
+	if label_col_w > budget {
+		label_col_w = budget
+	}
+	if label_col_w < 4 {
+		label_col_w = 4
+	}
+
+	painted := 0
+	if has_top {
+		// Top rule with right-aligned match count (Grok dropdown chrome).
+		count := fmt.tprintf("%d", len(rows))
+		rule_w := cols - len(count) - 1
+		if rule_w < 1 {
+			rule_w = 1
+		}
+		rule_b: strings.Builder
+		strings.builder_init(&rule_b, context.temp_allocator)
+		for j := 0; j < rule_w; j += 1 {
+			strings.write_string(&rule_b, "─")
+		}
+		strings.write_byte(&rule_b, ' ')
+		strings.write_string(&rule_b, count)
+		write_row(b, strings.to_string(rule_b), cols, .Bar_Dim, true)
+		painted += 1
 	}
 	for row := 0; row < shown; row += 1 {
 		i := start + row
-		if i >= len(ms) {
+		if i >= len(rows) {
 			write_row(b, "", cols, .Normal, true)
+			painted += 1
 			continue
 		}
-		line: string
-		if i == s.slash_menu_sel {
-			line = fmt.tprintf(" › %s", ms[i])
-			write_row(b, line, cols, .Bar_Reverse, true)
-		} else {
-			line = fmt.tprintf("   %s", ms[i])
-			write_row(b, line, cols, .Normal, true)
+		r := rows[i]
+		sel := i == s.slash_menu_sel
+		// Prefix: Grok uses prompt arrow on selected, two spaces otherwise.
+		prefix := "❯ " if sel else "  "
+		name := r.name
+		// truncate name to label_col_w (ASCII command names)
+		if len(name) > label_col_w {
+			if label_col_w >= 2 {
+				name = fmt.tprintf("%s…", name[:label_col_w - 1])
+			} else {
+				name = name[:label_col_w]
+			}
 		}
+		pad_n := label_col_w - len(name)
+		if pad_n < 0 {
+			pad_n = 0
+		}
+		desc_indent := PREFIX_W + label_col_w + LABEL_GAP
+		desc_w := cols - desc_indent
+		if desc_w < 1 {
+			desc_w = 0
+		}
+		desc := r.desc
+		// Truncate description by display columns (reuses mermaid truncate_display).
+		if desc_w > 0 {
+			desc = truncate_display(desc, desc_w, context.temp_allocator)
+		} else {
+			desc = ""
+		}
+		pad, _ := strings.repeat(" ", pad_n, context.temp_allocator)
+		line: string
+		if desc != "" {
+			line = fmt.tprintf("%s%s%s  %s", prefix, name, pad, desc)
+		} else {
+			line = fmt.tprintf("%s%s", prefix, name)
+		}
+		style: Row_Style = .Bar_Reverse if sel else .Normal
+		write_row(b, line, cols, style, true)
+		painted += 1
+	}
+	// bottom rule if reserved
+	if has_bot {
+		rule_b: strings.Builder
+		strings.builder_init(&rule_b, context.temp_allocator)
+		for j := 0; j < cols; j += 1 {
+			strings.write_string(&rule_b, "─")
+		}
+		write_row(b, strings.to_string(rule_b), cols, .Bar_Dim, true)
+		painted += 1
+	}
+	// fill remaining reserved height
+	for painted < menu_h {
+		write_row(b, "", cols, .Normal, true)
+		painted += 1
 	}
 }
 

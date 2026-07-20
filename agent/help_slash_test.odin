@@ -15,7 +15,12 @@ test_handle_help_slash_sections :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(out, "/permissions"), out)
 	testing.expect(t, strings.contains(out, "/env"), out)
 	testing.expect(t, strings.contains(out, "/paths"), out)
-	testing.expect(t, strings.contains(out, "/exit"), out)
+	testing.expect(t, strings.contains(out, "/quit"), out)
+	testing.expect(t, strings.contains(out, "/settings"), out)
+	testing.expect(t, strings.contains(out, "/mcps"), out)
+	testing.expect(t, strings.contains(out, "/context"), out)
+	// former primaries still documented as aliases
+	testing.expect(t, strings.contains(out, "/exit") || strings.contains(out, "(/exit"), out)
 }
 
 @(test)

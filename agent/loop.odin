@@ -182,11 +182,27 @@ run_agent_turn :: proc(
 		// model sees them on first sample
 	}
 
+	// status_stderr_worthy: headless stderr stays quiet like Grok (-p → result on stdout).
+	// Progress (sampling/tool) only with --verbose; errors/cancel always surface.
+	status_stderr_worthy :: proc(text: string) -> bool {
+		t := strings.trim_space(text)
+		if strings.has_prefix(t, "error") || strings.has_prefix(t, "Error") {
+			return true
+		}
+		if t == "cancelled" || strings.has_prefix(t, "max turns") {
+			return true
+		}
+		if strings.contains(t, "fail") || strings.has_prefix(t, "goal budget") {
+			return true
+		}
+		return false
+	}
+
 	emit_status :: proc(opts: Turn_Options, text: string) {
 		if opts.on_status != nil {
 			opts.on_status(text)
 		}
-		if !opts.quiet {
+		if !opts.quiet && (opts.verbose || status_stderr_worthy(text)) {
 			fmt.eprintf("aether: %s\n", text)
 		}
 	}
@@ -279,8 +295,11 @@ run_agent_turn :: proc(
 			)
 			destroy_assistant_turn(&asst)
 			emit_history(opts)
-			if !streamed && text != "" {
-				fmt.println(text)
+			// Final answer only on stdout (markdown source, Grok plain).
+			// Mid-tool assistant chatter is never printed unless it was live-streamed.
+			if !streamed && strings.trim_space(text) != "" {
+				out := strings.trim_right_space(text)
+				fmt.println(out)
 			}
 			hooks.run_stop_hooks(opts.workspace, "completed")
 			if note := goal_check_budget(msgs[:]); note != "" {

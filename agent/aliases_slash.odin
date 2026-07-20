@@ -1,4 +1,5 @@
 // Package agent — /aliases slash alias reference (B53).
+// Rows derived from core.SLASH_CATALOG (same source as /help + menu).
 package agent
 
 import "core:fmt"
@@ -16,40 +17,6 @@ handle_aliases_slash :: proc(arg: string, allocator := context.allocator) -> str
 		)
 	}
 
-	// pairs: canonical, aliases (space-separated)
-	rows := [][2]string {
-		{"/help", "/?"},
-		{"/exit", "/quit /q"},
-		{"/about", ""},
-		{"/keys", "/bindings /shortcuts"},
-		{"/tools", "/tool"},
-		{"/soft-bash", "/bash-soft /softbash"},
-		{"/permissions", "/permission /perm /perms"},
-		{"/env", "/environ /environment"},
-		{"/paths", "/path /where"},
-		{"/features", "/feature /flags"},
-		{"/status", ""},
-		{"/config", "/settings /preferences /prefs"},
-		{"/doctor", ""},
-		{"/version", ""},
-		{"/model", "/m"},
-		{"/theme", "/t"},
-		{"/vim-mode", "/vim"},
-		{"/compact-mode", "/cm"},
-		{"/timestamps", "/timestamp"},
-		{"/multiline", "/ml"},
-		{"/always-approve", "/yolo"},
-		{"/auto", ""},
-		{"/context", "/usage /cost"},
-		{"/session", "/session-info"},
-		{"/sessions", "/resume"},
-		{"/rename", "/title"},
-		{"/view-plan", "/show-plan /plan-view"},
-		{"/todos", "/todo"},
-		{"/undo-file", "/rewind-file"},
-		{"/plan view", "alias of /view-plan"},
-	}
-
 	b := strings.builder_make(allocator)
 	strings.write_string(&b, "## aether slash aliases\n")
 	strings.write_string(
@@ -59,9 +26,13 @@ handle_aliases_slash :: proc(arg: string, allocator := context.allocator) -> str
 	strings.write_string(&b, "  canonical              aliases\n")
 	strings.write_string(&b, "  ---------------------- ------------------------\n")
 	n := 0
-	for row in rows {
-		can := row[0]
-		als := row[1]
+	for e in core.SLASH_CATALOG {
+		can := e.primary
+		// space-join aliases
+		als := ""
+		if len(e.aliases) > 0 {
+			als = strings.join(e.aliases, " ", context.temp_allocator)
+		}
 		if a != "" {
 			cl := strings.to_lower(can, context.temp_allocator)
 			al := strings.to_lower(als, context.temp_allocator)
@@ -69,12 +40,18 @@ handle_aliases_slash :: proc(arg: string, allocator := context.allocator) -> str
 				continue
 			}
 		}
-		n += 1
+		// Always list rows that have aliases; also list filtered primaries with none
+		// only when filter matches primary (discoverability).
 		if als == "" {
+			if a == "" {
+				continue // unfiltered: only show commands that have aliases
+			}
+			n += 1
 			strings.write_string(&b, fmt.tprintf("  %-22s (none)\n", can))
-		} else {
-			strings.write_string(&b, fmt.tprintf("  %-22s %s\n", can, als))
+			continue
 		}
+		n += 1
+		strings.write_string(&b, fmt.tprintf("  %-22s %s\n", can, als))
 	}
 	if n == 0 {
 		strings.write_string(&b, fmt.tprintf("(no aliases matching %q)\n", arg))

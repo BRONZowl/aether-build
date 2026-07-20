@@ -6,10 +6,11 @@ import "core:os"
 import "core:sys/posix"
 
 Term_State :: struct {
-	orig:   posix.termios,
-	active: bool,
-	rows:   int,
-	cols:   int,
+	orig:          posix.termios,
+	active:        bool,
+	rows:          int,
+	cols:          int,
+	mouse_enabled: bool, // SGR mouse capture (toggle via /toggle-mouse-reporting)
 }
 
 // term_enter enables raw mode + alternate screen + keyboard enhancement when available.
@@ -30,6 +31,7 @@ term_enter :: proc(t: ^Term_State) -> bool {
 		return false
 	}
 	t.active = true
+	t.mouse_enabled = true
 	// alt screen, clear, home, hide cursor
 	// Kitty keyboard progressive enhancement: disambiguate Escape (flag 1)
 	// so Ctrl+M / Shift+Enter are distinct from bare Enter when supported.
@@ -50,6 +52,55 @@ term_leave :: proc(t: ^Term_State) {
 	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
 	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &t.orig)
 	t.active = false
+	t.mouse_enabled = false
+}
+
+// term_set_mouse enables or disables SGR mouse reporting while still in raw mode.
+term_set_mouse :: proc(t: ^Term_State, on: bool) {
+	if !t.active {
+		return
+	}
+	if on {
+		fmt.print("\x1b[?1000h\x1b[?1006h")
+	} else {
+		fmt.print("\x1b[?1006l\x1b[?1000l")
+	}
+	t.mouse_enabled = on
+}
+
+// term_toggle_mouse flips SGR mouse capture; returns new enabled state.
+term_toggle_mouse :: proc(t: ^Term_State) -> bool {
+	term_set_mouse(t, !t.mouse_enabled)
+	return t.mouse_enabled
+}
+
+// term_suspend_for_pager: leave alt screen + raw so $PAGER can run; caller restores via term_resume_after_pager.
+term_suspend_for_pager :: proc(t: ^Term_State) {
+	if !t.active {
+		return
+	}
+	// show cursor, leave alt screen, disable mouse/paste/kkp — keep raw? less needs cooked
+	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
+	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &t.orig)
+}
+
+// term_resume_after_pager: re-enter raw + alt screen after pager exits.
+term_resume_after_pager :: proc(t: ^Term_State) {
+	if !t.active {
+		return
+	}
+	fd := posix.FD(posix.STDIN_FILENO)
+	raw := t.orig
+	raw.c_lflag -= {.ECHO, .ICANON, .ISIG, .IEXTEN}
+	raw.c_iflag -= {.IXON, .ICRNL, .BRKINT, .INPCK, .ISTRIP}
+	raw.c_cflag += {.CS8}
+	raw.c_oflag -= {.OPOST}
+	raw.c_cc[.VMIN] = 1
+	raw.c_cc[.VTIME] = 0
+	_ = posix.tcsetattr(fd, .TCSANOW, &raw)
+	mouse := "\x1b[?1000h\x1b[?1006h" if t.mouse_enabled else ""
+	fmt.printf("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u%s\x1b[?2004h", mouse)
+	term_update_size(t)
 }
 
 term_update_size :: proc(t: ^Term_State) {

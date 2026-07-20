@@ -111,12 +111,12 @@ rebuild_blocks :: proc(s: ^App_State, msgs: []agent.Chat_Message) {
 			} else {
 				body = "(empty)"
 			}
-			// Preserve user expand choice; default-expand tool failures.
+			// Preserve user expand choice; stay collapsed by default (cleaner Grok-like cards).
 			exp: bool
 			if name in prev_expand {
 				exp = prev_expand[name]
 			} else {
-				exp = agent.tool_result_is_error(m.content)
+				exp = false
 			}
 			state_add_block(s, .Tool, body, name, exp)
 			restore_stamp(s, prev_stamp)

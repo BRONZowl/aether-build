@@ -75,6 +75,10 @@ BRAND_MENU := [3]Brand_Menu_Item {
 
 BRAND_SUBTITLE :: "Thanks for trying Aether — /about · /help · /feedback"
 
+// Shared slash set for startup banners (welcome tip, REPL no-art, resume notice).
+// Grok-facing primaries; keep in sync with slash_catalog display names for these cmds.
+BRAND_STARTUP_SLASH_TIPS :: "/about · /help · /keys · /quit"
+
 // brand_art_enabled: AETHER_NO_ASCII_ART or AETHER_ASCII_ART=off disables.
 brand_art_enabled :: proc() -> bool {
 	if v := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator); v == "1" ||
@@ -318,8 +322,30 @@ brand_render_for_about :: proc(allocator := context.allocator) -> string {
 	return brand_render(24, 80, allocator, .Full)
 }
 
+// brand_startup_slash_tips: shared discover set for all startup banners.
+brand_startup_slash_tips :: proc(allocator := context.allocator) -> string {
+	return strings.clone(BRAND_STARTUP_SLASH_TIPS, allocator)
+}
+
+// brand_welcome_tips: empty-session tip under logo/menu.
 brand_welcome_tips :: proc(allocator := context.allocator) -> string {
-	return strings.clone("type a message · /about · /help · /keys · /exit", allocator)
+	return strings.clone(
+		fmt.tprintf("type a message · %s", BRAND_STARTUP_SLASH_TIPS),
+		allocator,
+	)
+}
+
+// brand_resume_tips_notice: TUI notice when opening a non-empty session.
+brand_resume_tips_notice :: proc(allocator := context.allocator) -> string {
+	return strings.clone(fmt.tprintf("tips: %s", BRAND_STARTUP_SLASH_TIPS), allocator)
+}
+
+// brand_repl_no_art_banner: REPL fallback when ASCII art is off.
+brand_repl_no_art_banner :: proc(allocator := context.allocator) -> string {
+	return strings.clone(
+		fmt.tprintf("aether: interactive mode — %s", BRAND_STARTUP_SLASH_TIPS),
+		allocator,
+	)
 }
 
 brand_status_line :: proc(allocator := context.allocator) -> string {
