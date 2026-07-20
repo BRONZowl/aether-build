@@ -473,63 +473,6 @@ handle_transcript_slash :: proc(sess: Session, allocator := context.allocator) -
 	)
 }
 
-// handle_recap_slash: local “where was I” from recent turns (no model call).
-handle_recap_slash :: proc(sess: ^Session, allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
-	strings.write_string(&b, "## recap\n")
-	if sess == nil || len(sess.msgs) == 0 {
-		strings.write_string(&b, "(empty session)\n")
-		return strings.to_string(b)
-	}
-	fmt.sbprintf(
-		&b,
-		"session %s  title=%q  model=%s  messages=%d\n\n",
-		sess.id,
-		sess.title if sess.title != "" else "(none)",
-		sess.model,
-		len(sess.msgs),
-	)
-	// Last few user/assistant snippets (role, text) pairs
-	roles := make([dynamic]string, 0, 6, context.temp_allocator)
-	texts := make([dynamic]string, 0, 6, context.temp_allocator)
-	for i := len(sess.msgs) - 1; i >= 0 && len(roles) < 6; i -= 1 {
-		m := sess.msgs[i]
-		role := ""
-		switch m.role {
-		case .User:
-			role = "user"
-		case .Assistant:
-			role = "assistant"
-		case .System, .Tool:
-			continue
-		}
-		t := strings.trim_space(m.content)
-		if t == "" {
-			continue
-		}
-		if len(t) > 200 {
-			t = fmt.tprintf("%s…", t[:197])
-		}
-		// flatten newlines for one-line recap
-		t, _ = strings.replace_all(t, "\n", " ", context.temp_allocator)
-		append(&roles, role)
-		append(&texts, t)
-	}
-	if len(roles) == 0 {
-		strings.write_string(&b, "(no user/assistant turns yet)\n")
-		return strings.to_string(b)
-	}
-	strings.write_string(&b, "Recent turns (newest first):\n")
-	for i in 0 ..< len(roles) {
-		fmt.sbprintf(&b, "  [%s] %s\n", roles[i], texts[i])
-	}
-	strings.write_string(
-		&b,
-		"\n(Local recap only — no model summary. Ask the agent for a full narrative recap.)\n",
-	)
-	return strings.to_string(b)
-}
-
 // handle_share_slash: no public URL share; point at export.
 handle_share_slash :: proc(sess: ^Session, allocator := context.allocator) -> string {
 	if sess == nil {

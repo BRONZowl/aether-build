@@ -296,11 +296,10 @@ run_slash :: proc(
 		emit_line(out, format_history_list(filtered, 20, 100, context.temp_allocator))
 		return .Continue
 	case "/btw":
-		if strings.trim_space(arg) == "" {
-			emit_line(out, "aether: usage: /btw <note>  (local only; not sent to the model)")
-			return .Continue
-		}
-		emit_line(out, fmt.tprintf("btw: %s", strings.trim_space(arg)))
+		// Wave 4: side agent answer (off-transcript); falls back to local note
+		m := model^ if model != nil else ""
+		btw_out := handle_btw_slash(sess, m, arg, context.temp_allocator)
+		emit_lines(out, btw_out)
 		return .Continue
 	case "/feedback":
 		fb := handle_feedback_slash(sess, arg, context.temp_allocator)
@@ -583,7 +582,9 @@ run_slash :: proc(
 		emit_lines(out, handle_transcript_slash(sess^, context.temp_allocator))
 		return .Continue
 	case "/recap":
-		emit_lines(out, handle_recap_slash(sess, context.temp_allocator))
+		// Wave 4: model recap with local fallback
+		m := model^ if model != nil else ""
+		emit_lines(out, handle_recap_slash(sess, m, context.temp_allocator))
 		return .Continue
 	case "/share":
 		emit_lines(out, handle_share_slash(sess, context.temp_allocator))

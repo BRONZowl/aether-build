@@ -42,8 +42,8 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/view-plan` | Show plan | Show plan.md | **Match** |
 | `/resume` | Session picker | TUI picker / list sessions | **Match** |
 | `/mcps` | Extensions modal | TUI extensions hub (MCPs tab) + CLI | **Match** (hub) |
-| `/btw` | Side agent question | Local note only | **Partial** |
-| `/recap` | Model session recap | Local recent-turn recap | **Partial** (no model recap) |
+| `/btw` | Side agent question | Off-transcript model answer (local note if offline) | **Match** |
+| `/recap` | Model session recap | Model summary + local fallback | **Match** |
 | `/terminal-setup` | Terminal diagnostics | TERM/color/clipboard report | **Match** (text) |
 | `/voice` | Dictation toggle | Honest N/A | **Partial** (not available) |
 | `/loop` | Recurring prompt | Scheduler loop | **Match** |

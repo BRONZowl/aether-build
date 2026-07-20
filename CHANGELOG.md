@@ -4,6 +4,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Wave 4 — btw + recap
+
+- `/btw <question>`: short side-agent completion (not appended to session history); offline → local note
+- `/recap`: model "where was I" summary from recent turns; offline/error → local turn list
+
 ### Wave 3 — dashboard
 
 - Interactive `/dashboard` (and bare `/tasks`): sessions (Enter load), background tasks (`k` kill), scheduled list

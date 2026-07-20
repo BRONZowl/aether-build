@@ -187,10 +187,36 @@ test_slash_always_approve_and_btw :: proc(t: ^testing.T) {
 	}
 	clear(&lines)
 
+	// Force offline /btw path so unit tests never hit the network
+	prev_key := os.get_env("XAI_API_KEY", context.temp_allocator)
+	prev_gkey := os.get_env("GROK_CODE_XAI_API_KEY", context.temp_allocator)
+	prev_auth := os.get_env("GROK_AUTH", context.temp_allocator)
+	prev_path := os.get_env("GROK_AUTH_PATH", context.temp_allocator)
+	_ = os.unset_env("XAI_API_KEY")
+	_ = os.unset_env("GROK_CODE_XAI_API_KEY")
+	_ = os.unset_env("GROK_AUTH")
+	_ = os.set_env("GROK_AUTH_PATH", "/tmp/aether-no-auth-btw-test")
+	defer {
+		if prev_key != "" {
+			_ = os.set_env("XAI_API_KEY", prev_key)
+		}
+		if prev_gkey != "" {
+			_ = os.set_env("GROK_CODE_XAI_API_KEY", prev_gkey)
+		}
+		if prev_auth != "" {
+			_ = os.set_env("GROK_AUTH", prev_auth)
+		}
+		if prev_path != "" {
+			_ = os.set_env("GROK_AUTH_PATH", prev_path)
+		} else {
+			_ = os.unset_env("GROK_AUTH_PATH")
+		}
+	}
+
 	n_before := len(sess.msgs)
 	act = run_slash(&sess, "/btw remember the auth path", opts, &model, &cwd, &perm, out)
 	testing.expect(t, act == .Continue)
-	testing.expect(t, len(sess.msgs) == n_before)
+	testing.expect(t, len(sess.msgs) == n_before, "btw must not mutate session history")
 	joined := strings.join(lines[:], "\n", context.temp_allocator)
 	testing.expect(t, strings.contains(joined, "btw:"))
 	testing.expect(t, strings.contains(joined, "auth path"))
