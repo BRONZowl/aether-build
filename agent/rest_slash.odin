@@ -79,12 +79,26 @@ handle_tasks_slash :: proc(allocator := context.allocator) -> string {
 	return strings.to_string(b)
 }
 
-// handle_queue_slash: Aether has no mid-turn prompt queue yet.
-handle_queue_slash :: proc(allocator := context.allocator) -> string {
+// handle_queue_slash: REPL/text path. TUI owns the live queue + pane.
+handle_queue_slash :: proc(arg: string, allocator := context.allocator) -> string {
+	a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
+	if a == "help" || a == "?" {
+		return strings.clone(
+			"## queue\n" +
+			"TUI: mid-turn type + Enter queues a follow-up; empty Enter force-sends #1.\n" +
+			"  /queue          open queue pane (TUI) or show tips\n" +
+			"  /queue clear    clear (TUI)\n" +
+			"  /queue drop N   drop item N (TUI)\n",
+			allocator,
+		)
+	}
 	return strings.clone(
 		"## queue\n" +
-		"No prompts queued behind the running turn.\n" +
-		"(Aether does not keep a multi-prompt follow-up queue; send the next message when idle.)\n",
+		"In the TUI, follow-ups typed while the agent is working are queued FIFO.\n" +
+		"  Enter (with text)  → enqueue\n" +
+		"  Empty Enter        → cancel turn and force-send queue head\n" +
+		"  /queue             → list pane · drop/clear\n" +
+		"(REPL has no mid-turn queue; send the next message when idle.)\n",
 		allocator,
 	)
 }

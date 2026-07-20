@@ -577,7 +577,7 @@ run_slash :: proc(
 		emit_lines(out, handle_tasks_slash(context.temp_allocator))
 		return .Continue
 	case "/queue":
-		emit_lines(out, handle_queue_slash(context.temp_allocator))
+		emit_lines(out, handle_queue_slash(arg, context.temp_allocator))
 		return .Continue
 	case "/transcript", "/log":
 		emit_lines(out, handle_transcript_slash(sess^, context.temp_allocator))

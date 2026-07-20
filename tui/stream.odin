@@ -189,7 +189,87 @@ peek_turn_keys :: proc() {
 		if g_rt.term != nil {
 			render(g_rt.term, g_rt.st)
 		}
+		return
 	}
+	// Wave 1: mid-turn compose + queue (printable / Enter / Backspace)
+	if peek_apply_stream_compose(buf[:n]) {
+		if g_rt.term != nil {
+			render(g_rt.term, g_rt.st)
+		}
+	}
+}
+
+// peek_apply_stream_compose: type into prompt while agent runs; Enter queues
+// (or empty Enter force-sends top of queue by cancelling the turn).
+peek_apply_stream_compose :: proc(buf: []u8) -> bool {
+	if g_rt.st == nil || len(buf) == 0 {
+		return false
+	}
+	// Don't fight ask modal
+	if g_rt.st.ask_active {
+		return false
+	}
+	changed := false
+	i := 0
+	for i < len(buf) {
+		b := buf[i]
+		// Enter / LF / CR → queue or force-send
+		if b == 0x0d || b == 0x0a {
+			line := strings.trim_space(input_text(g_rt.st))
+			if line != "" {
+				if prompt_queue_push(g_rt.st, line) {
+					input_clear(g_rt.st)
+					state_set_status(
+						g_rt.st,
+						fmt.tprintf("queued (%d)", prompt_queue_len(g_rt.st)),
+					)
+					state_add_notice(
+						g_rt.st,
+						fmt.tprintf("aether: queued follow-up (%d in queue)", prompt_queue_len(g_rt.st)),
+					)
+				} else {
+					state_set_status(g_rt.st, "queue full")
+				}
+				changed = true
+			} else if prompt_queue_len(g_rt.st) > 0 {
+				// Force-send: cancel current turn; drain after cancel
+				g_rt.st.queue_force_send = true
+				g_rt.cancel = true
+				state_set_status(g_rt.st, "force-send: cancelling…")
+				changed = true
+			}
+			i += 1
+			continue
+		}
+		// Backspace
+		if b == 0x7f || b == 0x08 {
+			if g_rt.st.focus != .Prompt {
+				focus_prompt(g_rt.st)
+			}
+			if len(g_rt.st.input) > 0 {
+				input_backspace(g_rt.st)
+				changed = true
+			}
+			i += 1
+			continue
+		}
+		// Printable ASCII only (ESC sequences already handled by scroll path)
+		if b >= 32 && b < 127 {
+			if g_rt.st.focus != .Prompt {
+				focus_prompt(g_rt.st)
+			}
+			input_insert_rune(g_rt.st, rune(b))
+			changed = true
+			i += 1
+			continue
+		}
+		// Skip unknown / partial ESC
+		if b == 0x1b {
+			break
+		}
+		i += 1
+	}
+	return changed
 }
 
 // peek_apply_stream_scroll handles common scroll chords from a raw stdin peek buffer.

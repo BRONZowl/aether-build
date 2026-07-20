@@ -4,6 +4,14 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Wave 0–1 surface parity (skip billing)
+
+- **Overlay kit** (`tui/overlay.odin`): `Overlay_Kind`, list-nav helpers, shared focus checks
+- **Prompt queue**: mid-turn type + Enter enqueues; empty Enter force-sends #1 (cancel + drain); `/queue` pane; auto-drain after turn
+- **Rewind picker**: bare `/rewind` lists user turns; Enter rewinds
+- **Settings modal**: bare `/settings` browse/toggle (vim/compact/timestamps/multiline); **no billing** (`/usage` N/A)
+- See `docs/COMMAND_PARITY.md`
+
 ### Transcript / tool output (Grok-shaped)
 
 - User lines use `❯` (Grok prompt arrow) instead of `>`

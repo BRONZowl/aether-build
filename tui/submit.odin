@@ -16,11 +16,14 @@ tui_can_auto_wake :: proc(st: ^App_State) -> bool {
 	if st.streaming || st.ask_active {
 		return false
 	}
-	if st.picker.active || st.model_picker.active || st.search.active {
+	if overlay_is_open(st) {
 		return false
 	}
 	if len(st.input) > 0 {
 		return false
+	}
+	if prompt_queue_len(st) > 0 {
+		return false // drain user queue first
 	}
 	return true
 }
@@ -94,6 +97,7 @@ tui_run_auto_wake :: proc(
 }
 
 // handle_submit: slash or agent turn. model/cwd may change via /load /new.
+// While streaming, non-slash text is enqueued (mid-turn path also uses peek_apply_stream_compose).
 handle_submit :: proc(
 	st: ^App_State,
 	sess: ^agent.Session,
@@ -108,6 +112,7 @@ handle_submit :: proc(
 ) -> bool {
 	line := strings.trim_space(input_text(st))
 	if line == "" {
+		// Empty Enter mid-turn force-send is handled in peek; idle empty is no-op
 		return false
 	}
 
@@ -115,6 +120,36 @@ handle_submit :: proc(
 		return handle_slash(st, sess, term, line, model, cwd, perm, perm_before, opts)
 	}
 
+	// Mid-turn: queue instead of nested agent turn
+	if st.streaming {
+		if prompt_queue_push(st, line) {
+			input_clear(st)
+			state_set_status(st, fmt.tprintf("queued (%d)", prompt_queue_len(st)))
+			state_add_notice(st, fmt.tprintf("aether: queued follow-up (%d in queue)", prompt_queue_len(st)))
+		} else {
+			state_set_status(st, "queue full")
+		}
+		return true
+	}
+
+	return run_user_prompt_turn(st, sess, term, cfg, creds, model, cwd, perm, perm_before, opts, line)
+}
+
+// run_user_prompt_turn: shared agent turn for typed prompt or drained queue item.
+// line is not owned (cloned inside).
+run_user_prompt_turn :: proc(
+	st: ^App_State,
+	sess: ^agent.Session,
+	term: ^Term_State,
+	cfg: ^core.Runtime_Config,
+	creds: ^agent.Credentials,
+	model: ^string,
+	cwd: ^string,
+	perm: ^core.Permission_Mode,
+	perm_before: ^core.Permission_Mode,
+	opts: agent.Headless_Options,
+	line: string,
+) -> bool {
 	prompt := strings.clone(line)
 	// UserPromptSubmit may block the turn
 	if ok, why := agent.allow_user_prompt_notice(cwd^, prompt); !ok {
@@ -231,5 +266,25 @@ handle_submit :: proc(
 	rebuild_blocks(st, sess.msgs[:])
 	stream_pin_bottom(st)
 	clamp_selected_block(st)
+
+	// After turn: drain queue (FIFO). Force-send already cancelled; still drain.
+	st.queue_force_send = false
+	for prompt_queue_len(st) > 0 {
+		next, ok := prompt_queue_pop_front(st)
+		if !ok {
+			break
+		}
+		// Slash items in queue are unusual; run as prompt text if not slash
+		if strings.has_prefix(strings.trim_space(next), "/") {
+			_ = handle_slash(st, sess, term, strings.trim_space(next), model, cwd, perm, perm_before, opts)
+			delete(next)
+			continue
+		}
+		_ = run_user_prompt_turn(st, sess, term, cfg, creds, model, cwd, perm, perm_before, opts, next)
+		delete(next)
+		// run_user_prompt_turn drains further — break to avoid double-loop recursion depth issues
+		// Actually it will recurse drain at end; so only process one here and let recursive drain handle rest.
+		break
+	}
 	return true
 }

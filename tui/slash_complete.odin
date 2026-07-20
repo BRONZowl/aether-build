@@ -189,7 +189,7 @@ slash_menu_match_rows :: proc(
 	if s == nil || s.focus != .Prompt {
 		return false
 	}
-	if s.picker.active || s.model_picker.active || s.ask_active || s.search.active {
+	if overlay_is_open(s) {
 		return false
 	}
 	text := input_text(s)

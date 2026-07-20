@@ -153,7 +153,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 		}
 
-		// Modals steal keys
+		// Modals steal keys (Wave 0 overlay_kind order)
 		if st.picker.active {
 			if handle_picker_key(
 				&st,
@@ -171,6 +171,24 @@ run :: proc(opts: agent.Headless_Options) -> int {
 		}
 		if st.model_picker.active {
 			if handle_model_picker_key(&st, &sess, &term, key, &model) {
+				dirty = true
+			}
+			continue
+		}
+		if st.rewind_picker.active {
+			if handle_rewind_picker_key(&st, &sess, &term, key) {
+				dirty = true
+			}
+			continue
+		}
+		if st.settings_modal.active {
+			if handle_settings_modal_key(&st, &perm, key) {
+				dirty = true
+			}
+			continue
+		}
+		if st.queue_pane_active {
+			if handle_queue_pane_key(&st, key) {
 				dirty = true
 			}
 			continue
@@ -432,7 +450,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Mouse_Click:
 			// C2.3: left-click select block / focus prompt
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				// ignore over modals (picker/search keep keyboard)
 				continue
 			}
@@ -442,7 +460,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Mouse_Middle:
 			// C2.5 / M1: middle-click → paste PRIMARY + image path attach
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				continue
 			}
 			if apply_middle_paste(&st) {
@@ -451,7 +469,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Ctrl_V:
 			// M1: Ctrl+V → clipboard image preferred, else text / path attach
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				continue
 			}
 			if apply_paste(&st, true) {
@@ -460,7 +478,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Paste:
 			// C2.6: bracketed paste (terminal multi-line) → bulk insert + image path attach
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				continue
 			}
 			if apply_bracketed_paste(&st, key.text) {
@@ -469,7 +487,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Shift_Left:
 			// C2.4: prev user turn (simple + vim; works from prompt too)
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				continue
 			}
 			if st.focus != .Scrollback {
@@ -480,7 +498,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 
 		case .Shift_Right:
 			// C2.4: next user turn
-			if st.ask_active || st.picker.active || st.model_picker.active || st.search.active {
+			if overlay_is_open(&st) {
 				continue
 			}
 			if st.focus != .Scrollback {

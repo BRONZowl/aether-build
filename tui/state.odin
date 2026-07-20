@@ -100,6 +100,15 @@ App_State :: struct {
 	picker:          Session_Picker,
 	// Ctrl+M model picker when scrollback focused
 	model_picker:    Model_Picker,
+	// Wave 1: /rewind interactive picker
+	rewind_picker:   Rewind_Picker,
+	// Wave 1 settings modal (shell; fields filled in later PR)
+	settings_modal:  Settings_Modal,
+	// Mid-turn prompt queue (Grok /queue)
+	prompt_queue:       [dynamic]string, // owned FIFO
+	queue_pane_active:  bool,
+	queue_sel:          int,
+	queue_force_send:   bool, // empty Enter mid-turn: cancel + drain head
 	// Ask-mode tool approval modal (mid-turn)
 	ask_active:      bool,
 	ask_name:        string, // owned while active
@@ -133,6 +142,9 @@ state_init :: proc(s: ^App_State) {
 	s.selected_block = -1
 	picker_init(&s.picker)
 	model_picker_init(&s.model_picker)
+	rewind_picker_init(&s.rewind_picker)
+	settings_modal_init(&s.settings_modal)
+	prompt_queue_init(s)
 	s.ask_active = false
 	s.ask_name = ""
 	s.ask_summary = ""
@@ -188,6 +200,9 @@ state_destroy :: proc(s: ^App_State) {
 	delete(s.notices)
 	picker_destroy(&s.picker)
 	model_picker_destroy(&s.model_picker)
+	rewind_picker_destroy(&s.rewind_picker)
+	settings_modal_destroy(&s.settings_modal)
+	prompt_queue_destroy(s)
 	delete(s.ask_name)
 	delete(s.ask_summary)
 	search_destroy(&s.search)

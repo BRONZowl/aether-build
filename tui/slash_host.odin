@@ -45,6 +45,57 @@ handle_slash :: proc(
 		state_set_status(st, "multiline on" if st.multiline_mode else "multiline off")
 		return true
 	}
+	// Wave 1: /queue list pane (also slash text via agent when REPL)
+	if line == "/queue" || strings.has_prefix(line, "/queue ") {
+		arg := ""
+		if sp := strings.index_byte(line, ' '); sp >= 0 {
+			arg = strings.trim_space(line[sp + 1:])
+		}
+		arg_l := strings.to_lower(arg, context.temp_allocator)
+		input_clear(st)
+		if arg_l == "clear" || arg_l == "reset" {
+			prompt_queue_clear(st)
+			state_set_status(st, "queue cleared")
+			state_add_notice(st, "aether: queue cleared")
+			return true
+		}
+		if strings.has_prefix(arg_l, "drop ") || strings.has_prefix(arg_l, "rm ") {
+			sp := strings.index_byte(arg, ' ')
+			num := strings.trim_space(arg[sp + 1:]) if sp >= 0 else ""
+			n, ok := parse_pos_int(num)
+			if ok && n >= 1 && prompt_queue_drop(st, n - 1) {
+				state_set_status(st, fmt.tprintf("queue %d left", prompt_queue_len(st)))
+				state_add_notice(st, fmt.tprintf("aether: dropped queue item #%d", n))
+			} else {
+				state_set_status(st, "usage: /queue drop N")
+			}
+			return true
+		}
+		// bare /queue → pane
+		queue_pane_open(st)
+		state_add_notice(st, prompt_queue_format_list(st, context.temp_allocator))
+		return true
+	}
+	// Wave 1: bare /rewind → turn picker
+	if line == "/rewind" {
+		input_clear(st)
+		rewind_picker_open(&st.rewind_picker, sess)
+		if len(st.rewind_picker.labels) == 0 {
+			rewind_picker_close(&st.rewind_picker)
+			state_set_status(st, "no user turns to rewind")
+			state_add_notice(st, "aether: no user turns to rewind")
+		} else {
+			state_set_status(st, "rewind picker")
+		}
+		return true
+	}
+	// Wave 1: bare /settings → settings modal (no billing)
+	if line == "/settings" || line == "/config" || line == "/preferences" || line == "/prefs" {
+		input_clear(st)
+		settings_modal_open(&st.settings_modal, st, perm^)
+		state_set_status(st, "settings")
+		return true
+	}
 	// Grok /expand — expand last tool card (fullscreen TUI equivalent of minimal re-print)
 	if line == "/expand" {
 		input_clear(st)

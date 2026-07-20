@@ -373,7 +373,7 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		s.scroll = max_scroll
 	}
 	// Keep selected block visible when scrollback-focused
-	modal_open := s.picker.active || s.model_picker.active || s.ask_active
+	modal_open := overlay_is_open(s)
 	if s.focus == .Scrollback && s.selected_block >= 0 && !modal_open {
 		ensure_block_visible(s, block_idxs[:], body_h, total)
 	}
@@ -395,6 +395,12 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		write_picker_body(&b, &s.picker, cols, body_h)
 	} else if s.model_picker.active {
 		write_model_picker_body(&b, &s.model_picker, cols, body_h)
+	} else if s.rewind_picker.active {
+		write_rewind_picker_body(&b, &s.rewind_picker, cols, body_h)
+	} else if s.settings_modal.active {
+		write_settings_modal_body(&b, &s.settings_modal, cols, body_h)
+	} else if s.queue_pane_active {
+		write_queue_pane_body(&b, s, cols, body_h)
 	} else if welcome_is_active(s) {
 		// Opening layout matches Grok Build: stacked logo+menu or hero box
 		write_welcome_body(&b, s, cols, body_h)
@@ -469,6 +475,12 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 			" %s  | Enter apply · Esc close · type filter · ↑↓",
 			st,
 		)
+	} else if s.rewind_picker.active {
+		status = fmt.tprintf(" %s  | Enter rewind · Esc close · ↑↓", st)
+	} else if s.settings_modal.active {
+		status = fmt.tprintf(" %s  | Enter toggle · Esc close · ↑↓", st)
+	} else if s.queue_pane_active {
+		status = fmt.tprintf(" %s  | d drop · c clear · Esc close · ↑↓", st)
 	} else if s.search.active {
 		// status already set by search_set_status
 		status = fmt.tprintf(" %s  | n/N next · Esc close", st)
@@ -1360,4 +1372,99 @@ style_ansi :: proc(style: Line_Style) -> (on, off: string) {
 		return "", ""
 	}
 	return "", ""
+}
+
+// write_rewind_picker_body: /rewind user-turn list.
+write_rewind_picker_body :: proc(b: ^strings.Builder, p: ^Rewind_Picker, cols: int, body_h: int) {
+	write_row(b, " rewind — select user turn to drop (and everything after)", cols, .Bar_Reverse, true)
+	list_h := body_h - 2
+	if list_h < 1 {
+		list_h = 1
+	}
+	if p.selected < p.scroll {
+		p.scroll = p.selected
+	}
+	if p.selected >= p.scroll + list_h {
+		p.scroll = p.selected - list_h + 1
+	}
+	if p.scroll < 0 {
+		p.scroll = 0
+	}
+	painted := 0
+	if len(p.labels) == 0 {
+		write_row(b, "  (no user turns)", cols, .Bar_Dim, true)
+		painted = 1
+	} else {
+		for i := p.scroll; i < len(p.labels) && painted < list_h; i += 1 {
+			sel := i == p.selected
+			line := fmt.tprintf("%s %s", "›" if sel else " ", p.labels[i])
+			write_row(b, line, cols, .Bar_Reverse if sel else .Normal, true)
+			painted += 1
+		}
+	}
+	for painted < list_h {
+		write_row(b, "", cols, .Normal, true)
+		painted += 1
+	}
+	write_row(b, " Enter rewind · Esc cancel", cols, .Bar_Dim, true)
+}
+
+// write_settings_modal_body: /settings browse list (no billing).
+write_settings_modal_body :: proc(b: ^strings.Builder, m: ^Settings_Modal, cols: int, body_h: int) {
+	write_row(b, " settings", cols, .Bar_Reverse, true)
+	list_h := body_h - 2
+	if list_h < 1 {
+		list_h = 1
+	}
+	if m.selected < m.scroll {
+		m.scroll = m.selected
+	}
+	if m.selected >= m.scroll + list_h {
+		m.scroll = m.selected - list_h + 1
+	}
+	if m.scroll < 0 {
+		m.scroll = 0
+	}
+	painted := 0
+	for i := m.scroll; i < len(m.rows) && painted < list_h; i += 1 {
+		sel := i == m.selected
+		line := fmt.tprintf("%s %s", "›" if sel else " ", m.rows[i])
+		write_row(b, line, cols, .Bar_Reverse if sel else .Normal, true)
+		painted += 1
+	}
+	for painted < list_h {
+		write_row(b, "", cols, .Normal, true)
+		painted += 1
+	}
+	write_row(b, " Enter toggle · Esc close", cols, .Bar_Dim, true)
+}
+
+// write_queue_pane_body: mid-turn prompt queue list.
+write_queue_pane_body :: proc(b: ^strings.Builder, s: ^App_State, cols: int, body_h: int) {
+	write_row(b, fmt.tprintf(" queue (%d)", len(s.prompt_queue)), cols, .Bar_Reverse, true)
+	list_h := body_h - 2
+	if list_h < 1 {
+		list_h = 1
+	}
+	painted := 0
+	if len(s.prompt_queue) == 0 {
+		write_row(b, "  (empty — type a follow-up mid-turn and press Enter)", cols, .Bar_Dim, true)
+		painted = 1
+	} else {
+		for i := 0; i < len(s.prompt_queue) && painted < list_h; i += 1 {
+			sel := i == s.queue_sel
+			t := s.prompt_queue[i]
+			if len(t) > cols - 8 {
+				t = fmt.tprintf("%s…", t[:max(1, cols - 11)])
+			}
+			line := fmt.tprintf("%s %d. %s", "›" if sel else " ", i + 1, t)
+			write_row(b, line, cols, .Bar_Reverse if sel else .Normal, true)
+			painted += 1
+		}
+	}
+	for painted < list_h {
+		write_row(b, "", cols, .Normal, true)
+		painted += 1
+	}
+	write_row(b, " d drop · c clear · Esc close", cols, .Bar_Dim, true)
 }

@@ -18,7 +18,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/transcript` (`log`) | Open transcript in `$PAGER` | Export md + TUI suspends for `$PAGER` | **Match** |
 | `/expand` | Re-print last folded block (minimal) | Expand last tool card (TUI) | **Partial** (fullscreen fold, not minimal re-print) |
 | `/context` | Context usage pane | Context usage text | **Match** (text vs pane) |
-| `/usage` (`cost`) | Credit/billing | Fallback: note + `/context` | **Partial** (no billing) |
+| `/usage` (`cost`) | Credit/billing | Context fallback only — **billing N/A by design** | **N/A** (billing skipped) |
 | `/model` (`m`) | Switch model | Set model / TUI picker | **Match** |
 | `/effort` | Reasoning effort | Reasoning effort | **Match** |
 | `/always-approve` (`yolo`) | Toggle YOLO | Toggle / set modes | **Match** |
@@ -51,13 +51,13 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/imagine-video` | Video gen | Video gen | **Match** |
 | `/timestamps` | Toggle timestamps | Toggle timestamps | **Match** |
 | `/toggle-mouse-reporting` | Toggle mouse capture | Toggle SGR mouse (TUI) | **Match** |
-| `/settings` | Settings modal | Effective settings dump | **Partial** (no modal) |
+| `/settings` | Settings modal | TUI settings list (toggle vim/compact/timestamps/multiline; **no billing**) | **Partial** (browse/toggle; full form editor later) |
 | `/privacy` | Cloud data-sharing toggle | Local privacy posture notes | **Partial** (no remote preference) |
-| `/rewind` | Rewind picker | Drop last N turns | **Partial** (no picker UI) |
+| `/rewind` | Rewind picker | TUI user-turn picker; `/rewind N` still works | **Match** |
 | `/login` | Login flow | Device-code / host login | **Match** |
 | `/logout` | Clear credentials | Rename/remove auth.json (or env note) | **Match** |
 | `/import-claude` | Claude settings modal | Scan Claude paths + import tips | **Partial** (no merge modal) |
-| `/queue` | Mid-turn prompt queue | Empty queue notice | **Partial** (no queue yet) |
+| `/queue` | Mid-turn prompt queue | TUI FIFO queue (type+Enter mid-turn; force-send empty Enter; pane) | **Match** |
 | `/tasks` | Bg + scheduled tasks list | Bg + scheduler + todos list | **Match** (text) |
 | `/release-notes` (`changelog`) | Release notes pane | Local CHANGELOG.md head | **Match** (text) |
 | `/config-agents` (`agents`) | Agents modal | Personas + subagent types list | **Partial** (no modal) |
