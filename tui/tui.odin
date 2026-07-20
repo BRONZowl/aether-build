@@ -199,6 +199,12 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 			continue
 		}
+		if st.dashboard.active {
+			if handle_dashboard_key(&st, &sess, &term, key, &model, &cwd) {
+				dirty = true
+			}
+			continue
+		}
 		// Scrollback find mode
 		if st.search.active {
 			if handle_search_key(&st, key) {

@@ -403,6 +403,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		write_queue_pane_body(&b, s, cols, body_h)
 	} else if s.extensions_hub.active {
 		write_extensions_hub_body(&b, &s.extensions_hub, cols, body_h)
+	} else if s.dashboard.active {
+		write_dashboard_body(&b, &s.dashboard, cols, body_h)
 	} else if welcome_is_active(s) {
 		// Opening layout matches Grok Build: stacked logo+menu or hero box
 		write_welcome_body(&b, s, cols, body_h)
@@ -488,6 +490,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 			" %s  | r reload · ←/→ tab · Esc",
 			st,
 		)
+	} else if s.dashboard.active {
+		status = fmt.tprintf(" %s  | Enter load · k kill · r refresh · Esc", st)
 	} else if s.search.active {
 		// status already set by search_set_status
 		status = fmt.tprintf(" %s  | n/N next · Esc close", st)

@@ -96,6 +96,27 @@ handle_slash :: proc(
 		state_set_status(st, "settings")
 		return true
 	}
+	// Wave 3: /dashboard → overview (sessions + bg + scheduled)
+	if line == "/dashboard" || line == "/agents-dashboard" {
+		input_clear(st)
+		dashboard_open(&st.dashboard, sess)
+		state_set_status(st, "dashboard")
+		return true
+	}
+	// bare /tasks → dashboard scrolled to tasks (same surface; refresh list)
+	if line == "/tasks" {
+		input_clear(st)
+		dashboard_open(&st.dashboard, sess)
+		// Prefer first Bg_Task row if any
+		for i in 0 ..< len(st.dashboard.rows) {
+			if st.dashboard.rows[i].kind == .Bg_Task {
+				st.dashboard.selected = i
+				break
+			}
+		}
+		state_set_status(st, "tasks (dashboard)")
+		return true
+	}
 	// Wave 2: bare extensions cmds → hub (args still go to agent text handlers)
 	{
 		cmd := line

@@ -627,13 +627,13 @@ handle_import_claude_slash :: proc(cwd: string, allocator := context.allocator) 
 	return strings.to_string(b)
 }
 
-// handle_dashboard_slash: sessions + tasks overview (no fullscreen dashboard).
+// handle_dashboard_slash: text snapshot (TUI opens interactive dashboard).
 handle_dashboard_slash :: proc(sess: ^Session, allocator := context.allocator) -> string {
 	b := strings.builder_make(allocator)
 	strings.write_string(&b, "## dashboard\n")
 	strings.write_string(
 		&b,
-		"No fullscreen Agent Dashboard. Snapshot:\n\n",
+		"TUI: /dashboard opens interactive overview (Enter load · k kill bg).\n\n",
 	)
 	if sess != nil {
 		fmt.sbprintf(

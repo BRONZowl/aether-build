@@ -4,6 +4,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Wave 3 — dashboard
+
+- Interactive `/dashboard` (and bare `/tasks`): sessions (Enter load), background tasks (`k` kill), scheduled list
+- `r` refresh · Esc close
+
 ### Wave 2 — extensions hub
 
 - Tabbed TUI modal: **Hooks · Plugins · Skills · MCPs · Market** (`tui/extensions_hub.odin`)

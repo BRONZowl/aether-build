@@ -106,6 +106,8 @@ App_State :: struct {
 	settings_modal:  Settings_Modal,
 	// Wave 2: extensions hub (hooks/plugins/skills/mcps)
 	extensions_hub:  Extensions_Hub,
+	// Wave 3: agent dashboard
+	dashboard:       Dashboard,
 	// Mid-turn prompt queue (Grok /queue)
 	prompt_queue:       [dynamic]string, // owned FIFO
 	queue_pane_active:  bool,
@@ -147,6 +149,7 @@ state_init :: proc(s: ^App_State) {
 	rewind_picker_init(&s.rewind_picker)
 	settings_modal_init(&s.settings_modal)
 	extensions_hub_init(&s.extensions_hub)
+	dashboard_init(&s.dashboard)
 	prompt_queue_init(s)
 	s.ask_active = false
 	s.ask_name = ""
@@ -206,6 +209,7 @@ state_destroy :: proc(s: ^App_State) {
 	rewind_picker_destroy(&s.rewind_picker)
 	settings_modal_destroy(&s.settings_modal)
 	extensions_hub_destroy(&s.extensions_hub)
+	dashboard_destroy(&s.dashboard)
 	prompt_queue_destroy(s)
 	delete(s.ask_name)
 	delete(s.ask_summary)

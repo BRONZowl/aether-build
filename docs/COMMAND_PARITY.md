@@ -33,7 +33,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/share` | Public session URL | Honest N/A + `/export` path | **Partial** (no cloud share) |
 | `/session-info` | Session info | Session + context info | **Match** |
 | `/rename` (`title`) | Rename session | Rename session | **Match** |
-| `/dashboard` | Agent dashboard | Sessions + bg tasks text overview | **Partial** (no fullscreen dashboard) |
+| `/dashboard` | Agent dashboard | Interactive sessions + bg + scheduled (load/kill) | **Match** (single-process overview) |
 | `/cd` | Change dashboard workspace | Change process + session cwd | **Match** (session-scoped, not dashboard-only) |
 | `/theme` (`t`) | Set theme | Set theme | **Match** |
 | `/feedback` | Send product feedback | Local JSONL only | **Partial** |
@@ -58,7 +58,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/logout` | Clear credentials | Rename/remove auth.json (or env note) | **Match** |
 | `/import-claude` | Claude settings modal | Scan Claude paths + import tips | **Partial** (no merge modal) |
 | `/queue` | Mid-turn prompt queue | TUI FIFO queue (type+Enter mid-turn; force-send empty Enter; pane) | **Match** |
-| `/tasks` | Bg + scheduled tasks list | Bg + scheduler + todos list | **Match** (text) |
+| `/tasks` | Bg + scheduled tasks list | TUI dashboard focused on bg tasks; text via agent | **Match** |
 | `/release-notes` (`changelog`) | Release notes pane | Local CHANGELOG.md head | **Match** (text) |
 | `/config-agents` (`agents`) | Agents modal | Personas + subagent types list | **Partial** (no modal) |
 | `/personas` | Manage personas modal | List personas | **Partial** |

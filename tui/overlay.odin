@@ -18,6 +18,7 @@ Overlay_Kind :: enum {
 	Rewind,
 	Settings,
 	Extensions,
+	Dashboard,
 }
 
 // overlay_kind: highest-priority active overlay (ask steals first).
@@ -48,6 +49,9 @@ overlay_kind :: proc(s: ^App_State) -> Overlay_Kind {
 	}
 	if s.extensions_hub.active {
 		return .Extensions
+	}
+	if s.dashboard.active {
+		return .Dashboard
 	}
 	return .None
 }
