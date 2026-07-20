@@ -193,6 +193,12 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 			continue
 		}
+		if st.extensions_hub.active {
+			if handle_extensions_hub_key(&st, key) {
+				dirty = true
+			}
+			continue
+		}
 		// Scrollback find mode
 		if st.search.active {
 			if handle_search_key(&st, key) {

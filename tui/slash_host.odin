@@ -96,6 +96,37 @@ handle_slash :: proc(
 		state_set_status(st, "settings")
 		return true
 	}
+	// Wave 2: bare extensions cmds → hub (args still go to agent text handlers)
+	{
+		cmd := line
+		arg := ""
+		if sp := strings.index_byte(line, ' '); sp >= 0 {
+			cmd = line[:sp]
+			arg = strings.trim_space(line[sp + 1:])
+		}
+		cmd_l := strings.to_lower(cmd, context.temp_allocator)
+		is_ext :=
+			cmd_l == "/hooks" ||
+			cmd_l == "/plugins" ||
+			cmd_l == "/plugin" ||
+			cmd_l == "/skills" ||
+			cmd_l == "/mcps" ||
+			cmd_l == "/mcp" ||
+			cmd_l == "/marketplace"
+		if is_ext && arg == "" {
+			input_clear(st)
+			ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+			tab := extensions_tab_from_slash(cmd_l)
+			// /skill alone is not skills list — leave to agent if needed
+			if cmd_l == "/skill" {
+				// fall through
+			} else {
+				extensions_hub_open(&st.extensions_hub, tab, ws, opts.no_mcp)
+				state_set_status(st, fmt.tprintf("extensions · %s", extensions_tab_name(tab)))
+				return true
+			}
+		}
+	}
 	// Grok /expand — expand last tool card (fullscreen TUI equivalent of minimal re-print)
 	if line == "/expand" {
 		input_clear(st)

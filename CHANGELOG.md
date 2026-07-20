@@ -4,6 +4,12 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Wave 2 — extensions hub
+
+- Tabbed TUI modal: **Hooks · Plugins · Skills · MCPs · Market** (`tui/extensions_hub.odin`)
+- Bare `/hooks`, `/plugins`, `/skills`, `/mcps`, `/marketplace` open the hub (args still use text CLI handlers)
+- `r` reload · `t` trust · ←/→ or Tab switch · 1–5 jump tabs
+
 ### Wave 0–1 surface parity (skip billing)
 
 - **Overlay kit** (`tui/overlay.odin`): `Overlay_Kind`, list-nav helpers, shared focus checks

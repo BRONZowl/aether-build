@@ -17,6 +17,7 @@ Overlay_Kind :: enum {
 	Queue,
 	Rewind,
 	Settings,
+	Extensions,
 }
 
 // overlay_kind: highest-priority active overlay (ask steals first).
@@ -44,6 +45,9 @@ overlay_kind :: proc(s: ^App_State) -> Overlay_Kind {
 	}
 	if s.settings_modal.active {
 		return .Settings
+	}
+	if s.extensions_hub.active {
+		return .Extensions
 	}
 	return .None
 }

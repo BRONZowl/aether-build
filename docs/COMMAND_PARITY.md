@@ -26,10 +26,10 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/multiline` (`ml`) | Toggle multiline | Toggle multiline | **Match** |
 | `/compact-mode` | Toggle compact UI | Toggle compact UI | **Match** |
 | `/vim-mode` | Vim scrollback keys | Vim scrollback keys | **Match** |
-| `/hooks` | Extensions modal | Hooks status/CLI | **Partial** (no modal) |
-| `/plugins` | Extensions modal | Plugin list/add/remove | **Partial** (no modal) |
-| `/marketplace` | Extensions marketplace tab | Local plugins list + install tips | **Partial** (no remote marketplace) |
-| `/skills` | Extensions modal | List skills | **Partial** (no modal) |
+| `/hooks` | Extensions modal | TUI extensions hub (Hooks tab) + CLI | **Match** (hub; no per-hook toggle UI) |
+| `/plugins` | Extensions modal | TUI extensions hub (Plugins tab) + CLI | **Match** (hub) |
+| `/marketplace` | Extensions marketplace tab | Hub Market tab = local plugins (no remote catalog) | **Partial** (local only) |
+| `/skills` | Extensions modal | TUI extensions hub (Skills tab) + CLI | **Match** (hub) |
 | `/share` | Public session URL | Honest N/A + `/export` path | **Partial** (no cloud share) |
 | `/session-info` | Session info | Session + context info | **Match** |
 | `/rename` (`title`) | Rename session | Rename session | **Match** |
@@ -41,7 +41,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/plan` | Enter plan mode | Plan mode on/off/status | **Match** |
 | `/view-plan` | Show plan | Show plan.md | **Match** |
 | `/resume` | Session picker | TUI picker / list sessions | **Match** |
-| `/mcps` | Extensions modal | MCP status/reconnect | **Partial** (no modal) |
+| `/mcps` | Extensions modal | TUI extensions hub (MCPs tab) + CLI | **Match** (hub) |
 | `/btw` | Side agent question | Local note only | **Partial** |
 | `/recap` | Model session recap | Local recent-turn recap | **Partial** (no model recap) |
 | `/terminal-setup` | Terminal diagnostics | TERM/color/clipboard report | **Match** (text) |
