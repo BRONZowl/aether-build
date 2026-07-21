@@ -151,6 +151,13 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"nix store ls", .Allow, "nix_store_ls"},
 	{"gradle tasks", .Allow, "gradle_tasks"},
 	{"gradle build", .Ask, "gradle_build"},
+	// sbt / mvn / brew
+	{"sbt tasks", .Allow, "sbt_tasks"},
+	{"sbt compile", .Ask, "sbt_compile"},
+	{"mvn dependency:tree", .Allow, "mvn_dep_tree"},
+	{"mvn package", .Ask, "mvn_package"},
+	{"brew list", .Allow, "brew_list"},
+	{"brew install foo", .Ask, "brew_install"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

@@ -141,6 +141,19 @@ bash_composer_is_readonly :: proc(args: string) -> bool {
 	return bash_cli_is_readonly(args, COMPOSER_READONLY_SPEC)
 }
 
+// Homebrew subcommand tables.
+BREW_MUTATE := [?]string {
+	"install", "uninstall", "reinstall", "upgrade", "update", "cleanup", "untap",
+	"link", "unlink", "pin", "unpin", "create", "edit", "extract", "bundle",
+	"postinstall", "vendor-install", "shellenv", "autoupdate",
+}
+BREW_ALLOW := [?]string {
+	"list", "ls", "info", "search", "outdated", "deps", "uses", "cat", "home", "desc",
+	"leaves", "doctor", "missing", "livecheck", "options", "formulae", "casks", "help",
+	"config", "env", "commands", "which", "--version", "version", "readall", "style",
+	"audit", "log",
+}
+
 // B58: Homebrew inspect (list/info/search/outdated; not install/upgrade/update).
 bash_brew_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
@@ -199,25 +212,7 @@ bash_brew_is_readonly :: proc(args: string) -> bool {
 		// first non-flag is subcommand
 		sub := strings.to_lower(tok, context.temp_allocator)
 		// mutators
-		if sub == "install" ||
-		   sub == "uninstall" ||
-		   sub == "reinstall" ||
-		   sub == "upgrade" ||
-		   sub == "update" ||
-		   sub == "cleanup" ||
-		   sub == "untap" ||
-		   sub == "link" ||
-		   sub == "unlink" ||
-		   sub == "pin" ||
-		   sub == "unpin" ||
-		   sub == "create" ||
-		   sub == "edit" ||
-		   sub == "extract" ||
-		   sub == "bundle" ||
-		   sub == "postinstall" ||
-		   sub == "vendor-install" ||
-		   sub == "shellenv" || // writes env setup; still mostly inspect — allow? fail closed mild
-		   sub == "autoupdate" {
+		if bash_token_in(sub, BREW_MUTATE[:]) {
 			return false
 		}
 		// tap: bare / --list only (adding a tap mutates)
@@ -255,34 +250,7 @@ bash_brew_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		// inspect verbs
-		if sub == "list" ||
-		   sub == "ls" ||
-		   sub == "info" ||
-		   sub == "search" ||
-		   sub == "outdated" ||
-		   sub == "deps" ||
-		   sub == "uses" ||
-		   sub == "cat" ||
-		   sub == "home" ||
-		   sub == "desc" ||
-		   sub == "leaves" ||
-		   sub == "doctor" ||
-		   sub == "missing" ||
-		   sub == "livecheck" ||
-		   sub == "options" ||
-		   sub == "formulae" ||
-		   sub == "casks" ||
-		   sub == "help" ||
-		   sub == "config" ||
-		   sub == "env" ||
-		   sub == "commands" ||
-		   sub == "which" ||
-		   sub == "--version" ||
-		   sub == "version" ||
-		   sub == "readall" ||
-		   sub == "style" || // lint, no install
-		   sub == "audit" ||
-		   sub == "log" {
+		if bash_token_in(sub, BREW_ALLOW[:]) {
 			return true
 		}
 		return false

@@ -874,6 +874,18 @@ bash_bazel_is_readonly :: proc(args: string) -> bool {
 	return true
 }
 
+// sbt task classification tables.
+SBT_MUTATE := [?]string {
+	"compile", "test", "testonly", "run", "runmain", "package", "publish",
+	"publishlocal", "publishm2", "clean", "reload", "update", "console",
+	"consolequick", "consoleproject", "exit", "quit", "assembly", "stage",
+}
+SBT_INSPECT := [?]string {
+	"tasks", "about", "settings", "inspect", "show", "print",
+	"dependencytree", "dependencylist", "dependencygraph", "evicted",
+	"plugins", "projects", "project",
+}
+
 // B69: sbt inspect (tasks/about/dependencyTree/…; not compile/run/test).
 // Note: bare `sbt` drops into interactive shell → ask.
 bash_sbt_is_readonly :: proc(args: string) -> bool {
@@ -935,25 +947,7 @@ bash_sbt_is_readonly :: proc(args: string) -> bool {
 		}
 		tl := strings.to_lower(t, context.temp_allocator)
 		// mutators / runners
-		if tl == "compile" ||
-		   tl == "test" ||
-		   tl == "testonly" ||
-		   tl == "run" ||
-		   tl == "runmain" ||
-		   tl == "package" ||
-		   tl == "publish" ||
-		   tl == "publishlocal" ||
-		   tl == "publishm2" ||
-		   tl == "clean" ||
-		   tl == "reload" ||
-		   tl == "update" ||
-		   tl == "console" ||
-		   tl == "consolequick" ||
-		   tl == "consoleproject" ||
-		   tl == "exit" ||
-		   tl == "quit" ||
-		   tl == "assembly" ||
-		   tl == "stage" ||
+		if bash_token_in(tl, SBT_MUTATE[:]) ||
 		   strings.has_prefix(tl, "run ") ||
 		   strings.has_prefix(tl, "test:") ||
 		   strings.has_prefix(tl, "compile") ||
@@ -961,19 +955,7 @@ bash_sbt_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		// inspect-ish commands
-		if tl == "tasks" ||
-		   tl == "about" ||
-		   tl == "settings" ||
-		   tl == "inspect" ||
-		   tl == "show" ||
-		   tl == "print" ||
-		   tl == "dependencytree" ||
-		   tl == "dependencylist" ||
-		   tl == "dependencygraph" ||
-		   tl == "evicted" ||
-		   tl == "plugins" ||
-		   tl == "projects" ||
-		   tl == "project" ||
+		if bash_token_in(tl, SBT_INSPECT[:]) ||
 		   strings.has_prefix(tl, "show ") ||
 		   strings.has_prefix(tl, "inspect ") ||
 		   strings.has_prefix(tl, "print ") ||
@@ -1004,6 +986,23 @@ bash_sbt_is_readonly :: proc(args: string) -> bool {
 		return false
 	}
 	return saw_inspect
+}
+
+// Maven goal classification tables.
+MVN_LIFECYCLE := [?]string {
+	"clean", "validate", "compile", "test", "package", "verify", "install", "deploy",
+	"site", "integration-test",
+}
+MVN_INSPECT_GOALS := [?]string {
+	"help", "dependency:tree", "dependency:list", "dependency:analyze",
+	"dependency:resolve", "dependency:resolve-sources", "dependency:resolve-plugins",
+	"dependency:display-ancestors", "dependency:get",
+	"versions:display-dependency-updates", "versions:display-plugin-updates",
+	"versions:display-property-updates", "versions:display-parent-updates",
+	"enforcer:display-info", "project-info-reports:dependencies",
+}
+MVN_INSPECT_PREFIX := [?]string {
+	"help:", "dependency:tree", "dependency:list", "dependency:analyze", "dependency:resolve",
 }
 
 // B67: Maven inspect (help/dependency:tree/…; not package/install/test).
@@ -1091,16 +1090,7 @@ bash_mvn_is_readonly :: proc(args: string) -> bool {
 		}
 		t := strings.to_lower(tok, context.temp_allocator)
 		// lifecycle / mutator goals
-		if t == "clean" ||
-		   t == "validate" ||
-		   t == "compile" ||
-		   t == "test" ||
-		   t == "package" ||
-		   t == "verify" ||
-		   t == "install" ||
-		   t == "deploy" ||
-		   t == "site" ||
-		   t == "integration-test" ||
+		if bash_token_in(t, MVN_LIFECYCLE[:]) ||
 		   strings.has_prefix(t, "spring-boot:") ||
 		   strings.has_prefix(t, "exec:") ||
 		   strings.has_prefix(t, "jetty:") ||
@@ -1110,28 +1100,13 @@ bash_mvn_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		// inspect plugins / goals
-		if t == "help" ||
+		if bash_token_in(t, MVN_INSPECT_GOALS[:]) ||
 		   strings.has_prefix(t, "help:") ||
 		   strings.has_prefix(t, "dependency:tree") ||
 		   strings.has_prefix(t, "dependency:list") ||
 		   strings.has_prefix(t, "dependency:analyze") ||
-		   strings.has_prefix(t, "dependency:resolve") ||
-		   strings.has_prefix(t, "dependency:purge-local-repository") || // mutates local repo!
-		   t == "dependency:tree" ||
-		   t == "dependency:list" ||
-		   t == "dependency:analyze" ||
-		   t == "dependency:resolve" ||
-		   t == "dependency:resolve-sources" ||
-		   t == "dependency:resolve-plugins" ||
-		   t == "dependency:display-ancestors" ||
-		   t == "dependency:get" ||
-		   t == "versions:display-dependency-updates" ||
-		   t == "versions:display-plugin-updates" ||
-		   t == "versions:display-property-updates" ||
-		   t == "versions:display-parent-updates" ||
-		   t == "enforcer:display-info" ||
-		   t == "project-info-reports:dependencies" {
-			// purge is mutate — already partially matched; block purge explicitly
+		   strings.has_prefix(t, "dependency:resolve") {
+			// purge is mutate
 			if strings.contains(t, "purge") {
 				return false
 			}
