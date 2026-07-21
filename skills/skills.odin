@@ -9,6 +9,7 @@ import "base:runtime"
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "aether:core"
 
 Skill_Registry :: struct {
 	skills: [dynamic]Parsed_Skill,
@@ -36,8 +37,7 @@ skills_heap :: proc() -> runtime.Allocator {
 start_registry :: proc(cwd: string, quiet: bool, allocator := context.allocator) -> ^Skill_Registry {
 	_ = allocator // API compat; live registry ignores test/tracking allocators
 	ha := skills_heap()
-	if v := os.get_env("AETHER_NO_SKILLS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_SKILLS") {
 		return nil
 	}
 	cfg := load_skills_config(ha)

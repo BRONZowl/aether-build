@@ -17,8 +17,7 @@ Isolation_Mode :: enum {
 
 // worktree_enabled is true unless AETHER_NO_WORKTREE=1/true.
 worktree_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_WORKTREE", context.temp_allocator)
-	if v == "1" || strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_WORKTREE") {
 		return false
 	}
 	return true

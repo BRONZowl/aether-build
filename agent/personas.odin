@@ -36,8 +36,7 @@ destroy_personas :: proc(list: []Persona) {
 }
 
 personas_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_PERSONAS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_PERSONAS") {
 		return false
 	}
 	return true

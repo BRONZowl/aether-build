@@ -102,8 +102,7 @@ ui_color_disabled :: proc() -> bool {
 	if v := os.get_env("NO_COLOR", context.temp_allocator); v != "" {
 		return true
 	}
-	if v := os.get_env("AETHER_NO_COLOR", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if env_truthy("AETHER_NO_COLOR") {
 		return true
 	}
 	return false

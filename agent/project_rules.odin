@@ -32,31 +32,20 @@ CLAUDE_NESTED_BASENAMES :: []string {
 }
 
 project_rules_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_PROJECT_RULES", context.temp_allocator)
-	if v == "1" || strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_PROJECT_RULES") {
 		return false
 	}
 	return true
 }
 
 claude_rules_enabled :: proc() -> bool {
-	for key in ([]string{"AETHER_NO_CLAUDE_RULES", "AETHER_NO_CLAUDE_SKILLS"}) {
-		v := os.get_env(key, context.temp_allocator)
-		if v == "1" || strings.equal_fold(v, "true") {
-			return false
-		}
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_CLAUDE_RULES") &&
+		!core.feature_killed("AETHER_NO_CLAUDE_SKILLS")
 }
 
 cursor_rules_enabled :: proc() -> bool {
-	for key in ([]string{"AETHER_NO_CURSOR_RULES", "AETHER_NO_CURSOR_SKILLS"}) {
-		v := os.get_env(key, context.temp_allocator)
-		if v == "1" || strings.equal_fold(v, "true") {
-			return false
-		}
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_CURSOR_RULES") &&
+		!core.feature_killed("AETHER_NO_CURSOR_SKILLS")
 }
 
 Rule_File :: struct {

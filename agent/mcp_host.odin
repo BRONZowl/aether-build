@@ -7,6 +7,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "aether:mcp"
+import "aether:core"
 
 // maybe_start_mcp loads config and starts MCP when not disabled.
 // Returns registry (may be empty/partial); caller must stop via maybe_stop_mcp.
@@ -14,8 +15,7 @@ maybe_start_mcp :: proc(no_mcp: bool, quiet: bool) -> ^mcp.Mcp_Registry {
 	if no_mcp {
 		return nil
 	}
-	if v := os.get_env("AETHER_NO_MCP", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_MCP") {
 		return nil
 	}
 	cfgs := mcp.load_mcp_configs()
@@ -192,8 +192,7 @@ mcp_doctor_report :: proc(
 
 	b := strings.builder_make(allocator)
 	strings.write_string(&b, "mcp doctor (in-process; no host grok required)\n")
-	if no_mcp ||
-	   (os.get_env("AETHER_NO_MCP", context.temp_allocator) == "1") {
+	if no_mcp || core.feature_killed("AETHER_NO_MCP") {
 		strings.write_string(&b, "  note: MCP disabled (AETHER_NO_MCP / --no-mcp)\n")
 	}
 	if len(cfgs) == 0 {

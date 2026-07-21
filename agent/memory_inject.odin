@@ -24,10 +24,7 @@ memory_inject_enabled :: proc() -> bool {
 	if !tools.memory_enabled() {
 		return false
 	}
-	if v := os.get_env("AETHER_NO_MEMORY_INJECT", context.temp_allocator); v == "1" ||
-	   v == "true" ||
-	   v == "yes" ||
-	   v == "on" {
+	if core.feature_killed("AETHER_NO_MEMORY_INJECT") {
 		return false
 	}
 	if !core.flag_memory_inject() {

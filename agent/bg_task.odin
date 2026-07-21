@@ -195,8 +195,7 @@ bg_end_running :: proc() {
 
 // auto_wake_enabled is true unless AETHER_NO_AUTO_WAKE=1/true.
 auto_wake_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_AUTO_WAKE", context.temp_allocator)
-	if v == "1" || strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_AUTO_WAKE") {
 		return false
 	}
 	return true

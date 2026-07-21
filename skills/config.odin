@@ -222,8 +222,7 @@ append_unique_str :: proc(list: ^[dynamic]string, s: string, allocator := contex
 
 claude_skills_enabled :: proc() -> bool {
 	// Prefer Aether env; accept Grok-style GROK_CLAUDE_SKILLS_ENABLED=false
-	if v := os.get_env("AETHER_NO_CLAUDE_SKILLS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_CLAUDE_SKILLS") {
 		return false
 	}
 	if v := os.get_env("GROK_CLAUDE_SKILLS_ENABLED", context.temp_allocator); v != "" {
@@ -235,8 +234,7 @@ claude_skills_enabled :: proc() -> bool {
 }
 
 cursor_skills_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_CURSOR_SKILLS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_CURSOR_SKILLS") {
 		return false
 	}
 	if v := os.get_env("GROK_CURSOR_SKILLS_ENABLED", context.temp_allocator); v != "" {

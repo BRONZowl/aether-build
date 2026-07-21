@@ -465,7 +465,7 @@ chat_completion_stream :: proc(
 	http_opts := http_opts
 	http_opts.verbose = verbose || http_opts.verbose
 
-	if os_env_truthy("AETHER_NO_STREAM") {
+	if core.env_truthy("AETHER_NO_STREAM") {
 		return chat_completion(creds, model, messages, tools_json, allocator, http_opts)
 	}
 
@@ -489,7 +489,7 @@ chat_completion_stream :: proc(
 	live_stdout :=
 		g_content_delta == nil &&
 		!quiet &&
-		os_env_truthy("AETHER_STREAM_STDOUT")
+		core.env_truthy("AETHER_STREAM_STDOUT")
 
 	last_err := ""
 	refreshed_401 := false
@@ -736,14 +736,4 @@ ingest_sse_data :: proc(accum: ^Stream_Accum, data: string) {
 	}
 }
 
-os_env_truthy :: proc(key: string) -> bool {
-	v := os.get_env(key, context.temp_allocator)
-	if v == "" {
-		return false
-	}
-	switch strings.to_lower(v, context.temp_allocator) {
-	case "1", "true", "yes", "on":
-		return true
-	}
-	return false
-}
+

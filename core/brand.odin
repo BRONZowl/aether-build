@@ -81,10 +81,7 @@ BRAND_STARTUP_SLASH_TIPS :: "/about · /help · /keys · /quit"
 
 // brand_art_enabled: AETHER_NO_ASCII_ART or AETHER_ASCII_ART=off disables.
 brand_art_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") ||
-	   strings.equal_fold(v, "yes") ||
-	   strings.equal_fold(v, "on") {
+	if feature_killed("AETHER_NO_ASCII_ART") {
 		return false
 	}
 	v := strings.to_lower(

@@ -41,10 +41,7 @@ memory_enabled :: proc() -> bool {
 	if g_memory_force_disabled {
 		return false
 	}
-	if v := os.get_env("AETHER_NO_MEMORY", context.temp_allocator); v == "1" ||
-	   v == "true" ||
-	   v == "yes" ||
-	   v == "on" {
+	if core.feature_killed("AETHER_NO_MEMORY") {
 		return false
 	}
 	if g_memory_force_enabled {

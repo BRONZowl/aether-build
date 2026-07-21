@@ -12,6 +12,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:unicode/utf8"
+import "aether:core"
 
 MERMAID_MAX_NODES :: 64
 MERMAID_MAX_EDGES :: 128
@@ -39,9 +40,7 @@ Mermaid_Shape :: enum {
 
 // mermaid_render_enabled: auto/on unless AETHER_NO_MERMAID or AETHER_RENDER_MERMAID=off.
 mermaid_render_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_MERMAID", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") ||
-	   strings.equal_fold(v, "yes") {
+	if core.feature_killed("AETHER_NO_MERMAID") {
 		return false
 	}
 	v := strings.to_lower(

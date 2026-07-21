@@ -40,8 +40,7 @@ destroy_plugin_list :: proc(list: []Plugin_Entry) {
 }
 
 plugins_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_PLUGINS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_PLUGINS") {
 		return false
 	}
 	return true

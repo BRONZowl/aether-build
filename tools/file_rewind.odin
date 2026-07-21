@@ -12,6 +12,7 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "core:sync"
+import "aether:core"
 
 MAX_REWIND_STACK :: 40
 // Cap stored content per snapshot (avoid huge binaries in RAM).
@@ -36,8 +37,7 @@ g_rewind_mu:    sync.Mutex
 g_rewind_stack: [dynamic]File_Rewind_Entry
 
 file_rewind_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_FILE_REWIND", context.temp_allocator)
-	return !(v == "1" || v == "true" || v == "yes" || v == "on")
+	return !core.feature_killed("AETHER_NO_FILE_REWIND")
 }
 
 file_rewind_clear :: proc() {

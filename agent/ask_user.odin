@@ -13,6 +13,7 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:terminal"
+import "aether:core"
 
 // Grok CANCEL_TEXT (format.rs Path D)
 ASK_USER_CANCEL_TEXT :: "User declined to answer the questions. Continue with the task using your best judgment, or ask different questions."
@@ -34,11 +35,7 @@ Ask_Question :: struct {
 Ask_User_Handler :: #type proc(arguments_json: string) -> string
 
 ask_user_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_ASK_USER", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_ASK_USER")
 }
 
 // is_other_option: exact match for the auto-appended Other choice.

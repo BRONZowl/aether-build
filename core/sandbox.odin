@@ -24,8 +24,7 @@ Sandbox_Mode :: enum {
 //   soft|1|true|workspace → Soft
 //   bwrap|landlock|os → Bwrap (falls back to Soft if bwrap missing)
 sandbox_mode_from_env :: proc() -> Sandbox_Mode {
-	if v := os.get_env("AETHER_NO_OS_SANDBOX", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if feature_killed("AETHER_NO_OS_SANDBOX") {
 		return .Off
 	}
 	v := strings.to_lower(

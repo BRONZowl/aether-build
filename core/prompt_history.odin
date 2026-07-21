@@ -17,8 +17,7 @@ PROMPT_HISTORY_MAX :: 200
 PROMPT_HISTORY_MAX_ENTRY :: 8 * 1024
 
 prompt_history_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_PROMPT_HISTORY", context.temp_allocator)
-	return !(v == "1" || strings.equal_fold(v, "true") || strings.equal_fold(v, "yes") || strings.equal_fold(v, "on"))
+	return !feature_killed("AETHER_NO_PROMPT_HISTORY")
 }
 
 // prompt_history_path: AETHER_PROMPT_HISTORY_PATH or $GROK_HOME/aether/prompt-history.jsonl.

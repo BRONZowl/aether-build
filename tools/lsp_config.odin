@@ -24,11 +24,7 @@ Lsp_Server_Cfg :: struct {
 
 // lsp_enabled: opt-out AETHER_NO_LSP=1
 lsp_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_LSP", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_LSP")
 }
 
 // apply_default_extensions fills well-known server → ext map when empty.

@@ -42,8 +42,7 @@ g_goal:    Goal_State
 
 // goal_enabled: opt-out AETHER_NO_GOAL=1
 goal_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_GOAL", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_GOAL") {
 		return false
 	}
 	return true

@@ -385,10 +385,7 @@ truncate_preview :: proc(s: string, max: int, allocator := context.allocator) ->
 
 // auto_compact_enabled: not AETHER_NO_AUTO_COMPACT, config auto_compact, and threshold > 0.
 auto_compact_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_AUTO_COMPACT", context.temp_allocator); v == "1" ||
-	   v == "true" ||
-	   v == "yes" ||
-	   v == "on" {
+	if core.feature_killed("AETHER_NO_AUTO_COMPACT") {
 		return false
 	}
 	if !core.flag_auto_compact() {

@@ -11,8 +11,7 @@ import "core:strings"
 import "core:time"
 
 hang_log_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_DEBUG_HANG", context.temp_allocator)
-	return v == "1" || strings.equal_fold(v, "true")
+	return env_truthy("AETHER_DEBUG_HANG")
 }
 
 // hang_log_path: ~/.grok/aether/hang.log

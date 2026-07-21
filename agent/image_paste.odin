@@ -11,6 +11,7 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:time"
+import "aether:core"
 
 // is_image_extension: common still-image suffixes.
 is_image_extension :: proc(path: string) -> bool {
@@ -304,6 +305,5 @@ write_user_content_json :: proc(b: ^strings.Builder, content: string) {
 }
 
 multimodal_disabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_MULTIMODAL", context.temp_allocator)
-	return v == "1" || v == "true" || v == "yes" || v == "on"
+	return core.feature_killed("AETHER_NO_MULTIMODAL")
 }

@@ -62,13 +62,7 @@ g_loaded:           bool
 g_session_end_fired: bool
 
 hooks_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_HOOKS", context.temp_allocator); v == "1" ||
-	   v == "true" ||
-	   v == "yes" ||
-	   v == "on" {
-		return false
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_HOOKS")
 }
 
 destroy_spec :: proc(s: ^Hook_Spec) {

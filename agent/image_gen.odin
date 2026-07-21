@@ -24,8 +24,7 @@ g_image_ctr:   int
 
 // image_gen_enabled: opt-out AETHER_NO_IMAGE_GEN=1
 image_gen_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_IMAGE_GEN", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_IMAGE_GEN") {
 		return false
 	}
 	return true

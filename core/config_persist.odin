@@ -12,11 +12,7 @@ import "core:path/filepath"
 import "core:strings"
 
 ui_persist_enabled :: proc() -> bool {
-	v := os.get_env("AETHER_NO_UI_PERSIST", context.temp_allocator)
-	if v == "1" || strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !feature_killed("AETHER_NO_UI_PERSIST")
 }
 
 // user_config_toml_path: $GROK_HOME/config.toml (allocated).

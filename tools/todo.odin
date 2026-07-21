@@ -50,11 +50,7 @@ todo_ensure_heap :: proc() {
 
 // todo_write_enabled: opt-out AETHER_NO_TODO_WRITE=1
 todo_write_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_TODO_WRITE", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_TODO_WRITE")
 }
 
 todo_status_from_string :: proc(s: string) -> (Todo_Status, bool) {

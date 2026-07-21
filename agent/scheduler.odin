@@ -43,11 +43,7 @@ g_sched_loaded: bool
 
 // scheduler_enabled: opt-out AETHER_NO_SCHEDULER=1
 scheduler_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_SCHEDULER", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !core.feature_killed("AETHER_NO_SCHEDULER")
 }
 
 scheduler_ensure_heap :: proc() {

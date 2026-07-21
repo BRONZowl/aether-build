@@ -32,8 +32,7 @@ g_video_ctr: int
 
 // video_gen_enabled: opt-out AETHER_NO_VIDEO_GEN=1
 video_gen_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_VIDEO_GEN", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_VIDEO_GEN") {
 		return false
 	}
 	return true

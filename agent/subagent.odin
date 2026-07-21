@@ -43,8 +43,7 @@ subagent_type_string :: proc(t: Subagent_Type) -> string {
 }
 
 subagents_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_SUBAGENTS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_SUBAGENTS") {
 		return false
 	}
 	if v := os.get_env("GROK_SUBAGENTS", context.temp_allocator); v == "0" ||

@@ -11,6 +11,7 @@ import "core:encoding/json"
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "aether:core"
 
 WEB_SEARCH_TIMEOUT_S :: 60
 WEB_SEARCH_MAX_CITES :: 12
@@ -18,8 +19,7 @@ WEB_SEARCH_MAX_OUT :: 40_000
 
 // web_search_enabled: opt-out AETHER_NO_WEB_SEARCH=1
 web_search_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_WEB_SEARCH", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_WEB_SEARCH") {
 		return false
 	}
 	return true

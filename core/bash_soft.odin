@@ -23,27 +23,23 @@ g_bash_soft_override: Bash_Soft_Override
 
 bash_soft_enabled :: proc() -> bool {
 	// Env kill-switch always wins (same as memory + AETHER_NO_*)
-	v := os.get_env("AETHER_NO_BASH_SOFT", context.temp_allocator)
-	if v == "1" || v == "true" || v == "yes" || v == "on" {
-		return false
-	}
+	ov: Feature_Override = .Unset
 	switch g_bash_soft_override {
 	case .On:
-		return true
+		ov = .On
 	case .Off:
-		return false
+		ov = .Off
 	case .Unset:
-		return true // default on
+		ov = .Unset
 	}
-	return true
+	return feature_enabled("AETHER_NO_BASH_SOFT", ov, true)
 }
 
 // bash_soft_set_process_enabled: /soft-bash on|off for this process.
 // Returns false if env kill-switch blocks re-enable.
 bash_soft_set_process_enabled :: proc(on: bool) -> bool {
 	if on {
-		v := os.get_env("AETHER_NO_BASH_SOFT", context.temp_allocator)
-		if v == "1" || v == "true" || v == "yes" || v == "on" {
+		if feature_killed("AETHER_NO_BASH_SOFT") {
 			return false
 		}
 		g_bash_soft_override = .On

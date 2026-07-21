@@ -7,14 +7,14 @@ import "core:fmt"
 import "core:os"
 import "core:strings"
 import "aether:skills"
+import "aether:core"
 
 // maybe_start_skills discovers skills for cwd unless disabled.
 // Returns the live registry pointer (also in skills global). After /skills reload,
 // the live registry may differ from the original return value — always stop via
 // maybe_stop_skills (uses the global).
 maybe_start_skills :: proc(cwd: string, quiet: bool) -> ^skills.Skill_Registry {
-	if v := os.get_env("AETHER_NO_SKILLS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_SKILLS") {
 		skills.set_registry(nil)
 		return nil
 	}
@@ -40,8 +40,7 @@ reload_skills_for_cwd :: proc(cwd: string, quiet := true) -> string {
 		skills.set_registry(nil)
 		skills.stop_registry(old)
 	}
-	if v := os.get_env("AETHER_NO_SKILLS", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_SKILLS") {
 		return strings.clone("aether: skills disabled (AETHER_NO_SKILLS=1)")
 	}
 	reg := skills.start_registry(cwd, quiet)

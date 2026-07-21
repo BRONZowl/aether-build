@@ -391,10 +391,7 @@ auto_dream_enabled :: proc() -> bool {
 	if !tools.memory_enabled() {
 		return false
 	}
-	if v := os.get_env("AETHER_NO_AUTO_DREAM", context.temp_allocator); v == "1" ||
-	   v == "true" ||
-	   v == "yes" ||
-	   v == "on" {
+	if core.feature_killed("AETHER_NO_AUTO_DREAM") {
 		return false
 	}
 	if !core.flag_auto_dream() {

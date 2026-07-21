@@ -134,8 +134,7 @@ WEB_FETCH_DEFAULT_DOMAINS :: []string{
 
 // web_fetch_enabled: opt-out AETHER_NO_WEB_FETCH=1 (Grok feature-flags the tool).
 web_fetch_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_WEB_FETCH", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_WEB_FETCH") {
 		return false
 	}
 	return true

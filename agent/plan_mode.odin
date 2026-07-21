@@ -13,6 +13,7 @@ import "core:path/filepath"
 import "core:strings"
 import "core:terminal"
 import "aether:tools"
+import "aether:core"
 
 // Plan_Mode_State mirrors Grok PlanModeState.
 Plan_Mode_State :: enum {
@@ -56,8 +57,7 @@ Plan_Exit_Result :: struct {
 Plan_Exit_Handler :: #type proc(plan_path, plan_preview: string) -> Plan_Exit_Result
 
 plan_mode_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_PLAN_MODE", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_PLAN_MODE") {
 		return false
 	}
 	return true

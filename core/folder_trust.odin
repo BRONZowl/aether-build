@@ -21,13 +21,7 @@ import "core:time"
 
 // folder_trust_enabled: opt-out AETHER_NO_FOLDER_TRUST=1 (feature off = always allow project scope).
 folder_trust_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_FOLDER_TRUST", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") ||
-	   strings.equal_fold(v, "yes") ||
-	   strings.equal_fold(v, "on") {
-		return false
-	}
-	return true
+	return !feature_killed("AETHER_NO_FOLDER_TRUST")
 }
 
 // trusted_folders_path: $GROK_HOME/trusted_folders.toml (allocated).

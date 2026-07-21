@@ -28,8 +28,7 @@ MONITOR_RATE_WINDOW_MS :: 2000
 
 // monitor_enabled: opt-out AETHER_NO_MONITOR=1
 monitor_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_MONITOR", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
+	if core.feature_killed("AETHER_NO_MONITOR") {
 		return false
 	}
 	return true

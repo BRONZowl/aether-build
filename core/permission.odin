@@ -387,11 +387,7 @@ g_session_allow_mu: sync.Mutex
 g_session_allow:    [dynamic]string
 
 session_allow_enabled :: proc() -> bool {
-	if v := os.get_env("AETHER_NO_SESSION_ALLOW", context.temp_allocator); v == "1" ||
-	   strings.equal_fold(v, "true") {
-		return false
-	}
-	return true
+	return !feature_killed("AETHER_NO_SESSION_ALLOW")
 }
 
 session_allow_ensure_heap :: proc() {
