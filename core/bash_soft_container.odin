@@ -716,16 +716,29 @@ bash_nerdctl_image_is_readonly :: proc(args: string, bare_images: bool) -> bool 
 }
 
 // B88: ctr (containerd) inspect (images/containers/tasks/content list; not pull/run/rm).
+CTR_HELP := [?]string{"version", "--version", "help", "--help", "-h"}
+CTR_VALUE_FLAGS := [?]string{"-a", "--address", "-n", "--namespace", "--timeout", "-t"}
+CTR_VALUE_EQ_PREFIXES := [?]string{"--address=", "--namespace=", "--timeout="}
+CTR_TOP_INSPECT := [?]string{"version", "help", "info", "events"}
+CTR_IMAGE_ALIASES := [?]string{"images", "i", "image"}
+CTR_CONTAINER_ALIASES := [?]string{"containers", "c", "container"}
+CTR_TASK_ALIASES := [?]string{"tasks", "t", "task"}
+CTR_NS_ALIASES := [?]string{"namespaces", "ns"}
+CTR_SNAPSHOT_ALLOW := [?]string{"list", "ls", "tree", "usage", "info"}
+CTR_LEASE_ALLOW := [?]string{"list", "ls"}
+CTR_LISTISH := [?]string{"list", "ls"}
+CTR_IMAGES_ALLOW := [?]string{"list", "ls", "check", "usage"}
+CTR_CONTAINERS_ALLOW := [?]string{"list", "ls", "info"}
+CTR_TASKS_ALLOW := [?]string{"list", "ls", "ps", "metrics"}
+CTR_CONTENT_ALLOW := [?]string{"ls", "list", "get", "active"}
+CTR_CONTENT_DENY := [?]string{"fetch"}
+
 bash_ctr_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, CTR_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") {
 		return true
@@ -737,12 +750,7 @@ bash_ctr_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			return true
 		}
-		if tok == "-a" ||
-		   tok == "--address" ||
-		   tok == "-n" ||
-		   tok == "--namespace" ||
-		   tok == "--timeout" ||
-		   tok == "-t" {
+		if bash_token_in(tok, CTR_VALUE_FLAGS[:]) {
 			if strings.contains(tok, "=") {
 				rest = rem
 				continue
@@ -751,9 +759,14 @@ bash_ctr_is_readonly :: proc(args: string) -> bool {
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--address=") ||
-		   strings.has_prefix(tok, "--namespace=") ||
-		   strings.has_prefix(tok, "--timeout=") {
+		eq_value := false
+		for p in CTR_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -762,36 +775,33 @@ bash_ctr_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "version" || sub == "help" || sub == "plugins" || sub == "info" {
-			// plugins list is default; info is host
-			if sub == "plugins" {
-				return bash_ctr_listish(rem, true)
-			}
+		if bash_token_in(sub, CTR_TOP_INSPECT[:]) {
 			return true
 		}
-		if sub == "images" || sub == "i" || sub == "image" {
+		if sub == "plugins" {
+			// plugins list is default
+			return bash_ctr_listish(rem, true)
+		}
+		if bash_token_in(sub, CTR_IMAGE_ALIASES[:]) {
 			return bash_ctr_images_is_readonly(rem)
 		}
-		if sub == "containers" || sub == "c" || sub == "container" {
+		if bash_token_in(sub, CTR_CONTAINER_ALIASES[:]) {
 			return bash_ctr_containers_is_readonly(rem)
 		}
-		if sub == "tasks" || sub == "t" || sub == "task" {
+		if bash_token_in(sub, CTR_TASK_ALIASES[:]) {
 			return bash_ctr_tasks_is_readonly(rem)
 		}
 		if sub == "content" {
 			return bash_ctr_content_is_readonly(rem)
 		}
-		if sub == "namespaces" || sub == "ns" {
+		if bash_token_in(sub, CTR_NS_ALIASES[:]) {
 			return bash_ctr_namespaces_is_readonly(rem)
 		}
 		if sub == "snapshots" {
-			return bash_ctr_listish_or_mutate(rem, []string{"list", "ls", "tree", "usage", "info"})
+			return bash_ctr_listish_or_mutate(rem, CTR_SNAPSHOT_ALLOW[:])
 		}
 		if sub == "leases" {
-			return bash_ctr_listish_or_mutate(rem, []string{"list", "ls"})
-		}
-		if sub == "events" {
-			return true
+			return bash_ctr_listish_or_mutate(rem, CTR_LEASE_ALLOW[:])
 		}
 		// run, install, deprecations, etc.
 		return false
@@ -810,10 +820,7 @@ bash_ctr_listish :: proc(args: string, default_list: bool) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "list" || sub == "ls" {
-			return true
-		}
-		return false
+		return bash_token_in(sub, CTR_LISTISH[:])
 	}
 }
 
@@ -846,15 +853,11 @@ bash_ctr_images_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "list" ||
-		   sub == "ls" ||
-		   sub == "check" ||
-		   sub == "usage" ||
-		   sub == "label" { // label get may mutate with set — fail if set-like
-			// `ctr images label` can set labels — require only list path: treat as ask
-			if sub == "label" {
-				return false
-			}
+		// `ctr images label` can set labels — treat as ask
+		if sub == "label" {
+			return false
+		}
+		if bash_token_in(sub, CTR_IMAGES_ALLOW[:]) {
 			return true
 		}
 		// pull push rm tag import export mount unmount convert encrypt decrypt
@@ -874,11 +877,7 @@ bash_ctr_containers_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "list" || sub == "ls" || sub == "info" {
-			return true
-		}
-		// create delete checkpoint restore label
-		return false
+		return bash_token_in(sub, CTR_CONTAINERS_ALLOW[:])
 	}
 }
 
@@ -894,11 +893,7 @@ bash_ctr_tasks_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "list" || sub == "ls" || sub == "ps" || sub == "metrics" {
-			return true
-		}
-		// start kill delete exec pause resume checkpoint
-		return false
+		return bash_token_in(sub, CTR_TASKS_ALLOW[:])
 	}
 }
 
@@ -914,14 +909,10 @@ bash_ctr_content_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "ls" ||
-		   sub == "list" ||
-		   sub == "fetch" || // network fetch into store — mutates
-		   sub == "get" ||
-		   sub == "active" {
-			if sub == "fetch" {
-				return false
-			}
+		if bash_token_in(sub, CTR_CONTENT_DENY[:]) {
+			return false
+		}
+		if bash_token_in(sub, CTR_CONTENT_ALLOW[:]) {
 			return true
 		}
 		// push delete label edit
@@ -941,11 +932,7 @@ bash_ctr_namespaces_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "list" || sub == "ls" {
-			return true
-		}
-		// create remove label
-		return false
+		return bash_token_in(sub, CTR_LISTISH[:])
 	}
 }
 
@@ -1011,16 +998,26 @@ bash_cosign_writes_file :: proc(args: string) -> bool {
 }
 
 // B87: oras inspect (manifest fetch/discover/repo tags; not push/pull/login).
+ORAS_HELP := [?]string{"version", "--version", "help", "--help", "-h"}
+ORAS_DENY := [?]string {
+	"push", "pull", "attach", "copy", "cp", "login", "logout",
+	"tag", "backup", "restore", "completion",
+}
+ORAS_ALLOW := [?]string{"discover", "resolve", "version", "help", "trace"}
+ORAS_MANIFEST_ALLOW := [?]string{"fetch", "fetch-config", "get", "help"}
+ORAS_MANIFEST_DENY := [?]string{"push", "delete", "update"}
+ORAS_BLOB_ALLOW := [?]string{"fetch", "help"}
+ORAS_BLOB_DENY := [?]string{"push", "delete"}
+ORAS_REPO_ALLOW := [?]string{"tags", "ls", "list", "help"}
+ORAS_REPO_ALIASES := [?]string{"repo", "repository"}
+ORAS_WRITE_FLAGS := [?]string{"-o", "--output"}
+
 bash_oras_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, ORAS_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") {
 		return true
@@ -1040,17 +1037,7 @@ bash_oras_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		if sub == "push" ||
-		   sub == "pull" ||
-		   sub == "attach" ||
-		   sub == "copy" ||
-		   sub == "cp" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "tag" || // retag remote
-		   sub == "backup" ||
-		   sub == "restore" ||
-		   sub == "completion" {
+		if bash_token_in(sub, ORAS_DENY[:]) {
 			return false
 		}
 		if sub == "manifest" {
@@ -1066,15 +1053,10 @@ bash_oras_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				msub := strings.to_lower(mt, context.temp_allocator)
-				if msub == "fetch" ||
-				   msub == "fetch-config" ||
-				   msub == "get" ||
-				   msub == "help" {
+				if bash_token_in(msub, ORAS_MANIFEST_ALLOW[:]) {
 					return true
 				}
-				if msub == "push" ||
-				   msub == "delete" ||
-				   msub == "update" {
+				if bash_token_in(msub, ORAS_MANIFEST_DENY[:]) {
 					return false
 				}
 				return false
@@ -1092,19 +1074,16 @@ bash_oras_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				bsub := strings.to_lower(bt, context.temp_allocator)
-				if bsub == "fetch" ||
-				   bsub == "push" || // mutates
-				   bsub == "delete" ||
-				   bsub == "help" {
-					if bsub == "fetch" || bsub == "help" {
-						return true
-					}
+				if bash_token_in(bsub, ORAS_BLOB_ALLOW[:]) {
+					return true
+				}
+				if bash_token_in(bsub, ORAS_BLOB_DENY[:]) {
 					return false
 				}
 				return false
 			}
 		}
-		if sub == "repo" || sub == "repository" {
+		if bash_token_in(sub, ORAS_REPO_ALIASES[:]) {
 			rrest := rem
 			for {
 				rt, rrem := first_shell_token(rrest)
@@ -1116,20 +1095,10 @@ bash_oras_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				rsub := strings.to_lower(rt, context.temp_allocator)
-				if rsub == "tags" ||
-				   rsub == "ls" ||
-				   rsub == "list" ||
-				   rsub == "help" {
-					return true
-				}
-				return false
+				return bash_token_in(rsub, ORAS_REPO_ALLOW[:])
 			}
 		}
-		if sub == "discover" ||
-		   sub == "resolve" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "trace" {
+		if bash_token_in(sub, ORAS_ALLOW[:]) {
 			return true
 		}
 		return false
@@ -1143,7 +1112,7 @@ bash_oras_writes_file :: proc(args: string) -> bool {
 		if tok == "" {
 			return false
 		}
-		if tok == "-o" || tok == "--output" {
+		if bash_token_in(tok, ORAS_WRITE_FLAGS[:]) {
 			next, _ := first_shell_token(rem)
 			if next != "" && next != "-" && !strings.has_prefix(next, "-") {
 				return true
@@ -1160,16 +1129,36 @@ bash_oras_writes_file :: proc(args: string) -> bool {
 }
 
 // B87: regctl inspect (image digest/manifest/config/tag ls; not copy/delete/login).
+REGCTL_HELP := [?]string{"version", "--version", "help", "--help", "-h"}
+REGCTL_TOP_ALLOW := [?]string{"ref", "version", "help"}
+REGCTL_TOP_DENY := [?]string{"completion"}
+REGCTL_REGISTRY_ALLOW := [?]string{"config", "whoami", "help"}
+REGCTL_REGISTRY_DENY := [?]string{"login", "logout", "set"}
+REGCTL_CONFIG_DENY := [?]string{"set", "delete", "rm"}
+REGCTL_IMAGE_ALLOW := [?]string {
+	"digest", "manifest", "config", "inspect", "ratelimit", "rate-limit",
+	"get-file", "help",
+}
+REGCTL_IMAGE_DENY := [?]string {
+	"export", "import", "copy", "delete", "del", "rm", "mod", "create", "append-file",
+}
+REGCTL_MANIFEST_DENY := [?]string{"put", "delete", "del", "rm"}
+REGCTL_TAG_ALLOW := [?]string{"ls", "list", "help"}
+REGCTL_TAG_DENY := [?]string{"delete", "del", "rm", "copy"}
+REGCTL_ARTIFACT_ALLOW := [?]string{"tree", "list", "ls", "get", "help"}
+REGCTL_ARTIFACT_DENY := [?]string{"put", "delete", "del"}
+REGCTL_BLOB_ALLOW := [?]string{"get", "head", "help"}
+REGCTL_BLOB_DENY := [?]string{"put", "delete", "del", "copy"}
+REGCTL_REPO_ALLOW := [?]string{"ls", "list", "help"}
+REGCTL_REPO_ALIASES := [?]string{"repo", "repository"}
+REGCTL_OUT_FLAGS := [?]string{"-o", "--output", "--out"}
+
 bash_regctl_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, REGCTL_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") {
 		return true
@@ -1198,34 +1187,30 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				rsub := strings.to_lower(rt, context.temp_allocator)
-				if rsub == "config" ||
-				   rsub == "whoami" ||
-				   rsub == "help" {
+				if rsub == "config" {
 					// config get is inspect; config set mutates — scan further
-					if rsub == "config" {
-						crest := rrem
-						for {
-							ct, crem := first_shell_token(crest)
-							if ct == "" {
-								return true // regctl registry config (dump)
-							}
-							if strings.has_prefix(ct, "-") {
-								crest = crem
-								continue
-							}
-							csub := strings.to_lower(ct, context.temp_allocator)
-							if csub == "set" || csub == "delete" || csub == "rm" {
-								return false
-							}
-							// get / dump
-							return true
+					crest := rrem
+					for {
+						ct, crem := first_shell_token(crest)
+						if ct == "" {
+							return true // regctl registry config (dump)
 						}
+						if strings.has_prefix(ct, "-") {
+							crest = crem
+							continue
+						}
+						csub := strings.to_lower(ct, context.temp_allocator)
+						if bash_token_in(csub, REGCTL_CONFIG_DENY[:]) {
+							return false
+						}
+						// get / dump
+						return true
 					}
+				}
+				if bash_token_in(rsub, REGCTL_REGISTRY_ALLOW[:]) {
 					return true
 				}
-				if rsub == "login" ||
-				   rsub == "logout" ||
-				   rsub == "set" {
+				if bash_token_in(rsub, REGCTL_REGISTRY_DENY[:]) {
 					return false
 				}
 				return false
@@ -1243,73 +1228,44 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				isub := strings.to_lower(it, context.temp_allocator)
-				// inspect
-				if isub == "digest" ||
-				   isub == "manifest" ||
-				   isub == "config" ||
-				   isub == "inspect" ||
-				   isub == "ratelimit" ||
-				   isub == "rate-limit" ||
-				   isub == "export" || // may write tar — check -o
-				   isub == "import" ||
-				   isub == "copy" ||
-				   isub == "delete" ||
-				   isub == "del" ||
-				   isub == "rm" ||
-				   isub == "mod" ||
-				   isub == "create" ||
-				   isub == "append-file" ||
-				   isub == "get-file" || // get-file to stdout ok; -o file ask
-				   isub == "help" {
-					if isub == "export" ||
-					   isub == "import" ||
-					   isub == "copy" ||
-					   isub == "delete" ||
-					   isub == "del" ||
-					   isub == "rm" ||
-					   isub == "mod" ||
-					   isub == "create" ||
-					   isub == "append-file" {
+				if bash_token_in(isub, REGCTL_IMAGE_DENY[:]) {
+					return false
+				}
+				if isub == "get-file" {
+					if bash_regctl_output_file(irem) {
 						return false
 					}
-					if isub == "get-file" {
-						if bash_regctl_output_file(irem) {
+					return true
+				}
+				if isub == "manifest" || isub == "config" {
+					// manifest get vs put/delete
+					mrest := irem
+					for {
+						mt, mrem := first_shell_token(mrest)
+						if mt == "" {
+							return true
+						}
+						if strings.has_prefix(mt, "-") {
+							mrest = mrem
+							continue
+						}
+						// first non-flag is image ref — get
+						// if subcommand put/delete
+						msub := strings.to_lower(mt, context.temp_allocator)
+						if msub == "head" {
+							return true
+						}
+						if bash_token_in(msub, REGCTL_MANIFEST_DENY[:]) {
+							return false
+						}
+						// image ref — get
+						if bash_regctl_output_file(mrest) {
 							return false
 						}
 						return true
 					}
-					if isub == "manifest" || isub == "config" {
-						// manifest get vs put/delete
-						mrest := irem
-						for {
-							mt, mrem := first_shell_token(mrest)
-							if mt == "" {
-								return true
-							}
-							if strings.has_prefix(mt, "-") {
-								mrest = mrem
-								continue
-							}
-							// first non-flag is image ref — get
-							// if subcommand put/delete
-							msub := strings.to_lower(mt, context.temp_allocator)
-							if msub == "put" ||
-							   msub == "delete" ||
-							   msub == "del" ||
-							   msub == "rm" ||
-							   msub == "head" {
-								if msub == "head" {
-									return true
-								}
-								return false
-							}
-							// image ref — get
-							if bash_regctl_output_file(mrest) {
-								return false
-							}
-							return true
-						}
-					}
+				}
+				if bash_token_in(isub, REGCTL_IMAGE_ALLOW[:]) {
 					return true
 				}
 				return false
@@ -1327,15 +1283,10 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				tsub := strings.to_lower(tt, context.temp_allocator)
-				if tsub == "ls" ||
-				   tsub == "list" ||
-				   tsub == "help" {
+				if bash_token_in(tsub, REGCTL_TAG_ALLOW[:]) {
 					return true
 				}
-				if tsub == "delete" ||
-				   tsub == "del" ||
-				   tsub == "rm" ||
-				   tsub == "copy" {
+				if bash_token_in(tsub, REGCTL_TAG_DENY[:]) {
 					return false
 				}
 				return false
@@ -1353,16 +1304,10 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				asub := strings.to_lower(at, context.temp_allocator)
-				if asub == "tree" ||
-				   asub == "list" ||
-				   asub == "ls" ||
-				   asub == "get" ||
-				   asub == "help" {
+				if bash_token_in(asub, REGCTL_ARTIFACT_ALLOW[:]) {
 					return true
 				}
-				if asub == "put" ||
-				   asub == "delete" ||
-				   asub == "del" {
+				if bash_token_in(asub, REGCTL_ARTIFACT_DENY[:]) {
 					return false
 				}
 				return false
@@ -1380,24 +1325,19 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				bsub := strings.to_lower(bt, context.temp_allocator)
-				if bsub == "get" ||
-				   bsub == "head" ||
-				   bsub == "help" {
+				if bash_token_in(bsub, REGCTL_BLOB_ALLOW[:]) {
 					if bash_regctl_output_file(brem) {
 						return false
 					}
 					return true
 				}
-				if bsub == "put" ||
-				   bsub == "delete" ||
-				   bsub == "del" ||
-				   bsub == "copy" {
+				if bash_token_in(bsub, REGCTL_BLOB_DENY[:]) {
 					return false
 				}
 				return false
 			}
 		}
-		if sub == "repo" || sub == "repository" {
+		if bash_token_in(sub, REGCTL_REPO_ALIASES[:]) {
 			rrest := rem
 			for {
 				rt, rrem := first_shell_token(rrest)
@@ -1409,23 +1349,14 @@ bash_regctl_is_readonly :: proc(args: string) -> bool {
 					continue
 				}
 				rsub := strings.to_lower(rt, context.temp_allocator)
-				if rsub == "ls" ||
-				   rsub == "list" ||
-				   rsub == "help" {
-					return true
-				}
-				return false
+				return bash_token_in(rsub, REGCTL_REPO_ALLOW[:])
 			}
 		}
-		if sub == "ref" {
-			// ref parse/format inspect
+		if bash_token_in(sub, REGCTL_TOP_ALLOW[:]) {
 			return true
 		}
-		if sub == "version" || sub == "help" || sub == "completion" {
-			if sub == "completion" {
-				return false
-			}
-			return true
+		if bash_token_in(sub, REGCTL_TOP_DENY[:]) {
+			return false
 		}
 		return false
 	}
@@ -1438,7 +1369,7 @@ bash_regctl_output_file :: proc(args: string) -> bool {
 		if tok == "" {
 			return false
 		}
-		if tok == "-o" || tok == "--output" || tok == "--out" {
+		if bash_token_in(tok, REGCTL_OUT_FLAGS[:]) {
 			next, _ := first_shell_token(rem)
 			if next != "" && next != "-" && !strings.has_prefix(next, "-") {
 				return true
