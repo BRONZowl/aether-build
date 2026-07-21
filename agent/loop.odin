@@ -225,6 +225,12 @@ run_agent_turn :: proc(
 		return fmt.tprintf("%s…", err[:157])
 	}
 
+	// Wire FG tool cancel/poll (bash honors Ctrl+C mid-command)
+	tools.tool_set_cancel_hooks(opts.cancel, opts.on_poll)
+	defer tools.tool_clear_cancel_hooks()
+	core.hang_log("run_agent_turn enter")
+	defer core.hang_log("run_agent_turn exit")
+
 	for turn_i in 0 ..< turns {
 		if cancelled(opts) {
 			emit_status(opts, "cancelled")
@@ -330,7 +336,9 @@ run_agent_turn :: proc(
 				return "", 4
 			}
 			emit_status(opts, fmt.tprintf("tool: %s", tc.name))
+			core.hang_log(fmt.tprintf("tool enter %s", tc.name))
 			result := run_one_tool(creds, model, tc.name, tc.arguments, opts)
+			core.hang_log(fmt.tprintf("tool exit %s", tc.name))
 			// PostToolUse / PostToolUseFailure (non-blocking)
 			hooks.run_post_tool_hooks(
 				opts.workspace,

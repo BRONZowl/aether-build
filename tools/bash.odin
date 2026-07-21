@@ -113,6 +113,15 @@ tool_run_terminal_cmd :: proc(
 			}
 		}
 
+		// Cooperative cancel (Ctrl+C mid-turn) — kill FG shell promptly
+		if tool_should_cancel() {
+			_ = os.process_kill(child)
+			_, _ = os.process_wait(child, 2 * time.Second)
+			os.close(stdout_r)
+			os.close(stderr_r)
+			return strings.clone("error: cancelled", allocator)
+		}
+
 		state, werr := os.process_wait(child, 0)
 		if werr == nil && state.exited {
 			exit_code = state.exit_code

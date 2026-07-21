@@ -2,6 +2,7 @@ package agent
 
 import "core:fmt"
 import "core:os"
+import "core:time"
 
 // copy_text_to_clipboard best-effort write (wl-copy / xclip / xsel / pbcopy / file).
 // Returns a short status string (never empty).
@@ -43,8 +44,11 @@ cmd_on_path :: proc(name: string) -> bool {
 	if err != nil {
 		return false
 	}
-	state, werr := os.process_wait(child)
+	// command -v should be instant; bound wait to avoid hang on broken sh
+	state, werr := os.process_wait(child, 2 * time.Second)
 	if werr != nil {
+		_ = os.process_kill(child)
+		_, _ = os.process_wait(child, 1 * time.Second)
 		return false
 	}
 	return state.exit_code == 0
@@ -81,12 +85,19 @@ pipe_stdin_cmd :: proc(data: string, cmd: []string) -> bool {
 		n, werr := os.write(stdin_w, remaining)
 		if werr != nil || n <= 0 {
 			os.close(stdin_w)
-			_, _ = os.process_wait(child)
+			_ = os.process_kill(child)
+			_, _ = os.process_wait(child, 1 * time.Second)
 			return false
 		}
 		remaining = remaining[n:]
 	}
 	os.close(stdin_w)
-	state, werr := os.process_wait(child)
-	return werr == nil && state.exit_code == 0
+	// Hung clipboard daemon must not freeze the UI forever
+	state, werr := os.process_wait(child, 2 * time.Second)
+	if werr != nil {
+		_ = os.process_kill(child)
+		_, _ = os.process_wait(child, 1 * time.Second)
+		return false
+	}
+	return state.exit_code == 0
 }

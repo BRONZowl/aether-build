@@ -132,11 +132,11 @@ handle_submit :: proc(
 		return true
 	}
 
-	return run_user_prompt_turn(st, sess, term, cfg, creds, model, cwd, perm, perm_before, opts, line)
+	return run_user_prompt_turn(st, sess, term, cfg, creds, model, cwd, perm, perm_before, opts, line, true)
 }
 
 // run_user_prompt_turn: shared agent turn for typed prompt or drained queue item.
-// line is not owned (cloned inside).
+// line is not owned (cloned inside). drain_queue: if true, after turn run at most one queued follow-up.
 run_user_prompt_turn :: proc(
 	st: ^App_State,
 	sess: ^agent.Session,
@@ -149,6 +149,7 @@ run_user_prompt_turn :: proc(
 	perm_before: ^core.Permission_Mode,
 	opts: agent.Headless_Options,
 	line: string,
+	drain_queue := true,
 ) -> bool {
 	prompt := strings.clone(line)
 	// UserPromptSubmit may block the turn
@@ -267,24 +268,41 @@ run_user_prompt_turn :: proc(
 	stream_pin_bottom(st)
 	clamp_selected_block(st)
 
-	// After turn: drain queue (FIFO). Force-send already cancelled; still drain.
+	// After turn: auto-drain at most ONE queued follow-up (prevent multi-turn freeze chains).
 	st.queue_force_send = false
-	for prompt_queue_len(st) > 0 {
+	if drain_queue && prompt_queue_len(st) > 0 {
 		next, ok := prompt_queue_pop_front(st)
-		if !ok {
-			break
+		if ok {
+			left := prompt_queue_len(st)
+			if strings.has_prefix(strings.trim_space(next), "/") {
+				_ = handle_slash(st, sess, term, strings.trim_space(next), model, cwd, perm, perm_before, opts)
+				delete(next)
+			} else {
+				// Nested turn does not auto-drain further
+				_ = run_user_prompt_turn(
+					st,
+					sess,
+					term,
+					cfg,
+					creds,
+					model,
+					cwd,
+					perm,
+					perm_before,
+					opts,
+					next,
+					false,
+				)
+				delete(next)
+			}
+			if left > 0 {
+				state_add_notice(
+					st,
+					fmt.tprintf("queue: %d left — send a message or /queue", left),
+				)
+				state_set_status(st, fmt.tprintf("queue %d left", left))
+			}
 		}
-		// Slash items in queue are unusual; run as prompt text if not slash
-		if strings.has_prefix(strings.trim_space(next), "/") {
-			_ = handle_slash(st, sess, term, strings.trim_space(next), model, cwd, perm, perm_before, opts)
-			delete(next)
-			continue
-		}
-		_ = run_user_prompt_turn(st, sess, term, cfg, creds, model, cwd, perm, perm_before, opts, next)
-		delete(next)
-		// run_user_prompt_turn drains further — break to avoid double-loop recursion depth issues
-		// Actually it will recurse drain at end; so only process one here and let recursive drain handle rest.
-		break
 	}
 	return true
 }

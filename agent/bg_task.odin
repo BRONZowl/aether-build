@@ -1342,6 +1342,9 @@ wait_tasks_impl :: proc(
 	// wait_any: poll until any finishes, then snapshot all
 	if mode == .Wait_Any && timeout_ms > 0 {
 		for {
+			if tools.tool_should_cancel() {
+				return strings.clone("error: cancelled", allocator)
+			}
 			any_done := false
 			for id in ids {
 				st, _, found := bg_task_snapshot(id, context.temp_allocator)
@@ -1374,6 +1377,27 @@ format_task_snapshots :: proc(
 			strings.write_string(&b, "\n\n")
 		}
 		for {
+			if tools.tool_should_cancel() {
+				strings.write_string(
+					&b,
+					fmt.tprintf(
+						"task_id: %s\nstatus: cancelled\n---\nerror: cancelled",
+						id,
+					),
+				)
+				// finish remaining ids as cancelled snapshots
+				for j := i + 1; j < len(ids); j += 1 {
+					strings.write_string(&b, "\n\n")
+					strings.write_string(
+						&b,
+						fmt.tprintf(
+							"task_id: %s\nstatus: cancelled\n---\nerror: cancelled",
+							ids[j],
+						),
+					)
+				}
+				return strings.to_string(b)
+			}
 			st, res, found := bg_task_snapshot(id, context.temp_allocator)
 			if !found {
 				strings.write_string(

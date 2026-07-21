@@ -233,8 +233,13 @@ read_cmd_stdout :: proc(cmd: []string, allocator := context.allocator) -> (strin
 		}
 	}
 	os.close(stdout_r)
-	state, werr := os.process_wait(child)
-	if werr != nil || state.exit_code != 0 {
+	state, werr := os.process_wait(child, 2 * time.Second)
+	if werr != nil {
+		_ = os.process_kill(child)
+		_, _ = os.process_wait(child, 1 * time.Second)
+		return "", false
+	}
+	if state.exit_code != 0 {
 		return "", false
 	}
 	if len(buf) == 0 {
@@ -275,7 +280,8 @@ pipe_to_cmd :: proc(data: string, cmd: []string) -> string /* err */ {
 		n, werr := os.write(stdin_w, remaining)
 		if werr != nil {
 			os.close(stdin_w)
-			_, _ = os.process_wait(child)
+			_ = os.process_kill(child)
+			_, _ = os.process_wait(child, 1 * time.Second)
 			return fmt.tprintf("write: %v", werr)
 		}
 		if n <= 0 {
@@ -285,10 +291,11 @@ pipe_to_cmd :: proc(data: string, cmd: []string) -> string /* err */ {
 	}
 	os.close(stdin_w)
 
-	state, werr := os.process_wait(child)
-	_ = time.now()
+	state, werr := os.process_wait(child, 2 * time.Second)
 	if werr != nil {
-		return fmt.tprintf("wait: %v", werr)
+		_ = os.process_kill(child)
+		_, _ = os.process_wait(child, 1 * time.Second)
+		return "clipboard timed out"
 	}
 	if state.exit_code != 0 {
 		return fmt.tprintf("exit %d", state.exit_code)

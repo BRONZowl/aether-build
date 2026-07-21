@@ -4,6 +4,15 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Hang hardening (force-quit freezes)
+
+- FG shell (`run_terminal_cmd`) honors **Ctrl+C cancel** and kills the process
+- `wait_tasks` / task wait loops check cancel between polls
+- Clipboard helpers use **2s** process wait + kill (no infinite hang on wl-copy/xclip)
+- Queue auto-drains **at most one** follow-up per turn (notice if more remain)
+- Optional `AETHER_DEBUG_HANG=1` → `~/.grok/aether/hang.log`; see `docs/HANGS.md`
+
+
 ### /fork worktree (Grok-shaped)
 
 - `/fork [--worktree|--no-worktree] [title]` — peer session clone
