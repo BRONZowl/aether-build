@@ -35,24 +35,18 @@ bash_bundle_is_readonly :: proc(args: string) -> bool {
 }
 
 // B66: rake task listing only (-T/-D/-P/…); bare rake runs default task → ask.
+RAKE_VALUE_FLAGS := [?]string{"-f", "--rakefile", "-I", "--libdir", "-R", "--rakelibdir"}
+RAKE_INSPECT_FLAGS := [?]string {
+	"-T", "--tasks", "-D", "--describe", "-P", "--prereqs", "-W", "--where",
+	"--version", "-V", "--help", "-h", "-A", "--all",
+}
+
 bash_rake_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
-		// bare `rake` runs default task
 		return false
 	}
-	if a == "--version" ||
-	   a == "-V" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-T" ||
-	   a == "--tasks" ||
-	   a == "-D" ||
-	   a == "--describe" ||
-	   a == "-P" ||
-	   a == "--prereqs" ||
-	   a == "-W" ||
-	   a == "--where" {
+	if bash_token_in(a, RAKE_INSPECT_FLAGS[:]) {
 		return true
 	}
 	rest := a
@@ -62,13 +56,7 @@ bash_rake_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			break
 		}
-		// value-taking flags
-		if tok == "-f" ||
-		   tok == "--rakefile" ||
-		   tok == "-I" ||
-		   tok == "--libdir" ||
-		   tok == "-R" ||
-		   tok == "--rakelibdir" {
+		if bash_token_in(tok, RAKE_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
@@ -77,32 +65,12 @@ bash_rake_is_readonly :: proc(args: string) -> bool {
 			rest = rem
 			continue
 		}
-		if tok == "-T" ||
-		   tok == "--tasks" ||
-		   tok == "-D" ||
-		   tok == "--describe" ||
-		   tok == "-P" ||
-		   tok == "--prereqs" ||
-		   tok == "-W" ||
-		   tok == "--where" ||
-		   tok == "--version" ||
-		   tok == "-V" ||
-		   tok == "--help" ||
-		   tok == "-h" ||
-		   tok == "-A" || // show all tasks with -T
-		   tok == "--all" {
-			saw_inspect = true
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-T") {
-			// -Tpattern
+		if bash_token_in(tok, RAKE_INSPECT_FLAGS[:]) || strings.has_prefix(tok, "-T") {
 			saw_inspect = true
 			rest = rem
 			continue
 		}
 		if strings.has_prefix(tok, "-") {
-			// other flags (trace, verbose, …) ok for list mode
 			rest = rem
 			continue
 		}
@@ -480,6 +448,36 @@ bash_deno_is_readonly :: proc(args: string) -> bool {
 }
 
 // B38: poetry inspect (not install/add/run/update).
+POETRY_ALLOW := [?]string{"show", "check", "list", "search", "debug", "version", "help", "about"}
+POETRY_ENV := [?]string{"info", "list"}
+POETRY_NESTED := [?]Cli_Nested{{sub = "env", allow = POETRY_ENV[:]}}
+POETRY_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = POETRY_ALLOW[:],
+	nested        = POETRY_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
+bash_poetry_config_is_readonly :: proc(rest: string) -> bool {
+	// config --list / get only; config set mutates
+	if rest == "" ||
+	   strings.contains(rest, "--list") ||
+	   strings.has_prefix(strings.trim_space(rest), "--list") {
+		return true
+	}
+	if strings.contains(rest, "--unset") || strings.contains(rest, " -- ") {
+		return false
+	}
+	// two-token set: poetry config key value → mutates
+	tok1, rem1 := first_shell_token(rest)
+	tok2, _ := first_shell_token(rem1)
+	if tok1 != "" && tok2 != "" && !strings.has_prefix(tok1, "-") && !strings.has_prefix(tok2, "-") {
+		return false
+	}
+	// single key get
+	return tok1 != ""
+}
+
 bash_poetry_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -493,43 +491,20 @@ bash_poetry_is_readonly :: proc(args: string) -> bool {
 		return false
 	}
 	if sub == "export" {
-		// export writes to stdout by default — allow (no file write unless -o)
+		// export writes to stdout by default — allow unless -o/--output
 		if strings.contains(rest, " -o ") || strings.contains(rest, "--output") {
 			return false
 		}
 		return true
 	}
 	if sub == "config" {
-		// config --list / get only; config set mutates
-		if rest == "" ||
-		   strings.contains(rest, "--list") ||
-		   strings.has_prefix(strings.trim_space(rest), "--list") {
-			return true
-		}
-		// bare key get: `poetry config virtualenvs.path` is read if not --unset
-		if strings.contains(rest, "--unset") || strings.contains(rest, " -- ") {
-			return false
-		}
-		// two-token set: poetry config key value → mutates
-		tok1, rem1 := first_shell_token(rest)
-		tok2, _ := first_shell_token(rem1)
-		if tok1 != "" && tok2 != "" && !strings.has_prefix(tok1, "-") && !strings.has_prefix(tok2, "-") {
-			return false
-		}
-		// single key get
-		return tok1 != ""
-	}
-	if sub == "env" {
-		return bash_nested_allow(rest, []string{"info", "list"})
+		return bash_poetry_config_is_readonly(rest)
 	}
 	if sub == "lock" {
 		// lock --check is inspect; bare lock may rewrite
 		return strings.contains(rest, "--check")
 	}
-	return bash_token_in(
-		sub,
-		[]string{"show", "check", "list", "search", "debug", "version", "help", "about"},
-	)
+	return bash_cli_is_readonly(args, POETRY_READONLY_SPEC)
 }
 
 // uv inspection (not sync/add/run/build/venv).
@@ -1946,6 +1921,11 @@ bash_aws_is_readonly :: proc(args: string) -> bool {
 	return false
 }
 
+PYTEST_INSPECT_FLAGS := [?]string {
+	"--collect-only", "--co", "--version", "--help", "-h", "-V",
+	"--fixtures", "--markers", "-q", "--quiet", "-v", "--verbose",
+}
+
 // B25: pytest collect/version/help only (not running tests).
 bash_pytest_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
@@ -1954,14 +1934,17 @@ bash_pytest_is_readonly :: proc(args: string) -> bool {
 		return false
 	}
 	// must see an inspect flag; paths alone still run tests
-	if !(strings.contains(a, "--collect-only") ||
-		strings.contains(a, "--co") ||
-		strings.contains(a, "--version") ||
-		strings.contains(a, "--help") ||
-		strings.contains(a, "-h") ||
-		strings.contains(a, "-V") ||
-		strings.contains(a, "--fixtures") ||
-		strings.contains(a, "--markers")) {
+	has_inspect := false
+	for f in PYTEST_INSPECT_FLAGS {
+		if f == "-q" || f == "--quiet" || f == "-v" || f == "--verbose" {
+			continue
+		}
+		if strings.contains(a, f) {
+			has_inspect = true
+			break
+		}
+	}
+	if !has_inspect {
 		return false
 	}
 	// unknown flags (besides quiet/verbose and inspect) fail closed
@@ -1975,18 +1958,22 @@ bash_pytest_is_readonly :: proc(args: string) -> bool {
 		if !strings.has_prefix(tok, "-") {
 			continue // path / node id ok when inspect present
 		}
-		if bash_token_in(
-			tok,
-			[]string{
-				"--collect-only", "--co", "--version", "--help", "-h", "-V",
-				"--fixtures", "--markers", "-q", "--quiet", "-v", "--verbose",
-			},
-		) {
+		if bash_token_in(tok, PYTEST_INSPECT_FLAGS[:]) {
 			continue
 		}
 		return false
 	}
 	return true
+}
+
+CMAKE_E_SAFE := [?]string {
+	"capabilities", "echo", "env", "environment", "cat", "compare_files",
+	"sha1sum", "sha224sum", "sha256sum", "sha384sum", "sha512sum", "md5sum", "true", "false",
+}
+CMAKE_HELP_FLAGS := [?]string {
+	"--help", "-h", "--version", "-version", "--help-command", "--help-commands",
+	"--help-module", "--help-modules", "--help-policy", "--help-variable",
+	"--help-variables", "--help-property", "--help-properties", "--system-information",
 }
 
 // B28: cmake help/version/find-package inspect (not configure/build/install).
@@ -2002,44 +1989,19 @@ bash_cmake_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		rest = rem
-		switch tok {
-		case "--help", "-h", "--version", "-version", "--help-command", "--help-commands",
-		     "--help-module", "--help-modules", "--help-policy", "--help-variable",
-		     "--help-variables", "--help-property", "--help-properties",
-		     "--system-information", "-E":
+		if tok == "-E" {
 			// cmake -E is the command-mode toolbox; allow list of inspect E-subcmds only
-			if tok == "-E" {
-				sub2, rem2 := first_shell_token(rest)
-				rest = rem2
-				// safe -E commands: capabilities, echo, env, cat, compare_files, …
-				if bash_token_in(
-					   sub2,
-					   []string{
-						   "capabilities",
-						   "echo",
-						   "env",
-						   "environment",
-						   "cat",
-						   "compare_files",
-						   "sha1sum",
-						   "sha224sum",
-						   "sha256sum",
-						   "sha384sum",
-						   "sha512sum",
-						   "md5sum",
-						   "true",
-						   "false",
-					   },
-				   ) {
-					saw_inspect = true
-					continue
-				}
-				return false
+			sub2, rem2 := first_shell_token(rest)
+			rest = rem2
+			if bash_token_in(sub2, CMAKE_E_SAFE[:]) {
+				saw_inspect = true
+				continue
 			}
-			saw_inspect = true
-			continue
-		case "--find-package", "--find-package-mode":
-			// may still run package discovery; treat as inspect
+			return false
+		}
+		if bash_token_in(tok, CMAKE_HELP_FLAGS[:]) ||
+		   tok == "--find-package" ||
+		   tok == "--find-package-mode" {
 			saw_inspect = true
 			continue
 		}
@@ -2054,6 +2016,10 @@ bash_cmake_is_readonly :: proc(args: string) -> bool {
 		}
 	}
 	return saw_inspect
+}
+
+NINJA_TOOLS := [?]string {
+	"list", "targets", "commands", "query", "graph", "browse", "deps", "missingdeps", "compdb", "inputs",
 }
 
 // B28: ninja -t tools / -h / --version (not build).
@@ -2082,21 +2048,7 @@ bash_ninja_is_readonly :: proc(args: string) -> bool {
 			// tool mode: list, targets, commands, query, graph, …
 			sub2, rem2 := first_shell_token(rest)
 			rest = rem2
-			if bash_token_in(
-				   sub2,
-				   []string{
-					   "list",
-					   "targets",
-					   "commands",
-					   "query",
-					   "graph",
-					   "browse",
-					   "deps",
-					   "missingdeps",
-					   "compdb",
-					   "inputs",
-				   },
-			   ) {
+			if bash_token_in(sub2, NINJA_TOOLS[:]) {
 				saw_inspect = true
 				// remaining args are usually target names for query tools
 				continue
