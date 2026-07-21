@@ -564,13 +564,16 @@ bash_pip_is_readonly :: proc(args: string) -> bool {
 }
 
 // python --version / -V / --help / -m site|pip|pytest inspect (not -c / scripts).
+PYTHON_HELP := [?]string{"--version", "-V", "--help", "-h"}
+PYTHON_PIP_MODS := [?]string{"pip", "pip3"}
+
 bash_python_is_readonly :: proc(args: string) -> bool {
 	if args == "" {
 		// bare python opens REPL — not for non-interactive agent; fail closed
 		return false
 	}
 	sub, rest := first_shell_token(args)
-	if sub == "--version" || sub == "-V" || sub == "--help" || sub == "-h" {
+	if bash_token_in(sub, PYTHON_HELP[:]) {
 		return true
 	}
 	// python -m site / -m pip list / -m pytest --collect-only
@@ -579,7 +582,7 @@ bash_python_is_readonly :: proc(args: string) -> bool {
 		if mod == "site" {
 			return true
 		}
-		if mod == "pip" || mod == "pip3" {
+		if bash_token_in(mod, PYTHON_PIP_MODS[:]) {
 			return bash_pip_is_readonly(rest2)
 		}
 		if mod == "pytest" {
@@ -774,6 +777,18 @@ bash_dotnet_is_readonly :: proc(args: string) -> bool {
 }
 
 // B43: sqlite3 inspect metacommands / SELECT (not INSERT/UPDATE/interactive bare).
+SQLITE_MUTATORS := [?]string {
+	"insert ", "update ", "delete ", "drop ", "create ", "alter ", "replace ",
+	"attach ", "detach ", "vacuum", "reindex",
+	".import", ".read ", ".load ", ".backup", ".restore", ".clone",
+	".excel", ".once", ".output", ".shell", ".system",
+}
+SQLITE_INSPECT := [?]string {
+	".schema", ".tables", ".indexes", ".databases", ".dbinfo", ".dump", ".fullschema",
+	"pragma ", "select ", "explain ",
+}
+SQLITE_INSPECT_PREFIXES := [?]string{"select", "pragma", "explain"}
+
 bash_sqlite3_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -791,51 +806,21 @@ bash_sqlite3_is_readonly :: proc(args: string) -> bool {
 	}
 	al := strings.to_lower(a, context.temp_allocator)
 	// mutating SQL keywords → fail closed
-	mutators := []string {
-		"insert ",
-		"update ",
-		"delete ",
-		"drop ",
-		"create ",
-		"alter ",
-		"replace ",
-		"attach ",
-		"detach ",
-		"vacuum",
-		"reindex",
-		".import",
-		".read ",
-		".load ",
-		".backup",
-		".restore",
-		".clone",
-		".excel",
-		".once",
-		".output",
-		".shell",
-		".system",
-	}
-	for m in mutators {
+	for m in SQLITE_MUTATORS {
 		if strings.contains(al, m) {
 			return false
 		}
 	}
 	// known inspect metacommands
-	if strings.contains(al, ".schema") ||
-	   strings.contains(al, ".tables") ||
-	   strings.contains(al, ".indexes") ||
-	   strings.contains(al, ".databases") ||
-	   strings.contains(al, ".tables") ||
-	   strings.contains(al, ".dbinfo") ||
-	   strings.contains(al, ".dump") ||
-	   strings.contains(al, ".fullschema") ||
-	   strings.contains(al, "pragma ") ||
-	   strings.contains(al, "select ") ||
-	   strings.contains(al, "explain ") ||
-	   strings.has_prefix(al, "select") ||
-	   strings.has_prefix(al, "pragma") ||
-	   strings.has_prefix(al, "explain") {
-		return true
+	for s in SQLITE_INSPECT {
+		if strings.contains(al, s) {
+			return true
+		}
+	}
+	for p in SQLITE_INSPECT_PREFIXES {
+		if strings.has_prefix(al, p) {
+			return true
+		}
 	}
 	// -readonly flag with a db path only is still interactive — fail closed
 	// -cmd with inspect is covered by contains above when user passes ".tables"
@@ -920,6 +905,17 @@ bash_redis_subcmd_readonly :: proc(cmd, rest: string) -> bool {
 }
 
 // B44: psql inspect (SELECT/\\d meta; not interactive bare, not DML/DDL).
+PSQL_MUTATORS := [?]string {
+	"insert ", "update ", "delete ", "drop ", "create ", "alter ", "truncate ",
+	"grant ", "revoke ", "copy ", "\\copy", "\\i ", "\\ir ", "\\o ", "\\out",
+	"\\gexec", "\\watch", "vacuum", "reindex", "cluster ", "call ", "do ",
+}
+PSQL_INSPECT := [?]string {
+	"select ", "select*", "show ", "explain ", "with ",
+	"\\d", "\\l", "\\dt", "\\di", "\\dn", "\\df", "\\du",
+	"\\conninfo", "\\encoding", "\\echo",
+}
+
 bash_psql_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -936,31 +932,7 @@ bash_psql_is_readonly :: proc(args: string) -> bool {
 		return true
 	}
 	// mutating SQL
-	mutators := []string {
-		"insert ",
-		"update ",
-		"delete ",
-		"drop ",
-		"create ",
-		"alter ",
-		"truncate ",
-		"grant ",
-		"revoke ",
-		"copy ",
-		"\\copy",
-		"\\i ",
-		"\\ir ",
-		"\\o ",
-		"\\out",
-		"\\gexec",
-		"\\watch",
-		"vacuum",
-		"reindex",
-		"cluster ",
-		"call ",
-		"do ",
-	}
-	for m in mutators {
+	for m in PSQL_MUTATORS {
 		if strings.contains(al, m) {
 			return false
 		}
@@ -973,22 +945,12 @@ bash_psql_is_readonly :: proc(args: string) -> bool {
 	   strings.contains(a, "--command=") ||
 	   strings.contains(a, " -c") {
 		// -c present: allow if inspect-ish body
-		if strings.contains(al, "select ") ||
-		   strings.contains(al, "select*") ||
-		   strings.has_prefix(strings.trim_space(al), "select") ||
-		   strings.contains(al, "show ") ||
-		   strings.contains(al, "explain ") ||
-		   strings.contains(al, "with ") || // CTE often select
-		   strings.contains(al, "\\d") ||
-		   strings.contains(al, "\\l") ||
-		   strings.contains(al, "\\dt") ||
-		   strings.contains(al, "\\di") ||
-		   strings.contains(al, "\\dn") ||
-		   strings.contains(al, "\\df") ||
-		   strings.contains(al, "\\du") ||
-		   strings.contains(al, "\\conninfo") ||
-		   strings.contains(al, "\\encoding") ||
-		   strings.contains(al, "\\echo") {
+		for s in PSQL_INSPECT {
+			if strings.contains(al, s) {
+				return true
+			}
+		}
+		if strings.has_prefix(strings.trim_space(al), "select") {
 			return true
 		}
 		// -c with unknown body — fail closed
@@ -1002,6 +964,15 @@ bash_psql_is_readonly :: proc(args: string) -> bool {
 }
 
 // B44: mysql/mariadb inspect (SELECT/SHOW/DESCRIBE; not DML/DDL or bare interactive).
+MYSQL_MUTATORS := [?]string {
+	"insert ", "update ", "delete ", "drop ", "create ", "alter ", "truncate ",
+	"replace ", "grant ", "revoke ", "load data", "load xml", "call ", "do ",
+	"lock ", "unlock ", "flush ", "optimize ", "repair ", "handler ",
+}
+MYSQL_INSPECT := [?]string {
+	"select ", "show ", "describe ", "desc ", "explain ", "with ",
+}
+
 bash_mysql_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -1015,29 +986,7 @@ bash_mysql_is_readonly :: proc(args: string) -> bool {
 	   strings.has_prefix(a, "--help ") {
 		return true
 	}
-	mutators := []string {
-		"insert ",
-		"update ",
-		"delete ",
-		"drop ",
-		"create ",
-		"alter ",
-		"truncate ",
-		"replace ",
-		"grant ",
-		"revoke ",
-		"load data",
-		"load xml",
-		"call ",
-		"do ",
-		"lock ",
-		"unlock ",
-		"flush ",
-		"optimize ",
-		"repair ",
-		"handler ",
-	}
-	for m in mutators {
+	for m in MYSQL_MUTATORS {
 		if strings.contains(al, m) {
 			return false
 		}
@@ -1048,13 +997,12 @@ bash_mysql_is_readonly :: proc(args: string) -> bool {
 	   strings.contains(a, " --execute=") ||
 	   strings.contains(a, "--execute=") ||
 	   strings.contains(a, " -e") {
-		if strings.contains(al, "select ") ||
-		   strings.has_prefix(strings.trim_space(al), "select") ||
-		   strings.contains(al, "show ") ||
-		   strings.contains(al, "describe ") ||
-		   strings.contains(al, "desc ") ||
-		   strings.contains(al, "explain ") ||
-		   strings.contains(al, "with ") {
+		for s in MYSQL_INSPECT {
+			if strings.contains(al, s) {
+				return true
+			}
+		}
+		if strings.has_prefix(strings.trim_space(al), "select") {
 			return true
 		}
 		return false
@@ -1064,17 +1012,23 @@ bash_mysql_is_readonly :: proc(args: string) -> bool {
 
 // B46: curl GET/HEAD inspect only (no body upload, no -o write, no POST).
 // args is everything after the program name (no leading "curl ").
+CURL_HELP := [?]string{"--version", "-V", "--help", "-h"}
+CURL_DENY_FLAGS := [?]string{"-o", "-O", "-J", "-d", "-F", "-T", "-c", "-K"}
+CURL_DENY_PREFIXES := [?]string {
+	"--data", "--form", "--upload", "--output", "--remote-name",
+	"--remote-header-name", "--cookie-jar", "--config",
+}
+CURL_RO_METHODS := [?]string{"get", "head"}
+CURL_URL_SCHEMES := [?]string{"http://", "https://", "ftp://"}
+
 bash_curl_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return false
 	}
-	if a == "--version" ||
-	   a == "-V" ||
+	if bash_token_in(a, CURL_HELP[:]) ||
 	   strings.has_prefix(a, "--version ") ||
 	   strings.has_prefix(a, "-V ") ||
-	   a == "--help" ||
-	   a == "-h" ||
 	   strings.has_prefix(a, "--help ") {
 		// note: do not treat bare "-h " as always help (rare host flag); only exact -h
 		return true
@@ -1089,32 +1043,22 @@ bash_curl_is_readonly :: proc(args: string) -> bool {
 		rest = rem
 		tl := strings.to_lower(tok, context.temp_allocator)
 		// write / upload / non-GET methods
-		if tok == "-o" ||
-		   tok == "-O" ||
-		   tok == "-J" ||
-		   tok == "-d" ||
-		   tok == "-F" ||
-		   tok == "-T" ||
-		   tok == "-c" ||
-		   tok == "-K" ||
-		   strings.has_prefix(tok, "-o") && len(tok) > 2 || // -oout
-		   strings.has_prefix(tok, "-O") && len(tok) > 2 ||
-		   strings.has_prefix(tok, "-d") && len(tok) > 2 ||
-		   strings.has_prefix(tl, "--data") ||
-		   strings.has_prefix(tl, "--form") ||
-		   strings.has_prefix(tl, "--upload") ||
-		   strings.has_prefix(tl, "--output") ||
-		   strings.has_prefix(tl, "--remote-name") ||
-		   strings.has_prefix(tl, "--remote-header-name") ||
-		   strings.has_prefix(tl, "--cookie-jar") ||
-		   strings.has_prefix(tl, "--config") {
+		if bash_token_in(tok, CURL_DENY_FLAGS[:]) ||
+		   (strings.has_prefix(tok, "-o") && len(tok) > 2) || // -oout
+		   (strings.has_prefix(tok, "-O") && len(tok) > 2) ||
+		   (strings.has_prefix(tok, "-d") && len(tok) > 2) {
 			return false
+		}
+		for p in CURL_DENY_PREFIXES {
+			if strings.has_prefix(tl, p) {
+				return false
+			}
 		}
 		if tok == "-X" || tl == "--request" {
 			m, rem2 := first_shell_token(rest)
 			rest = rem2
 			ml := strings.to_lower(m, context.temp_allocator)
-			if ml != "" && ml != "get" && ml != "head" {
+			if ml != "" && !bash_token_in(ml, CURL_RO_METHODS[:]) {
 				return false
 			}
 			continue
@@ -1122,55 +1066,59 @@ bash_curl_is_readonly :: proc(args: string) -> bool {
 		if strings.has_prefix(tl, "-x") && len(tl) > 2 {
 			// -XPOST glued
 			method := tl[2:]
-			if method != "get" && method != "head" {
+			if !bash_token_in(method, CURL_RO_METHODS[:]) {
 				return false
 			}
 			continue
 		}
 		if strings.has_prefix(tl, "--request=") {
 			method := tl[len("--request="):]
-			if method != "get" && method != "head" {
+			if !bash_token_in(method, CURL_RO_METHODS[:]) {
 				return false
 			}
 			continue
 		}
 	}
-	has_url :=
-		strings.contains(a, "http://") ||
-		strings.contains(a, "https://") ||
-		strings.contains(a, "ftp://")
-	if !has_url {
-		return false
+	for s in CURL_URL_SCHEMES {
+		if strings.contains(a, s) {
+			return true
+		}
 	}
-	return true
+	return false
 }
 
 // B51: HTTPie / xh GET/HEAD only (no POST body, no download -o).
 // args after program name; method may be first token (GET/HEAD/POST…).
+HTTPIE_HELP := [?]string{"--version", "-V", "--help", "-h"}
+HTTPIE_RO_METHODS := [?]string{"GET", "HEAD", "OPTIONS"}
+HTTPIE_MUTATE_METHODS := [?]string{"POST", "PUT", "PATCH", "DELETE"}
+HTTPIE_ALL_METHODS := [?]string{"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
+HTTPIE_DOWNLOAD_MARKERS := [?]string {
+	" -o ", " --download", " -d ", " --output",
+}
+
 bash_httpie_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		// bare http/xh often shows help
 		return true
 	}
-	if a == "--version" ||
-	   a == "-V" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, HTTPIE_HELP[:]) ||
 	   strings.has_prefix(a, "--help ") ||
 	   strings.has_prefix(a, "--version ") {
 		return true
 	}
 	al := strings.to_lower(a, context.temp_allocator)
 	// download / session write
-	if strings.contains(a, " -o ") ||
-	   strings.has_prefix(a, "-o ") ||
-	   strings.contains(a, " --download") ||
-	   strings.contains(a, " -d ") || // xh -d download
+	if strings.has_prefix(a, "-o ") ||
 	   strings.has_prefix(a, "-d ") ||
-	   strings.contains(a, " --output") ||
 	   strings.contains(al, "--session") {
 		return false
+	}
+	for m in HTTPIE_DOWNLOAD_MARKERS {
+		if strings.contains(a, m) {
+			return false
+		}
 	}
 	// method token
 	method := ""
@@ -1178,23 +1126,17 @@ bash_httpie_is_readonly :: proc(args: string) -> bool {
 	tok, rem := first_shell_token(rest)
 	if tok != "" {
 		tl := strings.to_upper(tok, context.temp_allocator)
-		if tl == "GET" ||
-		   tl == "HEAD" ||
-		   tl == "OPTIONS" ||
-		   tl == "POST" ||
-		   tl == "PUT" ||
-		   tl == "PATCH" ||
-		   tl == "DELETE" {
+		if bash_token_in(tl, HTTPIE_ALL_METHODS[:]) {
 			method = tl
 			rest = rem
 		}
 	}
 	// body/form markers
-	if strings.contains(a, "=") && method != "" && method != "GET" && method != "HEAD" && method != "OPTIONS" {
+	if strings.contains(a, "=") && method != "" && !bash_token_in(method, HTTPIE_RO_METHODS[:]) {
 		// field=value often means body for POST
 		return false
 	}
-	if method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE" {
+	if bash_token_in(method, HTTPIE_MUTATE_METHODS[:]) {
 		return false
 	}
 	// must have a URL
@@ -1217,17 +1159,24 @@ bash_httpie_is_readonly :: proc(args: string) -> bool {
 
 // B46: wget spider/version or stdout (-O -); not file download / recursive write.
 // args is everything after the program name.
+WGET_HELP := [?]string{"--version", "-V", "--help", "-h"}
+WGET_STDOUT_MARKERS := [?]string {
+	"-O -", "-O-", " -O -", " -O-", "--output-document=-", "--output-document -",
+}
+WGET_STDOUT_PREFIXES := [?]string{"-O -", "-O-"}
+WGET_MUTATE_MARKERS := [?]string {
+	"--recursive", " -r ", "--mirror",
+}
+WGET_MUTATE_SUBSTR := [?]string{"--post-data", "--post-file", "--method=post"}
+
 bash_wget_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return false
 	}
-	if a == "--version" ||
-	   a == "-V" ||
+	if bash_token_in(a, WGET_HELP[:]) ||
 	   strings.has_prefix(a, "--version ") ||
 	   strings.has_prefix(a, "-V ") ||
-	   a == "--help" ||
-	   a == "-h" ||
 	   strings.has_prefix(a, "--help ") {
 		return true
 	}
@@ -1237,20 +1186,34 @@ bash_wget_is_readonly :: proc(args: string) -> bool {
 		return true
 	}
 	// -O - or --output-document=- → stdout only
-	if strings.has_prefix(a, "-O -") ||
-	   strings.has_prefix(a, "-O-") ||
-	   strings.contains(a, " -O -") ||
-	   strings.contains(a, " -O-") ||
-	   strings.contains(a, "--output-document=-") ||
-	   strings.contains(a, "--output-document -") {
-		if strings.contains(a, "--recursive") ||
-		   strings.contains(a, " -r ") ||
-		   strings.has_prefix(a, "-r ") ||
-		   strings.contains(a, "--mirror") ||
-		   strings.contains(al, "--post-data") ||
-		   strings.contains(al, "--post-file") ||
-		   strings.contains(al, "--method=post") {
+	stdout_ok := false
+	for p in WGET_STDOUT_PREFIXES {
+		if strings.has_prefix(a, p) {
+			stdout_ok = true
+			break
+		}
+	}
+	if !stdout_ok {
+		for m in WGET_STDOUT_MARKERS {
+			if strings.contains(a, m) {
+				stdout_ok = true
+				break
+			}
+		}
+	}
+	if stdout_ok {
+		if strings.has_prefix(a, "-r ") {
 			return false
+		}
+		for m in WGET_MUTATE_MARKERS {
+			if strings.contains(a, m) {
+				return false
+			}
+		}
+		for m in WGET_MUTATE_SUBSTR {
+			if strings.contains(al, m) {
+				return false
+			}
 		}
 		return strings.contains(a, "http://") || strings.contains(a, "https://") || strings.contains(a, "ftp://")
 	}
@@ -1451,18 +1414,43 @@ bash_nix_legacy_is_readonly :: proc(prog, args: string) -> bool {
 }
 
 // B57: gcloud inspect (list/describe/get/info; not create/delete/deploy).
+GCLOUD_HELP := [?]string{"help", "version", "info", "--version", "--help", "-h"}
+GCLOUD_VALUE_FLAGS := [?]string {
+	"--project", "--configuration", "--account", "--format", "--filter",
+	"--limit", "--page-size", "--sort-by", "--verbosity", "--region", "--zone",
+	"--billing-project", "--impersonate-service-account",
+}
+GCLOUD_VALUE_EQ_PREFIXES := [?]string {
+	"--project=", "--configuration=", "--account=", "--format=", "--filter=",
+	"--limit=", "--page-size=", "--sort-by=", "--verbosity=", "--region=",
+	"--zone=", "--billing-project=", "--impersonate-service-account=",
+}
+GCLOUD_BOOL_FLAGS := [?]string{"--log-http", "--quiet", "-q", "--flatten", "--help", "-h", "--version"}
+GCLOUD_MUTATE := [?]string {
+	"create", "delete", "update", "deploy", "apply", "set", "add", "remove",
+	"install", "uninstall", "start", "stop", "reset", "resize", "migrate",
+	"import", "export", "run", "ssh", "scp", "mv", "cp", "rm", "write", "patch",
+	"replace", "enable", "disable", "undelete", "restore", "submit", "build",
+	"push", "pull", "copy-files", "add-iam-policy-binding",
+	"remove-iam-policy-binding", "set-iam-policy", "login", "logout",
+	"activate", "revoke", "init", "compose", "execute", "cancel", "kill",
+}
+GCLOUD_MUTATE_PREFIXES := [?]string{"set-", "add-", "remove-", "delete-", "create-", "update-"}
+GCLOUD_INSPECT := [?]string {
+	"list", "describe", "get", "get-value", "get-iam-policy", "info", "version",
+	"help", "ls", "show", "search", "explain", "print-access-token",
+	"print-identity-token", "print-refresh-token", "cat", "read", "count",
+	"find", "topic", "cheatsheet",
+}
+GCLOUD_INSPECT_PREFIXES := [?]string{"list-", "describe-", "get-"}
+
 bash_gcloud_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		// bare gcloud — help-ish
 		return true
 	}
-	if a == "help" ||
-	   a == "version" ||
-	   a == "info" ||
-	   a == "--version" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, GCLOUD_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") ||
 	   strings.has_prefix(a, "info ") ||
@@ -1478,51 +1466,23 @@ bash_gcloud_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		// global / common flags that take a value
-		if tok == "--project" ||
-		   tok == "--configuration" ||
-		   tok == "--account" ||
-		   tok == "--format" ||
-		   tok == "--filter" ||
-		   tok == "--limit" ||
-		   tok == "--page-size" ||
-		   tok == "--sort-by" ||
-		   tok == "--verbosity" ||
-		   tok == "--region" ||
-		   tok == "--zone" ||
-		   tok == "--billing-project" ||
-		   tok == "--impersonate-service-account" ||
-		   tok == "--log-http" {
-			// --log-http is flag-only; others may take values
-			if tok == "--log-http" {
-				rest = rem
-				continue
-			}
+		if bash_token_in(tok, GCLOUD_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--project=") ||
-		   strings.has_prefix(tok, "--configuration=") ||
-		   strings.has_prefix(tok, "--account=") ||
-		   strings.has_prefix(tok, "--format=") ||
-		   strings.has_prefix(tok, "--filter=") ||
-		   strings.has_prefix(tok, "--limit=") ||
-		   strings.has_prefix(tok, "--page-size=") ||
-		   strings.has_prefix(tok, "--sort-by=") ||
-		   strings.has_prefix(tok, "--verbosity=") ||
-		   strings.has_prefix(tok, "--region=") ||
-		   strings.has_prefix(tok, "--zone=") ||
-		   strings.has_prefix(tok, "--billing-project=") ||
-		   strings.has_prefix(tok, "--impersonate-service-account=") {
+		if bash_token_in(tok, GCLOUD_BOOL_FLAGS[:]) {
 			rest = rem
 			continue
 		}
-		if tok == "--quiet" ||
-		   tok == "-q" ||
-		   tok == "--flatten" ||
-		   tok == "--help" ||
-		   tok == "-h" ||
-		   tok == "--version" {
+		eq_value := false
+		for p in GCLOUD_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -1534,87 +1494,24 @@ bash_gcloud_is_readonly :: proc(args: string) -> bool {
 		}
 		t := strings.to_lower(tok, context.temp_allocator)
 		// mutators fail closed
-		if t == "create" ||
-		   t == "delete" ||
-		   t == "update" ||
-		   t == "deploy" ||
-		   t == "apply" ||
-		   t == "set" ||
-		   t == "add" ||
-		   t == "remove" ||
-		   t == "install" ||
-		   t == "uninstall" ||
-		   t == "start" ||
-		   t == "stop" ||
-		   t == "reset" ||
-		   t == "resize" ||
-		   t == "migrate" ||
-		   t == "import" ||
-		   t == "export" ||
-		   t == "run" ||
-		   t == "ssh" ||
-		   t == "scp" ||
-		   t == "mv" ||
-		   t == "cp" ||
-		   t == "rm" ||
-		   t == "write" ||
-		   t == "patch" ||
-		   t == "replace" ||
-		   t == "enable" ||
-		   t == "disable" ||
-		   t == "undelete" ||
-		   t == "restore" ||
-		   t == "submit" ||
-		   t == "build" ||
-		   t == "push" ||
-		   t == "pull" ||
-		   t == "copy-files" ||
-		   t == "add-iam-policy-binding" ||
-		   t == "remove-iam-policy-binding" ||
-		   t == "set-iam-policy" ||
-		   t == "login" ||
-		   t == "logout" ||
-		   t == "activate" ||
-		   t == "revoke" ||
-		   t == "init" ||
-		   t == "compose" ||
-		   t == "execute" ||
-		   t == "cancel" ||
-		   t == "kill" ||
-		   strings.has_prefix(t, "set-") ||
-		   strings.has_prefix(t, "add-") ||
-		   strings.has_prefix(t, "remove-") ||
-		   strings.has_prefix(t, "delete-") ||
-		   strings.has_prefix(t, "create-") ||
-		   strings.has_prefix(t, "update-") {
+		if bash_token_in(t, GCLOUD_MUTATE[:]) {
 			return false
 		}
+		for p in GCLOUD_MUTATE_PREFIXES {
+			if strings.has_prefix(t, p) {
+				return false
+			}
+		}
 		// known inspect verbs
-		if t == "list" ||
-		   t == "describe" ||
-		   t == "get" ||
-		   t == "get-value" ||
-		   t == "get-iam-policy" ||
-		   t == "info" ||
-		   t == "version" ||
-		   t == "help" ||
-		   t == "ls" ||
-		   t == "show" ||
-		   t == "search" ||
-		   t == "explain" ||
-		   t == "print-access-token" ||
-		   t == "print-identity-token" ||
-		   t == "print-refresh-token" ||
-		   t == "cat" ||
-		   t == "read" ||
-		   t == "count" ||
-		   t == "find" ||
-		   t == "topic" ||
-		   t == "cheatsheet" ||
-		   strings.has_prefix(t, "list-") ||
-		   strings.has_prefix(t, "describe-") ||
-		   strings.has_prefix(t, "get-") {
+		if bash_token_in(t, GCLOUD_INSPECT[:]) {
 			saw_inspect = true
+		} else {
+			for p in GCLOUD_INSPECT_PREFIXES {
+				if strings.has_prefix(t, p) {
+					saw_inspect = true
+					break
+				}
+			}
 		}
 		// group tokens (compute, config, auth, …) ignored — continue
 		rest = rem
@@ -1623,16 +1520,34 @@ bash_gcloud_is_readonly :: proc(args: string) -> bool {
 }
 
 // B57: Azure CLI inspect (list/show/get; not create/delete/set).
+AZ_HELP := [?]string{"help", "version", "--version", "--help", "-h"}
+AZ_VALUE_FLAGS := [?]string{"--subscription", "--resource-group", "-g", "--output", "-o", "--query"}
+AZ_VALUE_EQ_PREFIXES := [?]string {
+	"--subscription=", "--resource-group=", "--output=", "--query=",
+}
+AZ_BOOL_FLAGS := [?]string{"--only-show-errors", "--help", "-h", "--version", "--verbose", "--debug"}
+AZ_MUTATE := [?]string {
+	"create", "delete", "update", "set", "remove", "add", "start", "stop",
+	"restart", "deallocate", "deploy", "apply", "run", "invoke", "execute",
+	"upload", "download", "copy", "move", "rename", "import", "export",
+	"login", "logout", "purge", "restore", "enable", "disable", "attach",
+	"detach", "assign", "unassign", "lock", "unlock", "wait", "ssh", "scp",
+	"run-command", "install", "uninstall", "upgrade", "register", "unregister",
+	"clear", "open", "configure",
+}
+AZ_MUTATE_PREFIXES := [?]string{"create-", "delete-", "update-", "set-", "add-", "remove-"}
+AZ_INSPECT := [?]string {
+	"list", "show", "get", "get-access-token", "version", "help", "find",
+	"check-name", "self-test", "feedback",
+}
+AZ_INSPECT_PREFIXES := [?]string{"list-", "show-", "get-"}
+
 bash_az_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "help" ||
-	   a == "version" ||
-	   a == "--version" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, AZ_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") ||
 	   strings.has_prefix(a, "--version") ||
@@ -1651,29 +1566,23 @@ bash_az_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		// common az globals that take values
-		if tok == "--subscription" ||
-		   tok == "--resource-group" ||
-		   tok == "-g" ||
-		   tok == "--output" ||
-		   tok == "-o" ||
-		   tok == "--query" {
+		if bash_token_in(tok, AZ_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
-		if tok == "--only-show-errors" ||
-		   tok == "--help" ||
-		   tok == "-h" ||
-		   tok == "--version" ||
-		   tok == "--verbose" ||
-		   tok == "--debug" {
+		if bash_token_in(tok, AZ_BOOL_FLAGS[:]) {
 			rest = rem
 			continue
 		}
-		if strings.has_prefix(tok, "--subscription=") ||
-		   strings.has_prefix(tok, "--resource-group=") ||
-		   strings.has_prefix(tok, "--output=") ||
-		   strings.has_prefix(tok, "--query=") ||
+		eq_value := false
+		for p in AZ_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value ||
 		   (strings.has_prefix(tok, "-g") && len(tok) > 2) ||
 		   (strings.has_prefix(tok, "-o") && len(tok) > 2) {
 			rest = rem
@@ -1685,75 +1594,24 @@ bash_az_is_readonly :: proc(args: string) -> bool {
 		}
 		t := strings.to_lower(tok, context.temp_allocator)
 		// mutators fail closed
-		if t == "create" ||
-		   t == "delete" ||
-		   t == "update" ||
-		   t == "set" ||
-		   t == "remove" ||
-		   t == "add" ||
-		   t == "start" ||
-		   t == "stop" ||
-		   t == "restart" ||
-		   t == "deallocate" ||
-		   t == "deploy" ||
-		   t == "apply" ||
-		   t == "run" ||
-		   t == "invoke" ||
-		   t == "execute" ||
-		   t == "upload" ||
-		   t == "download" ||
-		   t == "copy" ||
-		   t == "move" ||
-		   t == "rename" ||
-		   t == "import" ||
-		   t == "export" ||
-		   t == "login" ||
-		   t == "logout" ||
-		   t == "purge" ||
-		   t == "restore" ||
-		   t == "enable" ||
-		   t == "disable" ||
-		   t == "attach" ||
-		   t == "detach" ||
-		   t == "assign" ||
-		   t == "unassign" ||
-		   t == "lock" ||
-		   t == "unlock" ||
-		   t == "wait" ||
-		   t == "ssh" ||
-		   t == "scp" ||
-		   t == "run-command" ||
-		   t == "install" ||
-		   t == "uninstall" ||
-		   t == "upgrade" ||
-		   t == "register" ||
-		   t == "unregister" ||
-		   t == "clear" ||
-		   t == "open" ||
-		   t == "configure" ||
-		   strings.has_prefix(t, "create-") ||
-		   strings.has_prefix(t, "delete-") ||
-		   strings.has_prefix(t, "update-") ||
-		   strings.has_prefix(t, "set-") ||
-		   strings.has_prefix(t, "add-") ||
-		   strings.has_prefix(t, "remove-") {
+		if bash_token_in(t, AZ_MUTATE[:]) {
 			return false
 		}
+		for p in AZ_MUTATE_PREFIXES {
+			if strings.has_prefix(t, p) {
+				return false
+			}
+		}
 		// known inspect verbs (groups like vm/account pass through)
-		if t == "list" ||
-		   t == "show" ||
-		   t == "get" ||
-		   t == "get-access-token" ||
-		   t == "version" ||
-		   t == "help" ||
-		   t == "find" ||
-		   t == "check-name" ||
-		   t == "self-test" ||
-		   t == "feedback" ||
-		   strings.has_prefix(t, "list-") ||
-		   strings.has_prefix(t, "show-") ||
-		   strings.has_prefix(t, "get-") {
+		if bash_token_in(t, AZ_INSPECT[:]) {
 			saw_inspect = true
+		} else {
+			for p in AZ_INSPECT_PREFIXES {
+				if strings.has_prefix(t, p) {
+					saw_inspect = true
+					break
+				}
+			}
 		}
 		rest = rem
 	}
@@ -1761,13 +1619,28 @@ bash_az_is_readonly :: proc(args: string) -> bool {
 }
 
 // B56: aws CLI inspect (describe/list/get/sts identity; not create/delete/put).
+AWS_HELP := [?]string{"help", "--version"}
+AWS_VALUE_FLAGS := [?]string {
+	"--profile", "--region", "--output", "--endpoint-url", "--color",
+	"--cli-read-timeout", "--cli-connect-timeout",
+}
+AWS_VALUE_EQ_PREFIXES := [?]string {
+	"--profile=", "--region=", "--output=", "--endpoint-url=",
+}
+AWS_BOOL_FLAGS := [?]string{"--no-paginate", "--debug", "--no-cli-pager"}
+AWS_STS_OPS := [?]string {
+	"get-caller-identity", "get-session-token", "get-access-key-info",
+	"decode-authorization-message", "help",
+}
+AWS_S3_OPS := [?]string{"ls", "presign", "help"}
+AWS_OP_PREFIXES := [?]string{"describe-", "list-", "get-", "head-"}
+
 bash_aws_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return false
 	}
-	if a == "help" ||
-	   a == "--version" ||
+	if bash_token_in(a, AWS_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "--version") {
 		return true
@@ -1780,30 +1653,23 @@ bash_aws_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			return false
 		}
-		if tok == "--profile" ||
-		   tok == "--region" ||
-		   tok == "--output" ||
-		   tok == "--endpoint-url" ||
-		   tok == "--no-paginate" ||
-		   tok == "--color" ||
-		   tok == "--cli-read-timeout" ||
-		   tok == "--cli-connect-timeout" {
-			if tok == "--no-paginate" {
-				rest = rem
-				continue
-			}
+		if bash_token_in(tok, AWS_BOOL_FLAGS[:]) {
+			rest = rem
+			continue
+		}
+		if bash_token_in(tok, AWS_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--profile=") ||
-		   strings.has_prefix(tok, "--region=") ||
-		   strings.has_prefix(tok, "--output=") ||
-		   strings.has_prefix(tok, "--endpoint-url=") {
-			rest = rem
-			continue
+		eq_value := false
+		for p in AWS_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
 		}
-		if tok == "--debug" || tok == "--no-cli-pager" {
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -1825,44 +1691,24 @@ bash_aws_is_readonly :: proc(args: string) -> bool {
 
 	// sts identity
 	if svc == "sts" {
-		return op_l == "get-caller-identity" ||
-			op_l == "get-session-token" ||
-			op_l == "get-access-key-info" ||
-			op_l == "decode-authorization-message" ||
-			op_l == "help"
+		return bash_token_in(op_l, AWS_STS_OPS[:])
 	}
 	// common read verbs across services
-	if strings.has_prefix(op_l, "describe-") ||
-	   strings.has_prefix(op_l, "list-") ||
-	   strings.has_prefix(op_l, "get-") ||
-	   strings.has_prefix(op_l, "head-") ||
-	   op_l == "help" {
-		// get-object downloads content — still "get" but mutates local if -o; treat as inspect of API (stdout)
-		// create/delete/put prefixes fail closed via not matching
+	if op_l == "help" {
 		return true
 	}
-	// s3 ls / s3api list-buckets style
+	for p in AWS_OP_PREFIXES {
+		if strings.has_prefix(op_l, p) {
+			// get-object downloads content — still "get" but mutates local if -o; treat as inspect of API (stdout)
+			// create/delete/put prefixes fail closed via not matching
+			return true
+		}
+	}
+	// s3 ls / s3api list-buckets style (common prefixes already handled above)
 	if svc == "s3" {
-		return op_l == "ls" || op_l == "presign" || op_l == "help"
+		return bash_token_in(op_l, AWS_S3_OPS[:])
 	}
-	if svc == "s3api" {
-		return strings.has_prefix(op_l, "list-") ||
-			strings.has_prefix(op_l, "get-") ||
-			strings.has_prefix(op_l, "head-") ||
-			op_l == "help"
-	}
-	if svc == "iam" {
-		return strings.has_prefix(op_l, "list-") ||
-			strings.has_prefix(op_l, "get-") ||
-			op_l == "help"
-	}
-	if svc == "ec2" || svc == "ecs" || svc == "eks" || svc == "lambda" || svc == "logs" ||
-	   svc == "cloudformation" || svc == "route53" || svc == "rds" || svc == "dynamodb" {
-		return strings.has_prefix(op_l, "describe-") ||
-			strings.has_prefix(op_l, "list-") ||
-			strings.has_prefix(op_l, "get-") ||
-			op_l == "help"
-	}
+	// s3api/iam/ec2/… already covered by AWS_OP_PREFIXES for list/get/head/describe
 	return false
 }
 
@@ -2327,6 +2173,12 @@ GIT_ALLOW := [?]string {
 	"show-ref", "symbolic-ref", "for-each-ref", "ls-remote",
 }
 GIT_WORKTREE := [?]string{"list", "prune"}
+GIT_VALUE_GLOBALS := [?]string{"-C", "--git-dir", "--work-tree", "-c"}
+GIT_BOOL_GLOBALS := [?]string{"--no-pager", "--paginate", "-p", "--no-optional-locks"}
+GIT_CONFIG_MARKERS := [?]string{"--get", "--list", " -l"}
+GIT_STASH_PREFIXES := [?]string{"list", "show"}
+GIT_REMOTE_PREFIXES := [?]string{"-v", "show", "get-url"}
+GIT_ARCHIVE_DENY := [?]string{" -o", "--output"}
 
 bash_git_is_readonly :: proc(args: string) -> bool {
 	sub, rest := first_shell_token(args)
@@ -2335,7 +2187,7 @@ bash_git_is_readonly :: proc(args: string) -> bool {
 		if sub == "" {
 			return true
 		}
-		if sub == "-C" || sub == "--git-dir" || sub == "--work-tree" || sub == "-c" {
+		if bash_token_in(sub, GIT_VALUE_GLOBALS[:]) {
 			_, rest2 := first_shell_token(rest)
 			sub, rest = first_shell_token(rest2)
 			continue
@@ -2344,10 +2196,7 @@ bash_git_is_readonly :: proc(args: string) -> bool {
 			sub, rest = first_shell_token(rest)
 			continue
 		}
-		if sub == "--no-pager" ||
-		   sub == "--paginate" ||
-		   sub == "-p" ||
-		   sub == "--no-optional-locks" {
+		if bash_token_in(sub, GIT_BOOL_GLOBALS[:]) {
 			sub, rest = first_shell_token(rest)
 			continue
 		}
@@ -2359,30 +2208,50 @@ bash_git_is_readonly :: proc(args: string) -> bool {
 	switch sub {
 	case "config":
 		// only get/list forms
-		return strings.contains(rest, "--get") ||
-			strings.contains(rest, "--list") ||
-			strings.contains(rest, " -l") ||
-			strings.has_prefix(strings.trim_space(rest), "-l")
+		for m in GIT_CONFIG_MARKERS {
+			if strings.contains(rest, m) {
+				return true
+			}
+		}
+		return strings.has_prefix(strings.trim_space(rest), "-l")
 	case "stash":
-		return rest == "" ||
-			strings.has_prefix(rest, "list") ||
-			strings.has_prefix(rest, "show")
+		if rest == "" {
+			return true
+		}
+		for p in GIT_STASH_PREFIXES {
+			if strings.has_prefix(rest, p) {
+				return true
+			}
+		}
+		return false
 	case "remote":
-		return rest == "" ||
-			strings.has_prefix(rest, "-v") ||
-			strings.has_prefix(rest, "show") ||
-			strings.has_prefix(rest, "get-url")
+		if rest == "" {
+			return true
+		}
+		for p in GIT_REMOTE_PREFIXES {
+			if strings.has_prefix(rest, p) {
+				return true
+			}
+		}
+		return false
 	case "tag":
-		return rest == "" ||
-			strings.has_prefix(rest, "-l") ||
-			strings.contains(rest, "--list")
+		if rest == "" {
+			return true
+		}
+		if strings.has_prefix(rest, "-l") {
+			return true
+		}
+		return strings.contains(rest, "--list")
 	case "worktree":
 		return bash_nested_allow(rest, GIT_WORKTREE[:])
 	case "archive":
 		// allow stdout-only; block -o / --output file write
-		return !strings.contains(rest, " -o") &&
-			!strings.contains(rest, "--output") &&
-			!strings.has_prefix(strings.trim_space(rest), "-o")
+		for d in GIT_ARCHIVE_DENY {
+			if strings.contains(rest, d) {
+				return false
+			}
+		}
+		return !strings.has_prefix(strings.trim_space(rest), "-o")
 	}
 	return false
 }
