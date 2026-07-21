@@ -155,12 +155,33 @@ bash_dnf_is_readonly :: proc(args: string) -> bool {
 }
 
 // B59: pacman query/search only (-Q/-S query forms; not -S install / -R / -Syu).
+PACMAN_HELP := [?]string{"--version", "-V", "--help", "-h", "help"}
+PACMAN_QUERY_LONG := [?]string{"--query", "--files", "--deptest"}
+PACMAN_MUTATE_LONG := [?]string{"--remove", "--upgrade", "--database"}
+// Short-flag ops: uppercase primary ops; lowercase modifiers for -S search forms.
+PACMAN_OP_QUERY :: 'Q'
+PACMAN_OP_SYNC :: 'S'
+PACMAN_OP_REMOVE :: 'R'
+PACMAN_OP_UPGRADE :: 'U'
+PACMAN_OP_FILES :: 'F'
+PACMAN_SYNC_SEARCH_MODS := [?]rune{'s', 'i', 'l', 'g'} // -Ss -Si -Sl -Sg
+PACMAN_SYNC_MUTATE_MODS := [?]rune{'y', 'u'} // -Sy / -Su / -Syu
+
+bash_pacman_rune_in :: proc(c: rune, set: []rune) -> bool {
+	for r in set {
+		if r == c {
+			return true
+		}
+	}
+	return false
+}
+
 bash_pacman_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "--version" || a == "-V" || a == "--help" || a == "-h" || a == "help" {
+	if bash_token_in(a, PACMAN_HELP[:]) {
 		return true
 	}
 	rest := a
@@ -173,7 +194,7 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		// long options
-		if tok == "--query" {
+		if bash_token_in(tok, PACMAN_QUERY_LONG[:]) {
 			saw_query = true
 			rest = rem
 			continue
@@ -185,14 +206,8 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 			rest = rem
 			continue
 		}
-		if tok == "--remove" || tok == "--upgrade" || tok == "--database" {
+		if bash_token_in(tok, PACMAN_MUTATE_LONG[:]) {
 			saw_mutator = true
-			rest = rem
-			continue
-		}
-		if tok == "--files" || tok == "--deptest" {
-			// file DB query / dependency test — inspect
-			saw_query = true
 			rest = rem
 			continue
 		}
@@ -210,42 +225,27 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 			has_R := false
 			has_U := false
 			has_F := false
-			has_s := false // search
-			has_i := false // info
-			has_l := false // list
-			has_g := false // groups
-			has_y := false // refresh (mutates dbs when with S)
-			has_u := false // sysupgrade
+			has_search_mod := false
+			has_mutate_mod := false
 			for c in flags {
 				switch c {
-				case 'Q':
+				case PACMAN_OP_QUERY:
 					has_Q = true
-				case 'S':
+				case PACMAN_OP_SYNC:
 					has_S = true
-				case 'R':
+				case PACMAN_OP_REMOVE:
 					has_R = true
-				case 'U':
+				case PACMAN_OP_UPGRADE:
 					has_U = true
-				case 'F':
+				case PACMAN_OP_FILES:
 					has_F = true
-				case 's':
-					has_s = true
-				case 'i':
-					has_i = true
-				case 'l':
-					has_l = true
-				case 'g':
-					has_g = true
-				case 'y':
-					has_y = true
-				case 'u':
-					has_u = true
-				case 'h', 'V':
-				// help/version
-				case 'v', 'q', 'e', 'd', 'k', 'm', 'n', 'o', 'p', 't':
-				// common query modifiers
 				case:
-				// unknown short — ignore for classify
+					if bash_pacman_rune_in(c, PACMAN_SYNC_SEARCH_MODS[:]) {
+						has_search_mod = true
+					} else if bash_pacman_rune_in(c, PACMAN_SYNC_MUTATE_MODS[:]) {
+						has_mutate_mod = true
+					}
+					// query mods / help / unknown — ignore for classify
 				}
 			}
 			if has_R || has_U {
@@ -260,9 +260,9 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 			}
 			if has_S {
 				// -Ss -Si -Sl -Sg are search/info; -Syu / -S pkg are mutators
-				if has_y || has_u {
+				if has_mutate_mod {
 					saw_mutator = true
-				} else if has_s || has_i || has_l || has_g {
+				} else if has_search_mod {
 					saw_sync_query = true
 				} else {
 					// plain -S or -S pkg → install

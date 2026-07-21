@@ -2,10 +2,11 @@
 // Prefer Cli_Readonly_Spec + bash_cli_is_readonly over hand-rolled peel loops.
 //
 // Still custom (do not force into the table without parity tests):
-//   pacman short-flag clusters; multi-level/flag walks with tables (rake/make/
-//   just/ninja/cmake/ansible/checkov/tfsec/ffmpeg/terragrunt/helmfile/dive/
-//   ctr/oras/regctl/redis/gh-api/curl/wget/httpie/psql/mysql/sqlite/git/
-//   aws/gcloud/az/python -m); poetry export/config/lock; terraform fmt/plan.
+//   Multi-level/flag walks with tables (pacman short clusters, rake/make/just/
+//   ninja/cmake/ansible/checkov/tfsec/ffmpeg/terragrunt/helmfile/dive/ctr/
+//   oras/regctl/redis/gh-api/curl/wget/httpie/psql/mysql/sqlite/git/aws/
+//   gcloud/az/python -m). Specials: poetry export/config/lock, terraform
+//   fmt/plan. Prefer Cli_Readonly_Spec for new simple CLIs.
 
 // Copyright 2023-2026 SpaceXAI
 // SPDX-License-Identifier: Apache-2.0
