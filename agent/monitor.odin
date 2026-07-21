@@ -317,11 +317,14 @@ handle_monitor :: proc(
 		)
 	}
 
-	id := generate_bg_task_id("monitor", context.allocator)
-	task := new(Bg_Task)
+	// Task + worker state live on the process heap — test allocator rewinds free
+	// context.allocator while g_bg_tasks still lists the pointer.
+	ha := bg_heap_allocator()
+	id := generate_bg_task_id("monitor", ha)
+	task := new(Bg_Task, ha)
 	task.id = id
 	task.task_kind = .Monitor
-	task.description = strings.clone(desc, context.allocator)
+	task.description = strings.clone(desc, ha)
 	task.status = .Running
 	task.result = ""
 	task.cancel = false
@@ -333,15 +336,15 @@ handle_monitor :: proc(
 	append(&g_bg_tasks, task)
 	sync.mutex_unlock(&g_bg_mu)
 
-	log_path := monitor_log_path(id, context.allocator)
+	log_path := monitor_log_path(id, ha)
 
-	work := new(Bg_Monitor_Work)
+	work := new(Bg_Monitor_Work, ha)
 	work.task = task
-	work.command = strings.clone(command, context.allocator)
-	work.workspace = strings.clone(opts.workspace, context.allocator)
+	work.command = strings.clone(command, ha)
+	work.workspace = strings.clone(opts.workspace, ha)
 	work.timeout_ms = timeout_ms
-	work.log_path = strings.clone(log_path, context.allocator)
-	work.allocator = context.allocator
+	work.log_path = strings.clone(log_path, ha)
+	work.allocator = ha
 
 	_ = thread.create_and_start_with_poly_data(work, bg_monitor_worker_proc, nil, .Normal, true)
 
@@ -645,8 +648,12 @@ bg_monitor_worker_proc :: proc(work: ^Bg_Monitor_Work) {
 }
 
 bg_free_monitor_work :: proc(work: ^Bg_Monitor_Work) {
-	delete(work.command)
-	delete(work.workspace)
-	delete(work.log_path)
-	free(work)
+	ha := work.allocator
+	if ha.procedure == nil {
+		ha = bg_heap_allocator()
+	}
+	delete(work.command, ha)
+	delete(work.workspace, ha)
+	delete(work.log_path, ha)
+	free(work, ha)
 }

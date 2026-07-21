@@ -18,16 +18,18 @@ BUILD_DOCS_URL :: "https://docs.x.ai/build/overview"
 
 // format_bg_tasks_list: snapshot of process-local background tasks.
 format_bg_tasks_list :: proc(allocator := context.allocator) -> string {
-	b := strings.builder_make(allocator)
+	b := strings.builder_make(context.temp_allocator)
 	sync.mutex_lock(&g_bg_mu)
 	n := len(g_bg_tasks)
 	if n == 0 {
 		sync.mutex_unlock(&g_bg_mu)
-		strings.write_string(&b, "Background tasks: (none)\n")
-		return strings.to_string(b)
+		return strings.clone("Background tasks: (none)\n", allocator)
 	}
 	fmt.sbprintf(&b, "Background tasks (%d):\n", n)
 	for t in g_bg_tasks {
+		if t == nil {
+			continue
+		}
 		kind := "subagent"
 		switch t.task_kind {
 		case .Subagent:
@@ -37,21 +39,22 @@ format_bg_tasks_list :: proc(allocator := context.allocator) -> string {
 		case .Monitor:
 			kind = "monitor"
 		}
-		desc := t.description
+		desc := t.description if t.description != "" else ""
 		if len(desc) > 72 {
 			desc = fmt.tprintf("%s…", desc[:69])
 		}
+		id := t.id if t.id != "" else "?"
 		fmt.sbprintf(
 			&b,
 			"  - %s  [%s] %s  %s\n",
-			t.id,
+			id,
 			bg_status_string(t.status),
 			kind,
 			desc,
 		)
 	}
 	sync.mutex_unlock(&g_bg_mu)
-	return strings.to_string(b)
+	return strings.clone(strings.to_string(b), allocator)
 }
 
 // handle_tasks_slash: list bg + scheduled + session todos (Grok /tasks).

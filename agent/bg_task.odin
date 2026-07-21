@@ -202,6 +202,13 @@ auto_wake_enabled :: proc() -> bool {
 	return true
 }
 
+// Process-global task storage must use the heap — Odin's test runner rewinds
+// context.allocator after each test, which would free task structs while
+// g_bg_tasks still holds pointers (segfault in later /tasks or list).
+bg_heap_allocator :: proc() -> runtime.Allocator {
+	return runtime.heap_allocator()
+}
+
 // bg_new_subagent_task allocates and registers a Running subagent task (does not bump running cap).
 bg_new_subagent_task :: proc(
 	kind: Subagent_Type,
@@ -209,22 +216,24 @@ bg_new_subagent_task :: proc(
 	model: string,
 	allocator := context.allocator,
 ) -> ^Bg_Task {
-	id := generate_bg_task_id("sub", allocator)
-	task := new(Bg_Task)
+	_ = allocator // result strings for the caller may use it; task itself is heap-owned
+	ha := bg_heap_allocator()
+	id := generate_bg_task_id("sub", ha)
+	task := new(Bg_Task, ha)
 	task.id = id
 	task.task_kind = .Subagent
 	task.sub_type = kind
 	if len(description) > 80 {
-		task.description = strings.clone(description[:80], allocator)
+		task.description = strings.clone(description[:80], ha)
 	} else {
-		task.description = strings.clone(description, allocator)
+		task.description = strings.clone(description, ha)
 	}
 	task.status = .Running
 	task.result = ""
 	task.cancel = false
 	task.has_process = false
-	task.msgs = make([dynamic]Chat_Message, 0, 0, allocator)
-	task.model = strings.clone(model, allocator)
+	task.msgs = make([dynamic]Chat_Message, 0, 0, ha)
+	task.model = strings.clone(model, ha)
 	task.delivered = false
 	task.worktree_path = ""
 	bg_tasks_ensure_heap()
@@ -417,14 +426,19 @@ try_idle_auto_wake :: proc(
 // bg_free_task_msgs clears archived transcript on a task (under caller lock or exclusive access).
 bg_free_task_msgs :: proc(task: ^Bg_Task) {
 	if len(task.msgs) > 0 {
+		ha := bg_heap_allocator()
+		prev := context.allocator
+		context.allocator = ha
 		destroy_messages(task.msgs[:])
-		task.msgs = make([dynamic]Chat_Message, 0, 0, context.allocator)
+		context.allocator = prev
+		task.msgs = make([dynamic]Chat_Message, 0, 0, ha)
 	}
 }
 
 // bg_evict_oldest_archives drops msgs from oldest terminal subagents when over soft cap.
 // Caller must hold g_bg_mu.
 bg_evict_oldest_archives :: proc() {
+	ha := bg_heap_allocator()
 	// Count terminal subagents that still hold transcripts.
 	count := 0
 	for t in g_bg_tasks {
@@ -436,8 +450,11 @@ bg_evict_oldest_archives :: proc() {
 		evicted := false
 		for t in g_bg_tasks {
 			if t.task_kind == .Subagent && t.status != .Running && len(t.msgs) > 0 {
+				prev := context.allocator
+				context.allocator = ha
 				destroy_messages(t.msgs[:])
-				t.msgs = make([dynamic]Chat_Message, 0, 0, context.allocator)
+				context.allocator = prev
+				t.msgs = make([dynamic]Chat_Message, 0, 0, ha)
 				count -= 1
 				evicted = true
 				break
@@ -488,23 +505,34 @@ bg_finish_subagent :: proc(
 		)
 	}
 
-	cloned := clone_messages(msgs, context.allocator)
+	// Archive on process heap so g_bg_tasks entries survive test allocator rewinds.
+	ha := bg_heap_allocator()
+	cloned := clone_messages(msgs, ha)
 	sync.mutex_lock(&g_bg_mu)
 	// Replace any prior archive / result
 	if len(task.msgs) > 0 {
+		prev := context.allocator
+		context.allocator = ha
 		destroy_messages(task.msgs[:])
+		context.allocator = prev
 	}
 	task.msgs = cloned
 	if task.result != "" {
-		delete(task.result)
+		delete(task.result, ha)
 	}
-	task.result = result
+	// Take ownership of result onto heap (caller may have used any allocator).
+	if result != "" {
+		task.result = strings.clone(result, ha)
+		delete(result)
+	} else {
+		task.result = ""
+	}
 	task.status = status
 	if model != "" {
 		if task.model != "" {
-			delete(task.model)
+			delete(task.model, ha)
 		}
-		task.model = strings.clone(model, context.allocator)
+		task.model = strings.clone(model, ha)
 	}
 	if was_running_slot {
 		g_bg_running -= 1
@@ -755,25 +783,29 @@ spawn_subagent_background_seeded :: proc(
 			destroy_messages(seed_msgs[:])
 		}
 		task.status = .Failed
-		task.result = strings.clone(werr, context.allocator)
+		task.result = strings.clone(werr, bg_heap_allocator())
 		task.delivered = true
 		bg_end_running()
 		return strings.clone(werr, allocator)
 	}
 	if wt != "" {
-		task.worktree_path = wt
+		// resolve may allocate on context.allocator; re-home onto heap.
+		ha := bg_heap_allocator()
+		task.worktree_path = strings.clone(wt, ha)
+		delete(wt)
 	}
 
-	work := new(Bg_Work)
+	ha_work := bg_heap_allocator()
+	work := new(Bg_Work, ha_work)
 	work.task = task
-	work.creds = clone_credentials(creds, context.allocator)
-	work.model = strings.clone(model, context.allocator)
-	work.prompt = strings.clone(prompt, context.allocator)
+	work.creds = clone_credentials(creds, ha_work)
+	work.model = strings.clone(model, ha_work)
+	work.prompt = strings.clone(prompt, ha_work)
 	// Child workspace is worktree or parent
 	if wt != "" {
-		work.workspace = strings.clone(wt, context.allocator)
+		work.workspace = strings.clone(wt, ha_work)
 	} else {
-		work.workspace = strings.clone(parent.workspace, context.allocator)
+		work.workspace = strings.clone(parent.workspace, ha_work)
 	}
 	_ = ws
 	work.kind = kind
@@ -788,7 +820,7 @@ spawn_subagent_background_seeded :: proc(
 		work.has_seed = true
 	}
 	if persona_instructions != "" {
-		work.persona_instructions = strings.clone(persona_instructions, context.allocator)
+		work.persona_instructions = strings.clone(persona_instructions, ha_work)
 	}
 
 	_ = thread.create_and_start_with_poly_data(work, bg_worker_proc, nil, .Normal, true)
@@ -852,11 +884,12 @@ handle_bash_background :: proc(
 		)
 	}
 
-	id := generate_bg_task_id("bash", context.allocator)
-	task := new(Bg_Task)
+	ha := bg_heap_allocator()
+	id := generate_bg_task_id("bash", ha)
+	task := new(Bg_Task, ha)
 	task.id = id
 	task.task_kind = .Shell
-	task.description = strings.clone(desc, context.allocator)
+	task.description = strings.clone(desc, ha)
 	task.status = .Running
 	task.result = ""
 	task.cancel = false
@@ -868,15 +901,15 @@ handle_bash_background :: proc(
 	append(&g_bg_tasks, task)
 	sync.mutex_unlock(&g_bg_mu)
 
-	log_path := bash_log_path(id, context.allocator)
+	log_path := bash_log_path(id, ha)
 
-	work := new(Bg_Shell_Work)
+	work := new(Bg_Shell_Work, ha)
 	work.task = task
-	work.command = strings.clone(command, context.allocator)
-	work.workspace = strings.clone(opts.workspace, context.allocator)
+	work.command = strings.clone(command, ha)
+	work.workspace = strings.clone(opts.workspace, ha)
 	work.timeout_ms = timeout_ms
-	work.log_path = strings.clone(log_path, context.allocator)
-	work.allocator = context.allocator
+	work.log_path = strings.clone(log_path, ha)
+	work.allocator = ha
 
 	// nil init_context: worker gets its own temp allocator (thread-safe).
 	// Heap allocs use work.allocator (set at top of bg_shell_worker_proc).
@@ -1109,8 +1142,18 @@ bg_shell_worker_proc :: proc(work: ^Bg_Shell_Work) {
 }
 
 bg_finish_shell :: proc(task: ^Bg_Task, status: Bg_Task_Status, result: string) {
+	ha := bg_heap_allocator()
+	// Ensure result lives on the process heap (worker may pass any allocator).
+	owned: string
+	if result != "" {
+		owned = strings.clone(result, ha)
+		delete(result)
+	}
 	sync.mutex_lock(&g_bg_mu)
-	task.result = result
+	if task.result != "" {
+		delete(task.result, ha)
+	}
+	task.result = owned
 	task.status = status
 	task.has_process = false
 	g_bg_running -= 1
@@ -1122,10 +1165,14 @@ bg_finish_shell :: proc(task: ^Bg_Task, status: Bg_Task_Status, result: string) 
 }
 
 bg_free_shell_work :: proc(work: ^Bg_Shell_Work) {
-	delete(work.command)
-	delete(work.workspace)
-	delete(work.log_path)
-	free(work)
+	ha := work.allocator
+	if ha.procedure == nil {
+		ha = bg_heap_allocator()
+	}
+	delete(work.command, ha)
+	delete(work.workspace, ha)
+	delete(work.log_path, ha)
+	free(work, ha)
 }
 
 bg_worker_proc :: proc(work: ^Bg_Work) {
@@ -1294,15 +1341,18 @@ bg_worker_proc :: proc(work: ^Bg_Work) {
 
 	bg_finish_subagent(task, status, result, msgs[:], work.model, true)
 
+	ha := bg_heap_allocator()
+	// Credentials / strings were allocated on the process heap (see spawn path).
+	context.allocator = ha
 	destroy_credentials(&work.creds)
-	delete(work.model)
-	delete(work.prompt)
-	delete(work.workspace)
-	delete(work.persona_instructions)
+	delete(work.model, ha)
+	delete(work.prompt, ha)
+	delete(work.workspace, ha)
+	delete(work.persona_instructions, ha)
 	if work.has_seed {
 		destroy_messages(work.seed_msgs[:])
 	}
-	free(work)
+	free(work, ha)
 }
 
 // is_background_arg reports whether run_terminal_cmd requested background execution.

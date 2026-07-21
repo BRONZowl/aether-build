@@ -28,6 +28,10 @@ rest_test_out :: proc(line: string) {
 
 @(test)
 test_rest_slash_docs_cd_tasks_recap :: proc(t: ^testing.T) {
+	// Earlier suite tests leave process-global bg tasks; wipe before /tasks walks them.
+	bg_test_reset_registry()
+	defer bg_test_reset_registry()
+
 	// Isolate env so CI never hits network / GUI clipboard
 	prev_sk := os.get_env("AETHER_NO_SKILLS", context.temp_allocator)
 	prev_auth := os.get_env("GROK_AUTH_PATH", context.temp_allocator)

@@ -552,12 +552,18 @@ bg_test_drain_running :: proc() {
 }
 
 // bg_test_reset_registry drains runners then frees every registry entry.
-// Task fields are allocated with the test (rollback) allocator; free them before
-// the test ends. Keep g_bg_tasks itself on the process heap (see bg_registry_init).
+// Bg_Task bodies and fields use runtime.heap_allocator (see bg_heap_allocator) so
+// they outlive the per-test rollback allocator. Free them with the heap.
+// Keep g_bg_tasks itself on the process heap (see bg_tasks_ensure_heap).
 bg_test_reset_registry :: proc() {
 	bg_test_drain_running()
 	// Brief settle so worker threads exit after cancel/finish before we free tasks.
 	time.sleep(30 * time.Millisecond)
+	ha := bg_heap_allocator()
+	// destroy_messages / delete use context.allocator for string bodies.
+	prev_alloc := context.allocator
+	context.allocator = ha
+	defer context.allocator = prev_alloc
 	sync.mutex_lock(&g_bg_mu)
 	for t in g_bg_tasks {
 		if t == nil {
@@ -568,25 +574,27 @@ bg_test_reset_registry :: proc() {
 			t.has_process = false
 		}
 		if t.id != "" {
-			delete(t.id)
+			delete(t.id, ha)
 		}
 		if t.description != "" {
-			delete(t.description)
+			delete(t.description, ha)
 		}
 		if t.result != "" {
-			delete(t.result)
+			delete(t.result, ha)
 		}
 		if t.model != "" {
-			delete(t.model)
+			delete(t.model, ha)
 		}
 		if t.worktree_path != "" {
-			delete(t.worktree_path)
+			delete(t.worktree_path, ha)
 		}
-		if len(t.msgs) > 0 {
-			destroy_messages(t.msgs[:])
+		// Free message bodies then the dynamic array once (destroy_messages also
+		// delete()s the slice storage — do not pair it with delete(t.msgs)).
+		for &m in t.msgs {
+			destroy_message(&m)
 		}
 		delete(t.msgs)
-		free(t)
+		free(t, ha)
 	}
 	clear(&g_bg_tasks)
 	g_bg_running = 0
