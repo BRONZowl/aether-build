@@ -805,10 +805,22 @@ bash_pulumi_is_readonly :: proc(args: string) -> bool {
 }
 
 // B70: Bazel / bazelisk inspect (query/cquery/info/version; not build/run/test).
+BAZEL_ALLOW := [?]string {
+	"query", "cquery", "aquery", "info", "version", "help", "dump",
+	"analyze-profile", "print_action", "config", "license", "workspace",
+}
+BAZEL_DENY := [?]string {
+	"build", "run", "test", "coverage", "mobile-install", "fetch", "sync",
+	"shutdown", "clean", "mod", "vendor", "canonicalize-flags",
+}
+BAZEL_VALUE_FLAGS := [?]string {
+	"--output_base", "--output_user_root", "--server_javabase", "--host_jvm_args",
+	"--bazelrc", "--block_for_lock",
+}
+
 bash_bazel_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
-		// bare bazel — help-ish
 		return true
 	}
 	if a == "help" ||
@@ -820,19 +832,14 @@ bash_bazel_is_readonly :: proc(args: string) -> bool {
 	   strings.has_prefix(a, "version ") {
 		return true
 	}
+	// peel startup options then classify command via allow/deny tables
 	rest := a
 	for {
 		tok, rem := first_shell_token(rest)
 		if tok == "" {
 			return true
 		}
-		// startup options that take values
-		if tok == "--output_base" ||
-		   tok == "--output_user_root" ||
-		   tok == "--server_javabase" ||
-		   tok == "--host_jvm_args" ||
-		   tok == "--bazelrc" ||
-		   tok == "--block_for_lock" {
+		if bash_token_in(tok, BAZEL_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
@@ -855,44 +862,16 @@ bash_bazel_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		if strings.has_prefix(tok, "-") {
-			// other startup flags — peel; real command follows
 			rest = rem
 			continue
 		}
-		// first non-flag is command
 		cmd := strings.to_lower(tok, context.temp_allocator)
-		// mutators
-		if cmd == "build" ||
-		   cmd == "run" ||
-		   cmd == "test" ||
-		   cmd == "coverage" ||
-		   cmd == "mobile-install" ||
-		   cmd == "fetch" || // downloads deps — borderline; fail closed (network+cache write)
-		   cmd == "sync" ||
-		   cmd == "shutdown" ||
-		   cmd == "clean" ||
-		   cmd == "mod" || // mod tidy etc mutate
-		   cmd == "vendor" ||
-		   cmd == "canonicalize-flags" {
+		if bash_token_in(cmd, BAZEL_DENY[:]) {
 			return false
 		}
-		// inspect
-		if cmd == "query" ||
-		   cmd == "cquery" ||
-		   cmd == "aquery" ||
-		   cmd == "info" ||
-		   cmd == "version" ||
-		   cmd == "help" ||
-		   cmd == "dump" ||
-		   cmd == "analyze-profile" ||
-		   cmd == "print_action" ||
-		   cmd == "config" ||
-		   cmd == "license" ||
-		   cmd == "workspace" { // prints workspace path
-			return true
-		}
-		return false
+		return bash_token_in(cmd, BAZEL_ALLOW[:])
 	}
+	return true
 }
 
 // B69: sbt inspect (tasks/about/dependencyTree/…; not compile/run/test).
@@ -1166,6 +1145,18 @@ bash_mvn_is_readonly :: proc(args: string) -> bool {
 	return saw_inspect
 }
 
+// Gradle task classification tables (inspect vs mutate).
+GRADLE_INSPECT_TASKS := [?]string {
+	"tasks", "help", "dependencies", "dependencyinsight", "projects", "properties",
+	"components", "model", "outgoingvariants", "resolvableconfigurations",
+	"buildenvironment", "javatoolchains",
+}
+GRADLE_MUTATE_TASKS := [?]string {
+	"build", "test", "check", "assemble", "clean", "run", "bootrun", "publish",
+	"publishtomavenlocal", "install", "jar", "war", "classes", "compilejava",
+	"compilekotlin", "compiletestjava", "javadoc", "disttar", "distzip", "wrapper", "init",
+}
+
 // B67: Gradle inspect (tasks/dependencies/projects; not build/test/run).
 bash_gradle_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
@@ -1236,27 +1227,7 @@ bash_gradle_is_readonly :: proc(args: string) -> bool {
 		}
 		t := strings.to_lower(tok, context.temp_allocator)
 		// mutator tasks
-		if t == "build" ||
-		   t == "test" ||
-		   t == "check" ||
-		   t == "assemble" ||
-		   t == "clean" ||
-		   t == "run" ||
-		   t == "bootrun" ||
-		   t == "publish" ||
-		   t == "publishtomavenlocal" ||
-		   t == "install" ||
-		   t == "jar" ||
-		   t == "war" ||
-		   t == "classes" ||
-		   t == "compilejava" ||
-		   t == "compilekotlin" ||
-		   t == "compiletestjava" ||
-		   t == "javadoc" ||
-		   t == "disttar" ||
-		   t == "distzip" ||
-		   t == "wrapper" ||
-		   t == "init" ||
+		if bash_token_in(t, GRADLE_MUTATE_TASKS[:]) ||
 		   strings.has_prefix(t, "publish") ||
 		   strings.has_prefix(t, "deploy") ||
 		   strings.has_prefix(t, "upload") ||
@@ -1265,18 +1236,7 @@ bash_gradle_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		// inspect tasks (task names lowercased)
-		if t == "tasks" ||
-		   t == "help" ||
-		   t == "dependencies" ||
-		   t == "dependencyinsight" ||
-		   t == "projects" ||
-		   t == "properties" ||
-		   t == "components" ||
-		   t == "model" ||
-		   t == "outgoingvariants" ||
-		   t == "resolvableconfigurations" ||
-		   t == "buildenvironment" ||
-		   t == "javatoolchains" {
+		if bash_token_in(t, GRADLE_INSPECT_TASKS[:]) {
 			saw_inspect = true
 			rest = rem
 			continue

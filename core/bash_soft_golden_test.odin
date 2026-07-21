@@ -143,6 +143,14 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"git status", .Allow, "git_status"},
 	{"git commit -m x", .Ask, "git_commit"},
 	{"git stash list", .Allow, "git_stash_list"},
+	// bazel / nix / gradle
+	{"bazel query //...", .Allow, "bazel_query"},
+	{"bazel build //...", .Ask, "bazel_build"},
+	{"nix flake show", .Allow, "nix_flake_show"},
+	{"nix build", .Ask, "nix_build"},
+	{"nix store ls", .Allow, "nix_store_ls"},
+	{"gradle tasks", .Allow, "gradle_tasks"},
+	{"gradle build", .Ask, "gradle_build"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

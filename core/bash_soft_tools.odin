@@ -1496,49 +1496,38 @@ bash_nix_is_readonly :: proc(args: string) -> bool {
 	}
 }
 
+NIX_TOP_ALLOW := [?]string {
+	"help", "--help", "-h", "--version", "search", "path-info", "why-depends", "log",
+	"show-config", "show-derivation", "hash", "nar", "doctor",
+}
+NIX_TOP_DENY := [?]string {
+	"repl", "build", "run", "develop", "shell", "eval", "print-dev-env", "copy",
+	"copy-sigs", "sign-paths", "verify", "collect-garbage", "upgrade-nix",
+}
+NIX_FLAKE := [?]string{"show", "metadata", "check", "info", "archive", "prefetch"}
+NIX_STORE := [?]string{"ls", "path-from-hash-part", "ping", "diff-closures"}
+NIX_REGISTRY := [?]string{"list"}
+NIX_PROFILE := [?]string{"list", "diff-closures", "history"}
+NIX_CONFIG := [?]string{"show"}
+NIX_NESTED := [?]Cli_Nested {
+	{sub = "flake", allow = NIX_FLAKE[:]},
+	{sub = "store", allow = NIX_STORE[:]},
+	{sub = "registry", allow = NIX_REGISTRY[:]},
+	{sub = "profile", allow = NIX_PROFILE[:]},
+	{sub = "config", allow = NIX_CONFIG[:]},
+}
+
 bash_nix_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
-	switch sub {
-	case "help", "--help", "-h", "--version":
+	if bash_token_in(sub, NIX_TOP_ALLOW[:]) {
 		return true
-	case "flake":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		// show/metadata/check/info are inspect; update/lock/init mutate
-		return bash_token_in(
-			sub2,
-			[]string{"show", "metadata", "check", "info", "archive", "prefetch"},
-		)
-		// note: prefetch downloads to store — still relatively inspect; allow
-	case "search":
-		return true
-	case "path-info", "why-depends", "log", "show-config", "show-derivation", "hash", "nar":
-		return true
-	case "store":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		// delete/gc/optimise mutate; ls/ping/diff-closures inspect
-		return bash_token_in(
-			sub2,
-			[]string{"ls", "path-from-hash-part", "ping", "diff-closures"},
-		)
-	case "registry":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "" || sub2 == "--help" || sub2 == "help"
-	case "profile":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "diff-closures" || sub2 == "history" || sub2 == "" || sub2 == "--help"
-	case "config":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "show" || sub2 == "" || sub2 == "--help" || sub2 == "help"
-	case "doctor":
-		return true
-	case "repl", "build", "run", "develop", "shell", "eval", "print-dev-env", "copy",
-	     "copy-sigs", "sign-paths", "verify", "collect-garbage", "upgrade-nix":
+	}
+	if bash_token_in(sub, NIX_TOP_DENY[:]) {
 		return false
+	}
+	for n in NIX_NESTED {
+		if n.sub == sub {
+			return bash_cli_nested_match(rest, n)
+		}
 	}
 	return false
 }
