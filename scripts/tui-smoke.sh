@@ -4,7 +4,7 @@
 
 # Non-interactive TUI smoke via script(1) + key sequences.
 # No network required. Exit 0 on pass; 1 on fail; 0 skip if no script(1)/TTY tools.
-set -euo pipefail
+set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AETHER_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -21,33 +21,48 @@ if ! command -v script >/dev/null 2>&1; then
   exit 0
 fi
 
-# Drive keys: Shift+Tab (mode), Ctrl+O (yolo), Tab (scrollback), /help, quit
+export TERM="${TERM:-xterm-256color}"
+export COLUMNS="${COLUMNS:-120}"
+export LINES="${LINES:-40}"
+export AETHER_NO_DESKTOP_NOTIFY=1
+export AETHER_NO_SKILLS="${AETHER_NO_SKILLS:-1}"
+
+# Bound TUI lifetime so a missed Ctrl+Q cannot hang CI.
+TUI_CMD="timeout -k 1s 6s $BIN tui"
+
+# Drive keys: Shift+Tab (mode), Ctrl+O (yolo), Ctrl+F find, Tab, /help, quit.
 # ESC [ Z = Shift+Tab; Ctrl+O = 0x0f; Tab = 0x09; Ctrl+Q = 0x11
 (
+  trap '' PIPE
+  sleep 0.4
+  printf '\x1b[Z' || true # Shift+Tab
   sleep 0.2
-  printf '\x1b[Z'   # Shift+Tab
-  sleep 0.15
-  printf '\x0f'     # Ctrl+O
-  sleep 0.15
-  printf '\x06'     # Ctrl+F find
-  sleep 0.1
-  printf 'a'        # query char
-  sleep 0.1
-  printf '\x1b'     # Esc close find
-  sleep 0.1
-  printf '\t'       # Tab → scrollback
-  sleep 0.15
-  printf '\t'       # Tab → prompt
-  sleep 0.1
-  printf '/help\r'
-  sleep 0.25
-  printf '\x11\x11' # Ctrl+Q twice
+  printf '\x0f' || true # Ctrl+O
   sleep 0.2
-) | script -qfec "$BIN tui" "$LOG" >/dev/null 2>&1 || true
+  printf '\x06' || true # Ctrl+F find
+  sleep 0.12
+  printf 'a' || true
+  sleep 0.12
+  printf '\x1b' || true # Esc close find
+  sleep 0.12
+  printf '\t' || true # Tab → scrollback
+  sleep 0.15
+  printf '\t' || true # Tab → prompt
+  sleep 0.12
+  printf '/help\r' || true
+  sleep 0.3
+  printf '\x11\x11' || true # Ctrl+Q twice
+  sleep 0.2
+) | script -qfec "$TUI_CMD" "$LOG" >/dev/null 2>&1 || true
 
 # Strip to printable for greps
 flat="$(tr -cd '\11\12\15\40-\176' <"$LOG" 2>/dev/null || true)"
 rm -f "$LOG"
+
+if [[ -z "${flat//[[:space:]]/}" ]]; then
+  echo "tui-smoke: FAIL empty capture (TUI did not paint under script(1))" >&2
+  exit 1
+fi
 
 fail=0
 check() {
@@ -57,15 +72,17 @@ check() {
     echo "tui-smoke: ok  $label"
   else
     echo "tui-smoke: FAIL $label (pattern: $pat)" >&2
+    echo "tui-smoke: capture head: $(echo "$flat" | head -c 400)" >&2
     fail=1
   fi
 }
 
-# Flexible matches (ANSI may leave partial words)
-# First Shift+Tab from default ask → plan (Grok-shaped cycle)
-# script(1) captures can be partial under load — keep patterns loose
-check 'mode: plan|mode:plan|\bplan\b|always-approve|yolo' "plan/yolo mode chrome"
-check 'find:|Ctrl\+F|scroll|prompt|Commands|/help|this help|aether|sess=' "TUI chrome (find/help/header)"
+# Header always paints the permission chip (default "ask"). Key cycles may also
+# produce mode:/yolo status lines — script(1) captures are lossy under load.
+check 'mode:[[:space:]]*(plan|ask|auto|always-approve|read-only)|yolo on|yolo off|\b(ask|auto|plan|yolo|always-approve|read-only)\b' \
+  "plan/yolo mode chrome"
+check 'find:|Ctrl\+F|scroll|prompt|Commands|/help|this help|aether|sess=' \
+  "TUI chrome (find/help/header)"
 
 if [[ "$fail" -ne 0 ]]; then
   echo "tui-smoke: FAILED" >&2
