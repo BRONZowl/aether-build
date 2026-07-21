@@ -163,3 +163,38 @@ test_schema_all_flags_on_is_valid :: proc(t: ^testing.T) {
 	testing.expect(t, schema_has_tool_name(schema, "enter_plan_mode"))
 	testing.expect(t, schema_has_tool_name(schema, "memory_search"))
 }
+
+@(test)
+test_tool_registry_covers_core_and_local_dispatch :: proc(t: ^testing.T) {
+	// Every CORE_TOOL_NAMES entry is registered
+	for name in CORE_TOOL_NAMES {
+		testing.expectf(t, tool_is_registered(name), "registry missing %s", name)
+	}
+	// Local tools known to dispatch
+	local_names := []string {
+		"run_terminal_cmd",
+		"read_file",
+		"search_replace",
+		"write",
+		"delete_file",
+		"grep",
+		"list_dir",
+		"glob",
+		"web_search",
+		"web_fetch",
+		"todo_write",
+		"lsp",
+		"memory_search",
+		"memory_get",
+		"hashline_read",
+		"hashline_edit",
+		"hashline_grep",
+	}
+	for name in local_names {
+		testing.expectf(t, tool_is_local(name), "expected local: %s", name)
+	}
+	// Agent-owned samples
+	testing.expect(t, !tool_is_local("spawn_subagent"))
+	testing.expect(t, !tool_is_local("image_gen"))
+	testing.expect(t, !tool_is_local("ask_user_question"))
+}
