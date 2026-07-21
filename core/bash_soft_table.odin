@@ -1,5 +1,10 @@
 // Package core — data-driven soft-bash CLI readonly classifier (P4).
 // Prefer Cli_Readonly_Spec + bash_cli_is_readonly over hand-rolled peel loops.
+//
+// Still custom (do not force into the table without parity tests):
+//   pacman short-flag clusters, rake inspect flags, brew, poetry export/config,
+//   terraform fmt/plan/state, python -m, make dry-run walk, curl/wget method,
+//   redis/psql/mysql, git porcelain, aws/gcloud/az, gh api, nix, ffmpeg.
 
 // Copyright 2023-2026 SpaceXAI
 // SPDX-License-Identifier: Apache-2.0

@@ -82,99 +82,80 @@ bash_tilt_is_readonly :: proc(args: string) -> bool {
 }
 
 // B83: kind inspect (get/list/version/export; not create/delete/load).
+KIND_ALLOW := [?]string{"version", "help"}
+KIND_DENY := [?]string{"create", "delete", "load", "export", "build", "completion"}
+KIND_GET_ALLOW := [?]string{"clusters", "nodes", "kubeconfig"}
+KIND_NESTED := [?]Cli_Nested{{sub = "get", allow = KIND_GET_ALLOW[:]}}
+KIND_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = KIND_ALLOW[:],
+	deny_subs     = KIND_DENY[:],
+	nested        = KIND_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_kind_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	if sub == "get" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "" ||
-			n == "clusters" ||
-			n == "nodes" ||
-			n == "kubeconfig" ||
-			n == "help" ||
-			n == "--help" ||
-			n == "-h"
-	}
-	if bash_token_in(sub, []string{"create", "delete", "load", "export", "build", "completion"}) {
-		return false
-	}
-	return bash_token_in(sub, []string{"version", "help"})
+	return bash_cli_is_readonly(args, KIND_READONLY_SPEC)
 }
 
 // B83: minikube inspect (status/profile list/version/ip; not start/stop/delete).
+MINIKUBE_VALUE_FLAGS := [?]string{"-p", "--profile", "--node"}
+MINIKUBE_ALLOW := [?]string {
+	"status", "version", "help", "ip", "logs", "docker-env", "podman-env",
+	"ssh-key", "ssh-host", "update-check", "license", "options",
+}
+MINIKUBE_DENY := [?]string {
+	"start", "stop", "delete", "pause", "unpause", "ssh", "cp", "mount",
+	"tunnel", "dashboard", "cache", "update-context", "kubectl", "completion",
+}
+MINIKUBE_LIST := [?]string{"list"}
+MINIKUBE_CONFIG_ALLOW := [?]string{"view", "get", "defaults"}
+MINIKUBE_IMAGE_ALLOW := [?]string{"ls", "list"}
+MINIKUBE_NESTED := [?]Cli_Nested {
+	{sub = "addons", allow = MINIKUBE_LIST[:]},
+	{sub = "node", allow = MINIKUBE_LIST[:]},
+	{sub = "profile", allow = MINIKUBE_LIST[:]},
+	{sub = "config", allow = MINIKUBE_CONFIG_ALLOW[:]},
+	{sub = "image", allow = MINIKUBE_IMAGE_ALLOW[:]},
+	{sub = "service", allow = MINIKUBE_LIST[:]},
+}
+MINIKUBE_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = MINIKUBE_VALUE_FLAGS[:],
+	allow_subs    = MINIKUBE_ALLOW[:],
+	deny_subs     = MINIKUBE_DENY[:],
+	nested        = MINIKUBE_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_minikube_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, []string{"-p", "--profile", "--node"})
-	if !ok {
-		return true
-	}
-	// nested inspect-only groups
-	if sub == "addons" || sub == "node" || sub == "profile" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	if sub == "config" {
-		return bash_nested_allow(rem, []string{"view", "get", "defaults"})
-	}
-	if sub == "image" {
-		return bash_nested_allow(rem, []string{"ls", "list"})
-	}
-	if sub == "service" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"start", "stop", "delete", "pause", "unpause", "ssh", "cp", "mount",
-			"tunnel", "dashboard", "cache", "update-context", "kubectl", "completion",
-		},
-	) {
-		return false
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"status", "version", "help", "ip", "logs", "docker-env", "podman-env",
-			"ssh-key", "ssh-host", "update-check", "license", "options",
-		},
-	)
+	return bash_cli_is_readonly(args, MINIKUBE_READONLY_SPEC)
 }
 
 // B82: skaffold inspect (diagnose/render/version/schema; not run/dev/delete).
+SKAFFOLD_VALUE_FLAGS := [?]string {
+	"-f", "--filename", "-p", "--profile", "--kube-context", "--namespace", "-n", "--kubeconfig",
+}
+SKAFFOLD_ALLOW := [?]string {
+	"diagnose", "render", "schema", "version", "help", "options", "inspect", "credits",
+}
+SKAFFOLD_DENY := [?]string {
+	"run", "dev", "debug", "delete", "deploy", "build", "test", "apply",
+	"verify", "exec", "filter-api-server-logs", "init", "fix", "survey", "completion",
+}
+SKAFFOLD_CONFIG_ALLOW := [?]string{"list", "get"}
+SKAFFOLD_NESTED := [?]Cli_Nested{{sub = "config", allow = SKAFFOLD_CONFIG_ALLOW[:]}}
+SKAFFOLD_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = SKAFFOLD_VALUE_FLAGS[:],
+	allow_subs    = SKAFFOLD_ALLOW[:],
+	deny_subs     = SKAFFOLD_DENY[:],
+	nested        = SKAFFOLD_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_skaffold_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(
-		args,
-		[]string{"-f", "--filename", "-p", "--profile", "--kube-context", "--namespace", "-n", "--kubeconfig"},
-	)
-	if !ok {
-		return true
-	}
-	if sub == "config" {
-		return bash_nested_allow(rem, []string{"list", "get"})
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"run", "dev", "debug", "delete", "deploy", "build", "test", "apply",
-			"verify", "exec", "filter-api-server-logs", "init", "fix", "survey", "completion",
-		},
-	) {
-		return false
-	}
-	return bash_token_in(
-		sub,
-		[]string{"diagnose", "render", "schema", "version", "help", "options", "inspect", "credits"},
-	)
+	return bash_cli_is_readonly(args, SKAFFOLD_READONLY_SPEC)
 }
 
 // B81: kustomize inspect (build/cfg/version; not edit/create to disk).
