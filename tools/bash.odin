@@ -9,6 +9,13 @@ import "core:strings"
 import "core:time"
 import "aether:core"
 
+// kill FG tree (shell + descendants) then brief wait
+@(private)
+bash_kill_and_reap :: proc(child: os.Process) {
+	process_kill_tree(child)
+	_, _ = os.process_wait(child, 2 * time.Second)
+}
+
 // Grok-shaped FG ceiling (ms). Background uses 0 = unlimited separately.
 BASH_FG_DEFAULT_TIMEOUT_MS :: 120_000
 BASH_FG_MAX_TIMEOUT_MS :: 300_000
@@ -60,6 +67,9 @@ tool_run_terminal_cmd :: proc(
 
 	// M6: sandboxed argv when AETHER_OS_SANDBOX=soft|bwrap
 	argv := core.build_sandboxed_shell_argv(workspace, command, context.temp_allocator)
+	// Own process group so Ctrl+C/timeout kills hyperfine→grok→chromium trees
+	argv = with_process_group_leader(argv, context.temp_allocator)
+	core.hang_log(fmt.tprintf("bash enter %s", truncate_cmd(command, 120)))
 	child, serr := os.process_start(
 		{
 			command = argv,
@@ -73,14 +83,18 @@ tool_run_terminal_cmd :: proc(
 	if serr != nil {
 		os.close(stdout_r)
 		os.close(stderr_r)
+		core.hang_log("bash exit start-fail")
 		return fmt.aprintf("error: failed to start command: %v", serr, allocator = allocator)
 	}
+	// Best-effort: also setpgid in case setsid was unavailable
+	posix_setpgid_self(child.pid)
 
 	stdout_b := make([dynamic]byte, 0, 4096, context.temp_allocator)
 	stderr_b := make([dynamic]byte, 0, 1024, context.temp_allocator)
 	buf: [4096]u8
 	start_t := time.now()
 	timeout_dur := time.Duration(timeout_ms) * time.Millisecond
+	last_status_ns := start_t._nsec
 
 	stdout_done := false
 	stderr_done := false
@@ -113,12 +127,12 @@ tool_run_terminal_cmd :: proc(
 			}
 		}
 
-		// Cooperative cancel (Ctrl+C mid-turn) — kill FG shell promptly
+		// Cooperative cancel (Ctrl+C / SIGINT) — kill whole process group
 		if tool_should_cancel() {
-			_ = os.process_kill(child)
-			_, _ = os.process_wait(child, 2 * time.Second)
+			bash_kill_and_reap(child)
 			os.close(stdout_r)
 			os.close(stderr_r)
+			core.hang_log("bash exit cancelled")
 			return strings.clone("error: cancelled", allocator)
 		}
 
@@ -148,20 +162,28 @@ tool_run_terminal_cmd :: proc(
 
 		if time.diff(start_t, time.now()) >= timeout_dur {
 			timed_out = true
-			_ = os.process_kill(child)
-			_, _ = os.process_wait(child, 2 * time.Second)
+			bash_kill_and_reap(child)
 			break
 		}
 		// Short sleep; cancel is re-checked every iteration (SIGINT → cancel flag)
 		time.sleep(10 * time.Millisecond)
+		// Heartbeat every ~5s so status bar shows shell is still running
+		now_ns := time.now()._nsec
+		if now_ns - last_status_ns >= 5_000_000_000 {
+			last_status_ns = now_ns
+			secs := int(time.diff(start_t, time.now()) / time.Second)
+			tool_emit_status(fmt.tprintf("tool: shell %ds — %s", secs, truncate_cmd(command, 48)))
+		}
 		if tool_should_cancel() {
-			_ = os.process_kill(child)
-			_, _ = os.process_wait(child, 2 * time.Second)
+			bash_kill_and_reap(child)
 			os.close(stdout_r)
 			os.close(stderr_r)
+			core.hang_log("bash exit cancelled")
 			return strings.clone("error: cancelled", allocator)
 		}
 	}
+
+	core.hang_log(fmt.tprintf("bash exit timed_out=%v code=%d", timed_out, exit_code))
 
 	os.close(stdout_r)
 	os.close(stderr_r)

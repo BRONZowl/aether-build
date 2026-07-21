@@ -225,8 +225,11 @@ run_agent_turn :: proc(
 		return fmt.tprintf("%s…", err[:157])
 	}
 
-	// Wire FG tool cancel/poll (bash honors Ctrl+C mid-command)
-	tools.tool_set_cancel_hooks(opts.cancel, opts.on_poll)
+	// Mutable copy so mid-turn OIDC refresh can update the bearer for later samples
+	live_creds := creds
+
+	// Wire FG tool cancel/poll/status (bash honors Ctrl+C; shell heartbeats)
+	tools.tool_set_cancel_hooks(opts.cancel, opts.on_poll, opts.on_status)
 	defer tools.tool_clear_cancel_hooks()
 	core.hang_log("run_agent_turn enter")
 	defer core.hang_log("run_agent_turn exit")
@@ -251,11 +254,11 @@ run_agent_turn :: proc(
 		}
 		emit_status(opts, fmt.tprintf("sampling %d/%d…", turn_i + 1, turns))
 		if opts.verbose && !opts.quiet {
-			fmt.eprintf("aether: POST %s/chat/completions\n", host_of(creds.base_url))
+			fmt.eprintf("aether: POST %s/chat/completions\n", host_of(live_creds.base_url))
 		}
 
 		asst, err := chat_completion_stream(
-			creds,
+			live_creds,
 			model,
 			msgs[:],
 			tools_json,
@@ -266,6 +269,7 @@ run_agent_turn :: proc(
 				cancel  = opts.cancel,
 				on_poll = opts.on_poll,
 				verbose = opts.verbose,
+				creds   = &live_creds,
 			},
 		)
 		if err == "cancelled" || cancelled(opts) {
@@ -337,7 +341,7 @@ run_agent_turn :: proc(
 			}
 			emit_status(opts, fmt.tprintf("tool: %s", tc.name))
 			core.hang_log(fmt.tprintf("tool enter %s", tc.name))
-			result := run_one_tool(creds, model, tc.name, tc.arguments, opts)
+			result := run_one_tool(live_creds, model, tc.name, tc.arguments, opts)
 			core.hang_log(fmt.tprintf("tool exit %s", tc.name))
 			// PostToolUse / PostToolUseFailure (non-blocking)
 			hooks.run_post_tool_hooks(

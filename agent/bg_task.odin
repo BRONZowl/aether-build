@@ -922,6 +922,7 @@ bg_shell_worker_proc :: proc(work: ^Bg_Shell_Work) {
 	}
 
 	bash_argv := core.build_sandboxed_shell_argv(workspace, command, context.temp_allocator)
+	bash_argv = tools.with_process_group_leader(bash_argv, context.temp_allocator)
 	child, serr := os.process_start(
 		{
 			command = bash_argv,
@@ -962,7 +963,7 @@ bg_shell_worker_proc :: proc(work: ^Bg_Shell_Work) {
 	for !stdout_done || !stderr_done {
 		if task.cancel {
 			cancelled = true
-			_ = os.process_kill(child)
+			tools.process_kill_tree(child)
 			_, _ = os.process_wait(child, 2 * time.Second)
 			// drain remaining
 			for !stdout_done {
@@ -1037,7 +1038,7 @@ bg_shell_worker_proc :: proc(work: ^Bg_Shell_Work) {
 
 		if timeout_ms > 0 && time.diff(start_t, time.now()) >= timeout_dur {
 			timed_out = true
-			_ = os.process_kill(child)
+			tools.process_kill_tree(child)
 			_, _ = os.process_wait(child, 2 * time.Second)
 			break
 		}
@@ -1532,9 +1533,9 @@ handle_kill_task :: proc(arguments_json: string, allocator := context.allocator)
 		)
 	}
 	if do_kill {
-		_ = os.process_kill(proc_to_kill)
+		tools.process_kill_tree(proc_to_kill)
 		return fmt.aprintf(
-			"kill requested for task_id: %s (process signalled; wait with get_task_output)",
+			"kill requested for task_id: %s (process group signalled; wait with get_task_output)",
 			id,
 			allocator = allocator,
 		)

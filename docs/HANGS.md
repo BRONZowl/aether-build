@@ -16,6 +16,13 @@ The TUI main thread runs **entire agent turns** synchronously. Mid-turn keys onl
   - HTTP uses **curl multi_poll** (≤50ms wake) + stdin watch — cancel is not stuck waiting for xferinfo
   - Mid-turn **ISIG + SIGINT handler** sets cancel asynchronously even if a tool/render is busy
   - xferinfo + write_cb still poll; cancel stops buffering and paints `cancelling…`
+- **FG shell trees**: `setsid` process group + `killpg` on cancel/timeout (kills hyperfine→grok→chromium, not only `sh`)
+- **Shell heartbeat**: status bar updates every ~5s while a FG shell runs
+- **HTTP 401**: one transparent OIDC refresh + retry (avoids spurious “login again” when the access token just expired)
+
+## Nested `grok` browser login
+
+If the agent runs the **host `grok` CLI** (e.g. via hyperfine/benchmark), that child may open Chromium and ask you to sign in — that is **not** Aether wiping `~/.grok/auth.json`. Prefer Aether’s tools or `XAI_API_KEY`; Ctrl+C should now kill the whole shell tree.
 
 ## Env
 

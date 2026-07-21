@@ -319,7 +319,35 @@ Chat_Http_Opts :: struct {
 	cancel:  ^bool,
 	on_poll: proc(),
 	verbose: bool,
+	// Optional: on HTTP 401, refresh OIDC session in place and retry once.
+	creds:   ^Credentials,
 }
+
+// try_refresh_creds: OIDC refresh into live (and opts.creds when set). Returns true on success.
+try_refresh_creds :: proc(slot: ^Credentials, live: ^Credentials) -> bool {
+	if live == nil || live.kind != .Session {
+		return false
+	}
+	if err := refresh_oidc(live); err != "" {
+		return false
+	}
+	if slot != nil && slot != live {
+		// Mirror refreshed fields into caller's credentials
+		delete(slot.bearer)
+		slot.bearer = strings.clone(live.bearer)
+		if live.refresh_token != "" {
+			delete(slot.refresh_token)
+			slot.refresh_token = strings.clone(live.refresh_token)
+		}
+		if live.expires_at != "" {
+			delete(slot.expires_at)
+			slot.expires_at = strings.clone(live.expires_at)
+		}
+	}
+	return true
+}
+
+AUTH_401_HINT :: "Unauthorized (401). Session may be expired — run `aether login` or set XAI_API_KEY."
 
 // chat_completion performs one non-streaming completion request.
 // Retries transport / 429 / 502–504 up to 2 times when no body was usable.
@@ -332,8 +360,12 @@ chat_completion :: proc(
 	http_opts: Chat_Http_Opts = {},
 ) -> (Assistant_Turn, string /* error */) {
 	body := build_chat_completions_body(model, messages, tools_json, false, context.temp_allocator)
-	url := fmt.tprintf("%s/chat/completions", strings.trim_right(creds.base_url, "/"))
-	headers := build_auth_headers(creds, context.temp_allocator)
+	live := creds
+	if http_opts.creds != nil {
+		live = http_opts.creds^
+	}
+	url := fmt.tprintf("%s/chat/completions", strings.trim_right(live.base_url, "/"))
+	headers := build_auth_headers(live, context.temp_allocator)
 
 	opts := Http_Opts {
 		connect_timeout_s = 15,
@@ -343,6 +375,7 @@ chat_completion :: proc(
 	}
 
 	last_err := ""
+	refreshed_401 := false
 	for attempt in 0 ..= 2 {
 		if http_opts.cancel != nil && http_opts.cancel^ {
 			return {}, "cancelled"
@@ -362,7 +395,15 @@ chat_completion :: proc(
 		}
 		if resp.status == 401 {
 			delete(resp.body)
-			return {}, "Unauthorized (401). Session may be expired — run `grok login`."
+			if !refreshed_401 && try_refresh_creds(http_opts.creds, &live) {
+				refreshed_401 = true
+				headers = build_auth_headers(live, context.temp_allocator)
+				if http_opts.verbose {
+					fmt.eprintf("aether: session refreshed after 401 — retrying…\n")
+				}
+				continue
+			}
+			return {}, strings.clone(AUTH_401_HINT, allocator)
 		}
 		if resp.status < 200 || resp.status >= 300 {
 			if attempt < 2 && http_is_retryable(resp.status, .None, false) {
@@ -426,8 +467,12 @@ chat_completion_stream :: proc(
 	}
 
 	body := build_chat_completions_body(model, messages, tools_json, true, context.temp_allocator)
-	url := fmt.tprintf("%s/chat/completions", strings.trim_right(creds.base_url, "/"))
-	headers := build_auth_headers(creds, context.temp_allocator)
+	live := creds
+	if http_opts.creds != nil {
+		live = http_opts.creds^
+	}
+	url := fmt.tprintf("%s/chat/completions", strings.trim_right(live.base_url, "/"))
+	headers := build_auth_headers(live, context.temp_allocator)
 
 	// SSE defaults: 300s total, stall abort <1 B/s for 120s (mid-output freeze)
 	opts := http_sse_opts()
@@ -444,6 +489,7 @@ chat_completion_stream :: proc(
 		os_env_truthy("AETHER_STREAM_STDOUT")
 
 	last_err := ""
+	refreshed_401 := false
 	for attempt in 0 ..= 2 {
 		if http_opts.cancel != nil && http_opts.cancel^ {
 			return {}, "cancelled"
@@ -504,7 +550,15 @@ chat_completion_stream :: proc(
 		}
 
 		if status == 401 {
-			return {}, "Unauthorized (401). Session may be expired — run `grok login`."
+			if !got_payload && !refreshed_401 && try_refresh_creds(http_opts.creds, &live) {
+				refreshed_401 = true
+				headers = build_auth_headers(live, context.temp_allocator)
+				if verbose {
+					fmt.eprintf("aether: session refreshed after 401 — retrying…\n")
+				}
+				continue
+			}
+			return {}, strings.clone(AUTH_401_HINT, allocator)
 		}
 		if status < 200 || status >= 300 {
 			if attempt < 2 && http_is_retryable(status, .None, got_payload) {
