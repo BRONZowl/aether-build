@@ -843,6 +843,20 @@ bash_sqlite3_is_readonly :: proc(args: string) -> bool {
 }
 
 // B43: redis-cli inspect (not SET/DEL/FLUSH).
+REDIS_HELP := [?]string{"--version", "-v", "--help"}
+REDIS_VALUE_FLAGS := [?]string{"-h", "-p", "-n", "-a", "--user", "--pass", "-u"}
+REDIS_BOOL_FLAGS := [?]string{"--tls", "--insecure"}
+REDIS_ALLOW_CMDS := [?]string {
+	"ping", "info", "dbsize", "get", "mget", "exists", "type", "ttl", "pttl",
+	"strlen", "keys", "scan", "hlen", "hget", "hgetall", "hkeys", "hvals",
+	"llen", "lrange", "scard", "smembers", "zcard", "zrange", "zscore",
+	"client", "config", "memory", "slowlog", "time", "echo", "object", "randomkey",
+}
+REDIS_CLIENT_ALLOW := [?]string{"list", "info", "id", "getname", "help"}
+REDIS_CONFIG_ALLOW := [?]string{"get", "help"}
+REDIS_MEMORY_ALLOW := [?]string{"usage", "stats", "doctor", "help"}
+REDIS_SLOWLOG_ALLOW := [?]string{"get", "len", "help"}
+
 bash_redis_cli_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -856,22 +870,16 @@ bash_redis_cli_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			return false
 		}
-		if tok == "--version" || tok == "-v" || tok == "--help" {
+		if bash_token_in(tok, REDIS_HELP[:]) {
 			return true
 		}
 		// host/port/db/auth flags with separate value
-		if tok == "-h" ||
-		   tok == "-p" ||
-		   tok == "-n" ||
-		   tok == "-a" ||
-		   tok == "--user" ||
-		   tok == "--pass" ||
-		   tok == "-u" {
+		if bash_token_in(tok, REDIS_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
-		if tok == "--tls" || tok == "--insecure" {
+		if bash_token_in(tok, REDIS_BOOL_FLAGS[:]) {
 			rest = rem
 			continue
 		}
@@ -887,43 +895,7 @@ bash_redis_cli_is_readonly :: proc(args: string) -> bool {
 			return false
 		}
 		cmd := strings.to_lower(tok, context.temp_allocator)
-		if !bash_token_in(
-			   cmd,
-			   []string{
-				   "ping",
-				   "info",
-				   "dbsize",
-				   "get",
-				   "mget",
-				   "exists",
-				   "type",
-				   "ttl",
-				   "pttl",
-				   "strlen",
-				   "keys",
-				   "scan",
-				   "hlen",
-				   "hget",
-				   "hgetall",
-				   "hkeys",
-				   "hvals",
-				   "llen",
-				   "lrange",
-				   "scard",
-				   "smembers",
-				   "zcard",
-				   "zrange",
-				   "zscore",
-				   "client",
-				   "config",
-				   "memory",
-				   "slowlog",
-				   "time",
-				   "echo",
-				   "object",
-				   "randomkey",
-			   },
-		   ) {
+		if !bash_token_in(cmd, REDIS_ALLOW_CMDS[:]) {
 			return false
 		}
 		return bash_redis_subcmd_readonly(cmd, rem)
@@ -936,13 +908,13 @@ bash_redis_subcmd_readonly :: proc(cmd, rest: string) -> bool {
 	sub_l := strings.to_lower(sub, context.temp_allocator)
 	switch cmd {
 	case "client":
-		return sub_l == "" || bash_token_in(sub_l, []string{"list", "info", "id", "getname", "help"})
+		return sub_l == "" || bash_token_in(sub_l, REDIS_CLIENT_ALLOW[:])
 	case "config":
-		return sub_l == "get" || sub_l == "" || sub_l == "help"
+		return sub_l == "" || bash_token_in(sub_l, REDIS_CONFIG_ALLOW[:])
 	case "memory":
-		return sub_l == "" || bash_token_in(sub_l, []string{"usage", "stats", "doctor", "help"})
+		return sub_l == "" || bash_token_in(sub_l, REDIS_MEMORY_ALLOW[:])
 	case "slowlog":
-		return sub_l == "get" || sub_l == "len" || sub_l == "" || sub_l == "help"
+		return sub_l == "" || bash_token_in(sub_l, REDIS_SLOWLOG_ALLOW[:])
 	}
 	return true
 }
@@ -2165,6 +2137,18 @@ bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
 }
 
 // gh api: allow GET/HEAD only; fields force POST in gh → fail closed; graphql is POST.
+GH_API_BODY_FLAGS := [?]string{"-f", "-F", "--raw-field", "--field", "--input"}
+GH_API_BODY_EQ_PREFIXES := [?]string{"--raw-field=", "--field=", "--input="}
+GH_API_BOOL_FLAGS := [?]string{"--include", "-i", "--paginate", "--slurp", "--silent", "--verbose"}
+GH_API_VALUE_FLAGS := [?]string {
+	"--cache", "--jq", "-q", "--template", "-t", "--header", "-H",
+	"--hostname", "--preview", "-p",
+}
+GH_API_VALUE_EQ_PREFIXES := [?]string {
+	"--cache=", "--jq=", "--template=", "--header=", "--hostname=", "--preview=",
+}
+GH_API_RO_METHODS := [?]string{"get", "head"}
+
 bash_gh_api_is_readonly :: proc(args: string) -> bool {
 	rest := args
 	method := "GET"
@@ -2192,49 +2176,40 @@ bash_gh_api_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		// body / field flags → gh switches default method to POST
-		if tok == "-f" ||
-		   tok == "-F" ||
-		   tok == "--raw-field" ||
-		   tok == "--field" ||
-		   tok == "--input" {
+		if bash_token_in(tok, GH_API_BODY_FLAGS[:]) {
 			saw_body = true
 			_, rest2 := first_shell_token(rest)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "-f") ||
-		   strings.has_prefix(tok, "-F") ||
-		   strings.has_prefix(tok, "--raw-field=") ||
-		   strings.has_prefix(tok, "--field=") ||
-		   strings.has_prefix(tok, "--input=") {
+		body_eq := false
+		for p in GH_API_BODY_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				body_eq = true
+				break
+			}
+		}
+		if body_eq || strings.has_prefix(tok, "-f") || strings.has_prefix(tok, "-F") {
 			saw_body = true
 			continue
 		}
 		// include response headers (not body input)
-		if tok == "--include" || tok == "-i" || tok == "--paginate" || tok == "--slurp" ||
-		   tok == "--silent" || tok == "--verbose" {
+		if bash_token_in(tok, GH_API_BOOL_FLAGS[:]) {
 			continue
 		}
-		if tok == "--cache" ||
-		   tok == "--jq" ||
-		   tok == "-q" ||
-		   tok == "--template" ||
-		   tok == "-t" ||
-		   tok == "--header" ||
-		   tok == "-H" ||
-		   tok == "--hostname" ||
-		   tok == "--preview" ||
-		   tok == "-p" {
+		if bash_token_in(tok, GH_API_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rest)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--cache=") ||
-		   strings.has_prefix(tok, "--jq=") ||
-		   strings.has_prefix(tok, "--template=") ||
-		   strings.has_prefix(tok, "--header=") ||
-		   strings.has_prefix(tok, "--hostname=") ||
-		   strings.has_prefix(tok, "--preview=") {
+		value_eq := false
+		for p in GH_API_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				value_eq = true
+				break
+			}
+		}
+		if value_eq {
 			continue
 		}
 		if strings.has_prefix(tok, "--") || strings.has_prefix(tok, "-") {
@@ -2246,7 +2221,7 @@ bash_gh_api_is_readonly :: proc(args: string) -> bool {
 		}
 	}
 	ml := strings.to_lower(method, context.temp_allocator)
-	if ml != "get" && ml != "head" {
+	if !bash_token_in(ml, GH_API_RO_METHODS[:]) {
 		return false
 	}
 	if saw_body {
