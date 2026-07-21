@@ -47,6 +47,8 @@ bash_skopeo_is_readonly :: proc(args: string) -> bool {
 }
 
 // B85: dive image layer explorer (always inspect of an image; no push).
+DIVE_MUTATE_SUBS := [?]string{"build"}
+
 bash_dive_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if bash_is_help_or_version(a) {
@@ -54,7 +56,7 @@ bash_dive_is_readonly :: proc(args: string) -> bool {
 	}
 	// dive build is docker build wrapper — mutates
 	sub, rem, ok := bash_peel_to_sub(a)
-	if ok && sub == "build" {
+	if ok && bash_token_in(sub, DIVE_MUTATE_SUBS[:]) {
 		return false
 	}
 	// --export to a path writes; --export=- / bare flags ok
@@ -85,17 +87,26 @@ bash_dive_is_readonly :: proc(args: string) -> bool {
 }
 
 // B91: checkov policy scan (scan to stdout; not create-config / output-file-path).
+CHECKOV_HELP := [?]string{"version", "--version", "-v", "help", "--help", "-h"}
+CHECKOV_MUTATE_FLAGS := [?]string {
+	"--create-config", "--output-file-path", "--download-external-modules",
+}
+CHECKOV_VALUE_FLAGS := [?]string {
+	"-d", "--directory", "-f", "--file", "-o", "--output", "--framework",
+	"--check", "--skip-check", "--repo-id", "--repo-root-for-plan-enrichment",
+	"--var-file", "--external-checks-dir", "--config-file", "--bc-api-key",
+	"--policy-metadata-filter",
+}
+CHECKOV_VALUE_EQ_PREFIXES := [?]string {
+	"--directory=", "--file=", "--output=", "--framework=", "--config-file=",
+}
+
 bash_checkov_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "-v" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" {
+	if bash_token_in(a, CHECKOV_HELP[:]) {
 		return true
 	}
 	rest := a
@@ -105,29 +116,12 @@ bash_checkov_is_readonly :: proc(args: string) -> bool {
 			return true
 		}
 		// config / report writes; external module download
-		if tok == "--create-config" ||
-		   tok == "--output-file-path" ||
-		   tok == "--download-external-modules" ||
+		if bash_token_in(tok, CHECKOV_MUTATE_FLAGS[:]) ||
 		   strings.has_prefix(tok, "--output-file-path=") ||
 		   strings.has_prefix(tok, "--create-config") {
 			return false
 		}
-		if tok == "-d" ||
-		   tok == "--directory" ||
-		   tok == "-f" ||
-		   tok == "--file" ||
-		   tok == "-o" ||
-		   tok == "--output" ||
-		   tok == "--framework" ||
-		   tok == "--check" ||
-		   tok == "--skip-check" ||
-		   tok == "--repo-id" ||
-		   tok == "--repo-root-for-plan-enrichment" ||
-		   tok == "--var-file" ||
-		   tok == "--external-checks-dir" ||
-		   tok == "--config-file" ||
-		   tok == "--bc-api-key" ||
-		   tok == "--policy-metadata-filter" {
+		if bash_token_in(tok, CHECKOV_VALUE_FLAGS[:]) {
 			if strings.contains(tok, "=") {
 				rest = rem
 				continue
@@ -137,11 +131,14 @@ bash_checkov_is_readonly :: proc(args: string) -> bool {
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--directory=") ||
-		   strings.has_prefix(tok, "--file=") ||
-		   strings.has_prefix(tok, "--output=") ||
-		   strings.has_prefix(tok, "--framework=") ||
-		   strings.has_prefix(tok, "--config-file=") {
+		eq_value := false
+		for p in CHECKOV_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -156,17 +153,22 @@ bash_checkov_is_readonly :: proc(args: string) -> bool {
 }
 
 // B91: tfsec scan (scan to stdout; not --out file).
+TFSEC_HELP := [?]string{"version", "--version", "help", "--help", "-h", "-v"}
+TFSEC_OUT_FLAGS := [?]string{"--out", "-O", "--output"}
+TFSEC_VALUE_FLAGS := [?]string {
+	"--format", "-f", "--exclude", "-e", "--filter-results",
+	"--tfvars-file", "--config-file", "--custom-check-dir", "--minimum-severity",
+}
+TFSEC_VALUE_EQ_PREFIXES := [?]string {
+	"--format=", "--exclude=", "--config-file=", "--tfvars-file=",
+}
+
 bash_tfsec_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-v" ||
+	if bash_token_in(a, TFSEC_HELP[:]) ||
 	   strings.has_prefix(a, "version ") ||
 	   strings.has_prefix(a, "help ") {
 		return true
@@ -178,9 +180,7 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 			return true
 		}
 		// report file
-		if tok == "--out" ||
-		   tok == "-O" ||
-		   tok == "--output" ||
+		if bash_token_in(tok, TFSEC_OUT_FLAGS[:]) ||
 		   strings.has_prefix(tok, "--out=") ||
 		   strings.has_prefix(tok, "--output=") {
 			// --out without = needs path; --format is stdout format (tfsec uses --format not --out for format)
@@ -192,7 +192,7 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 				rest = rem
 				continue
 			}
-			if tok == "--out" || tok == "-O" || tok == "--output" {
+			if bash_token_in(tok, TFSEC_OUT_FLAGS[:]) {
 				next, _ := first_shell_token(rem)
 				if next != "" && next != "-" && !strings.has_prefix(next, "-") {
 					return false
@@ -209,15 +209,7 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		// flags with values
-		if tok == "--format" ||
-		   tok == "-f" ||
-		   tok == "--exclude" ||
-		   tok == "-e" ||
-		   tok == "--filter-results" ||
-		   tok == "--tfvars-file" ||
-		   tok == "--config-file" ||
-		   tok == "--custom-check-dir" ||
-		   tok == "--minimum-severity" {
+		if bash_token_in(tok, TFSEC_VALUE_FLAGS[:]) {
 			if strings.contains(tok, "=") {
 				rest = rem
 				continue
@@ -226,10 +218,14 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--format=") ||
-		   strings.has_prefix(tok, "--exclude=") ||
-		   strings.has_prefix(tok, "--config-file=") ||
-		   strings.has_prefix(tok, "--tfvars-file=") {
+		eq_value := false
+		for p in TFSEC_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -360,17 +356,32 @@ bash_terraform_docs_writes_file :: proc(args: string) -> bool {
 }
 
 // B90: terragrunt inspect (plan/validate/show/output/graph; not apply/destroy/import).
+TG_HELP := [?]string{"version", "--version", "help", "--help", "-h", "-v"}
+TG_VALUE_FLAGS := [?]string {
+	"--terragrunt-config", "--terragrunt-working-dir", "--terragrunt-log-level",
+	"--terragrunt-iam-role", "--terragrunt-source", "--terragrunt-download-dir",
+	"--working-dir", "--config", "--log-level", "-C",
+}
+TG_NATIVE_INSPECT := [?]string {
+	"terragrunt-info", "render-json", "graph-dependencies", "output-module-groups",
+	"validate-inputs", "hclvalidate", "info", "version", "help",
+}
+TG_TF_ALLOW := [?]string{"plan", "validate", "show", "output", "graph", "providers", "version", "test"}
+TG_TF_DENY := [?]string{"fmt", "console", "get"}
+TG_STATE_ALLOW := [?]string{"list", "show", "pull"}
+TG_LEGACY_ALLOW := [?]string{"plan-all", "output-all"}
+TG_MUTATE := [?]string {
+	"apply", "destroy", "import", "taint", "untaint", "init", "refresh",
+	"force-unlock", "workspace", "login", "logout", "apply-all", "destroy-all",
+}
+TG_RUN_WRAPPERS := [?]string{"run-all", "run"}
+
 bash_terragrunt_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "-v" ||
+	if bash_token_in(a, TG_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") {
 		return true
@@ -382,37 +393,24 @@ bash_terragrunt_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			return true
 		}
-		if tok == "--terragrunt-config" ||
-		   tok == "--terragrunt-working-dir" ||
-		   tok == "--terragrunt-log-level" ||
-		   tok == "--terragrunt-iam-role" ||
-		   tok == "--terragrunt-source" ||
-		   tok == "--terragrunt-source-update" ||
-		   tok == "--terragrunt-download-dir" ||
-		   tok == "--working-dir" ||
-		   tok == "--config" ||
-		   tok == "--log-level" ||
-		   tok == "-C" {
+		if bash_token_in(tok, TG_VALUE_FLAGS[:]) {
 			if strings.contains(tok, "=") {
 				rest = rem
 				continue
-			}
-			// boolean flags
-			if tok == "--terragrunt-source-update" {
-				// may download — fail-closed
-				return false
 			}
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
+		if tok == "--terragrunt-source-update" ||
+		   strings.has_prefix(tok, "--terragrunt-source-update") {
+			// may download — fail-closed
+			return false
+		}
 		if strings.has_prefix(tok, "--terragrunt-") ||
 		   strings.has_prefix(tok, "--working-dir=") ||
 		   strings.has_prefix(tok, "--config=") ||
 		   strings.has_prefix(tok, "--log-level=") {
-			if strings.has_prefix(tok, "--terragrunt-source-update") {
-				return false
-			}
 			// --terragrunt-non-interactive etc.
 			rest = rem
 			continue
@@ -423,45 +421,35 @@ bash_terragrunt_is_readonly :: proc(args: string) -> bool {
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
 		// terragrunt-native inspect
-		if sub == "terragrunt-info" ||
-		   sub == "render-json" ||
-		   sub == "graph-dependencies" ||
-		   sub == "output-module-groups" ||
-		   sub == "validate-inputs" ||
-		   sub == "hclfmt" || // rewrites HCL — ask
-		   sub == "hclvalidate" ||
-		   sub == "hcl" ||
-		   sub == "info" ||
-		   sub == "version" ||
-		   sub == "help" {
-			if sub == "hclfmt" {
-				return false
-			}
-			if sub == "hcl" {
-				// hcl validate / format
-				hrest := rem
-				for {
-					ht, hrem := first_shell_token(hrest)
-					if ht == "" {
-						return true
-					}
-					if strings.has_prefix(ht, "-") {
-						hrest = hrem
-						continue
-					}
-					hsub := strings.to_lower(ht, context.temp_allocator)
-					if hsub == "validate" || hsub == "validate-inputs" {
-						return true
-					}
-					if hsub == "fmt" || hsub == "format" {
-						return false
-					}
-					return false
-				}
-			}
+		if bash_token_in(sub, TG_NATIVE_INSPECT[:]) {
 			return true
 		}
-		if sub == "run-all" || sub == "run" {
+		if sub == "hclfmt" {
+			return false
+		}
+		if sub == "hcl" {
+			// hcl validate / format
+			hrest := rem
+			for {
+				ht, hrem := first_shell_token(hrest)
+				if ht == "" {
+					return true
+				}
+				if strings.has_prefix(ht, "-") {
+					hrest = hrem
+					continue
+				}
+				hsub := strings.to_lower(ht, context.temp_allocator)
+				if hsub == "validate" || hsub == "validate-inputs" {
+					return true
+				}
+				if hsub == "fmt" || hsub == "format" {
+					return false
+				}
+				return false
+			}
+		}
+		if bash_token_in(sub, TG_RUN_WRAPPERS[:]) {
 			// run-all plan ok; run-all apply not
 			rrest := rem
 			for {
@@ -483,17 +471,10 @@ bash_terragrunt_is_readonly :: proc(args: string) -> bool {
 
 bash_terragrunt_tf_sub_readonly :: proc(sub: string, rest: string) -> bool {
 	// align with soft-bash terraform inspect surface
-	if sub == "plan" ||
-	   sub == "validate" ||
-	   sub == "show" ||
-	   sub == "output" ||
-	   sub == "graph" ||
-	   sub == "providers" ||
-	   sub == "version" ||
-	   sub == "test" {
+	if bash_token_in(sub, TG_TF_ALLOW[:]) {
 		return true
 	}
-	if sub == "fmt" || sub == "console" || sub == "get" {
+	if bash_token_in(sub, TG_TF_DENY[:]) {
 		// fmt rewrites; get downloads modules
 		return false
 	}
@@ -510,7 +491,7 @@ bash_terragrunt_tf_sub_readonly :: proc(sub: string, rest: string) -> bool {
 				continue
 			}
 			ssub := strings.to_lower(st, context.temp_allocator)
-			if ssub == "list" || ssub == "show" || ssub == "pull" {
+			if bash_token_in(ssub, TG_STATE_ALLOW[:]) {
 				return true
 			}
 			// mv/rm/push/replace/…
@@ -518,40 +499,43 @@ bash_terragrunt_tf_sub_readonly :: proc(sub: string, rest: string) -> bool {
 		}
 	}
 	// mutators (+ legacy plan-all inspect)
-	if sub == "apply" ||
-	   sub == "destroy" ||
-	   sub == "import" ||
-	   sub == "taint" ||
-	   sub == "untaint" ||
-	   sub == "init" ||
-	   sub == "refresh" ||
-	   sub == "force-unlock" ||
-	   sub == "workspace" ||
-	   sub == "login" ||
-	   sub == "logout" ||
-	   sub == "apply-all" ||
-	   sub == "destroy-all" ||
-	   sub == "output-all" ||
-	   sub == "plan-all" {
-		if sub == "plan-all" || sub == "output-all" {
-			return true
-		}
+	if bash_token_in(sub, TG_LEGACY_ALLOW[:]) {
+		return true
+	}
+	if bash_token_in(sub, TG_MUTATE[:]) {
 		return false
 	}
 	return false
 }
 
 // B89: helmfile inspect (list/status/template/build/lint; not apply/sync/destroy).
+HELMFILE_HELP := [?]string{"version", "--version", "help", "--help", "-h"}
+HELMFILE_VALUE_FLAGS := [?]string {
+	"-f", "--file", "-e", "--environment", "-l", "--selector",
+	"-n", "--namespace", "--state-values-set", "--state-values-file",
+	"--chart", "--log-level", "--kube-context", "--kubeconfig",
+}
+HELMFILE_VALUE_EQ_PREFIXES := [?]string {
+	"--file=", "--environment=", "--selector=", "--namespace=",
+	"--state-values-set=", "--state-values-file=", "--log-level=",
+	"--kube-context=", "--kubeconfig=",
+}
+HELMFILE_ALLOW := [?]string {
+	"list", "ls", "status", "template", "build", "lint",
+	"diff", "version", "help", "print-env", "show-dag",
+}
+HELMFILE_DENY := [?]string {
+	"write-values", "deps", "fetch", "repos", "cache",
+	"apply", "sync", "destroy", "delete", "remove", "init", "charts", "test", "completion",
+}
+HELMFILE_WRITE_FLAGS := [?]string{"--output-dir", "--output-file", "-o"}
+
 bash_helmfile_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
+	if bash_token_in(a, HELMFILE_HELP[:]) ||
 	   strings.has_prefix(a, "help ") ||
 	   strings.has_prefix(a, "version ") {
 		return true
@@ -567,20 +551,7 @@ bash_helmfile_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			return true
 		}
-		if tok == "-f" ||
-		   tok == "--file" ||
-		   tok == "-e" ||
-		   tok == "--environment" ||
-		   tok == "-l" ||
-		   tok == "--selector" ||
-		   tok == "-n" ||
-		   tok == "--namespace" ||
-		   tok == "--state-values-set" ||
-		   tok == "--state-values-file" ||
-		   tok == "--chart" ||
-		   tok == "--log-level" ||
-		   tok == "--kube-context" ||
-		   tok == "--kubeconfig" {
+		if bash_token_in(tok, HELMFILE_VALUE_FLAGS[:]) {
 			if strings.contains(tok, "=") {
 				rest = rem
 				continue
@@ -589,15 +560,14 @@ bash_helmfile_is_readonly :: proc(args: string) -> bool {
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--file=") ||
-		   strings.has_prefix(tok, "--environment=") ||
-		   strings.has_prefix(tok, "--selector=") ||
-		   strings.has_prefix(tok, "--namespace=") ||
-		   strings.has_prefix(tok, "--state-values-set=") ||
-		   strings.has_prefix(tok, "--state-values-file=") ||
-		   strings.has_prefix(tok, "--log-level=") ||
-		   strings.has_prefix(tok, "--kube-context=") ||
-		   strings.has_prefix(tok, "--kubeconfig=") {
+		eq_value := false
+		for p in HELMFILE_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
@@ -606,46 +576,10 @@ bash_helmfile_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		sub := strings.to_lower(tok, context.temp_allocator)
-		// inspect / render
-		if sub == "list" ||
-		   sub == "ls" ||
-		   sub == "status" ||
-		   sub == "template" ||
-		   sub == "build" ||
-		   sub == "lint" ||
-		   sub == "write-values" || // writes values files — ask
-		   sub == "deps" || // may download charts
-		   sub == "fetch" ||
-		   sub == "repos" ||
-		   sub == "diff" || // plan-like; no cluster mutate
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "print-env" ||
-		   sub == "show-dag" ||
-		   sub == "cache" {
-			if sub == "write-values" || sub == "deps" || sub == "fetch" {
-				return false
-			}
-			if sub == "repos" {
-				// repos add/remove mutates; list is rare — fail-closed
-				return false
-			}
-			if sub == "cache" {
-				// cache clean mutates
-				return false
-			}
+		if bash_token_in(sub, HELMFILE_ALLOW[:]) {
 			return true
 		}
-		// mutators
-		if sub == "apply" ||
-		   sub == "sync" ||
-		   sub == "destroy" ||
-		   sub == "delete" ||
-		   sub == "remove" ||
-		   sub == "init" ||
-		   sub == "charts" ||
-		   sub == "test" ||
-		   sub == "completion" {
+		if bash_token_in(sub, HELMFILE_DENY[:]) {
 			return false
 		}
 		return false
@@ -660,18 +594,15 @@ bash_helmfile_writes_file :: proc(args: string) -> bool {
 			return false
 		}
 		// helmfile template --output-dir / -o
-		if tok == "--output-dir" ||
-		   tok == "--output-file" ||
-		   tok == "-o" ||
-		   tok == "--skip-deps" {
-			if tok == "--skip-deps" {
-				rest = rem
-				continue
-			}
+		if bash_token_in(tok, HELMFILE_WRITE_FLAGS[:]) {
 			next, _ := first_shell_token(rem)
 			if next != "" && next != "-" && !strings.has_prefix(next, "-") {
 				return true
 			}
+		}
+		if tok == "--skip-deps" {
+			rest = rem
+			continue
 		}
 		if strings.has_prefix(tok, "--output-dir=") ||
 		   strings.has_prefix(tok, "--output-file=") {
