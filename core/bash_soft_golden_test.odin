@@ -124,6 +124,15 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"dotnet build", .Ask, "dotnet_build"},
 	{"swift package describe", .Allow, "swift_pkg_describe"},
 	{"swift build", .Ask, "swift_build"},
+	// nomad / meson / terraform-docs
+	{"nomad status", .Allow, "nomad_status"},
+	{"nomad job status foo", .Allow, "nomad_job_status"},
+	{"nomad run job.hcl", .Ask, "nomad_run"},
+	{"nomad node drain -enable x", .Ask, "nomad_node_drain"},
+	{"meson introspect --targets", .Allow, "meson_introspect"},
+	{"meson compile", .Ask, "meson_compile"},
+	{"terraform-docs markdown .", .Allow, "tf_docs_md"},
+	{"terraform-docs completion bash", .Ask, "tf_docs_completion"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

@@ -299,58 +299,41 @@ bash_infracost_writes_file :: proc(args: string) -> bool {
 }
 
 // B90: tflint inspect (default lint / --version; not --init / --fix-config).
+// Flag-oriented: no subcommands — keep explicit write guards.
 bash_tflint_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if bash_is_help_or_version(a) {
 		return true
 	}
-	// plugin install / config or report file writes
 	if strings.contains(a, "--init") ||
 	   strings.contains(a, "--fix-config") ||
 	   strings.contains(a, "--fix") {
 		return false
 	}
-	// bare tflint / path args — lint to stdout
 	return true
 }
 
 // B90: terraform-docs inspect (render to stdout; not --output-file / inject).
+// Deny-only: path-as-module-dir is ok; completion writes shell scripts.
+TF_DOCS_DENY := [?]string{"completion"}
+TF_DOCS_READONLY_SPEC := Cli_Readonly_Spec {
+	deny_subs     = TF_DOCS_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_terraform_docs_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	// file writes
 	if bash_terraform_docs_writes_file(a) {
 		return false
 	}
-	// --output-mode inject/replace rewrites README
 	if strings.contains(a, "--output-mode=inject") ||
 	   strings.contains(a, "--output-mode=replace") ||
 	   strings.contains(a, "--output-mode inject") ||
 	   strings.contains(a, "--output-mode replace") {
 		return false
 	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, _, ok := bash_peel_to_sub(a)
-	if !ok {
-		return true // path-only module dir
-	}
-	if sub == "completion" {
-		return false
-	}
-	// format subcommands or bare path as first token (module dir)
-	if bash_token_in(
-		sub,
-		[]string{
-			"markdown", "json", "yaml", "yml", "toml", "tfvars", "tfvars-hcl", "tfvars-json",
-			"asciidoc", "asciidoc-document", "asciidoc-table", "pretty", "xml", "html",
-			"version", "help",
-		},
-	) {
-		return true
-	}
-	// path argument (module dir) as first non-flag token
-	return true
+	return bash_cli_is_readonly(args, TF_DOCS_READONLY_SPEC)
 }
 
 bash_terraform_docs_writes_file :: proc(args: string) -> bool {
@@ -715,12 +698,12 @@ bash_stern_is_readonly :: proc(args: string) -> bool {
 }
 
 // B89: kubeconform manifest validate (always inspect; not schema install mutators).
+// Flag-oriented: -cache writes local schema cache.
 bash_kubeconform_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if bash_is_help_or_version(a) {
 		return true
 	}
-	// -o output format (json/junit/text) is stdout; -cache dir writes cache — ask
 	if strings.contains(a, "-cache") || strings.contains(a, "--cache") {
 		return false
 	}

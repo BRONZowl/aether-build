@@ -373,60 +373,63 @@ bash_consul_is_readonly :: proc(args: string) -> bool {
 }
 
 // B75: Nomad inspect (status/node status/job status; not run/stop/alloc exec).
-bash_nomad_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string{"-address", "-region", "-namespace", "-token"}
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"run", "stop", "system", "operator", "acl", "volume", "var", "quota",
-			"sentinel", "namespace", "scaling", "service", "ui", "monitor",
-		},
-	) {
+NOMAD_VALUE_FLAGS := [?]string{"-address", "-region", "-namespace", "-token"}
+NOMAD_ALLOW := [?]string{"status", "version", "help"}
+NOMAD_DENY := [?]string {
+	"run", "stop", "system", "operator", "acl", "volume", "var", "quota",
+	"sentinel", "namespace", "scaling", "service", "ui", "monitor",
+}
+NOMAD_JOB := [?]string {
+	"status", "history", "inspect", "allocations", "evals", "deployments", "plan", "validate",
+}
+NOMAD_ALLOC := [?]string{"status", "logs", "fs", "checks"}
+NOMAD_DEP := [?]string{"status", "list"}
+NOMAD_SERVER := [?]string{"members"}
+NOMAD_AGENT := [?]string{"info", "self", "health"}
+NOMAD_NESTED := [?]Cli_Nested {
+	{sub = "job", allow = NOMAD_JOB[:]},
+	{sub = "alloc", allow = NOMAD_ALLOC[:]},
+	{sub = "deployment", allow = NOMAD_DEP[:]},
+	{sub = "server", allow = NOMAD_SERVER[:]},
+	{sub = "agent", allow = NOMAD_AGENT[:]},
+}
+NOMAD_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = NOMAD_VALUE_FLAGS[:],
+	allow_subs    = NOMAD_ALLOW[:],
+	deny_subs     = NOMAD_DENY[:],
+	nested        = NOMAD_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
+// nomad node: allow status/help/id; deny drain/eligibility/purge.
+bash_nomad_node_is_readonly :: proc(rest: string) -> bool {
+	next, _ := first_shell_token(rest)
+	n := strings.to_lower(next, context.temp_allocator)
+	if n == "drain" || n == "eligibility" || n == "purge" {
 		return false
 	}
-	if sub == "job" {
-		return bash_nested_allow(
-			rem,
-			[]string{"status", "history", "inspect", "allocations", "evals", "deployments", "plan", "validate"},
-		)
+	return n == "" ||
+		n == "status" ||
+		n == "help" ||
+		n == "--help" ||
+		n == "-h" ||
+		!strings.has_prefix(n, "-")
+}
+
+bash_nomad_is_readonly :: proc(args: string) -> bool {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
+		return true
 	}
-	if sub == "alloc" {
-		return bash_nested_allow(rem, []string{"status", "logs", "fs", "checks"})
+	sub, rem, ok := bash_peel_to_sub(a, NOMAD_VALUE_FLAGS[:])
+	if ok && sub == "node" {
+		return bash_nomad_node_is_readonly(rem)
 	}
-	if sub == "deployment" {
-		return bash_nested_allow(rem, []string{"status", "list"})
-	}
-	if sub == "node" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		if n == "drain" || n == "eligibility" || n == "purge" {
-			return false
-		}
-		// status, bare id, or help
-		return n == "" ||
-			n == "status" ||
-			n == "help" ||
-			n == "--help" ||
-			n == "-h" ||
-			!strings.has_prefix(n, "-")
-	}
-	if sub == "server" {
-		return bash_nested_allow(rem, []string{"members"})
-	}
-	if sub == "agent" {
-		return bash_nested_allow(rem, []string{"info", "self", "health"})
-	}
-	if sub == "fmt" {
+	if ok && sub == "fmt" {
 		return strings.contains(rem, "-check") || strings.contains(rem, "--check")
 	}
-	return bash_token_in(sub, []string{"status", "version", "help"})
+	return bash_cli_is_readonly(args, NOMAD_READONLY_SPEC)
 }
 
 // B74: Packer inspect (validate/inspect/version/fmt -check; not build/init).

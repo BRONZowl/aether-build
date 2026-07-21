@@ -2158,6 +2158,17 @@ bash_ninja_is_readonly :: proc(args: string) -> bool {
 }
 
 // B28: meson introspect/configure --help (not compile/install).
+MESON_ALLOW := [?]string{"introspect"}
+MESON_DENY := [?]string {
+	"rewriter", "compile", "install", "test", "dist", "init", "setup", "subprojects",
+}
+MESON_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = MESON_ALLOW[:],
+	deny_subs     = MESON_DENY[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_meson_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -2167,26 +2178,14 @@ bash_meson_is_readonly :: proc(args: string) -> bool {
 		return true
 	}
 	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	if sub == "introspect" {
-		return true // all introspect subcommands read build dir
-	}
-	if sub == "configure" {
+	if ok && sub == "configure" {
 		// meson configure without -D is inspect; with -D can mutate options
 		if strings.contains(rest, "-D") || strings.contains(rest, "--clearcache") {
 			return false
 		}
 		return true
 	}
-	if bash_token_in(
-		sub,
-		[]string{"rewriter", "compile", "install", "test", "dist", "init", "setup", "subprojects"},
-	) {
-		return false
-	}
-	return false
+	return bash_cli_is_readonly(args, MESON_READONLY_SPEC)
 }
 
 // B33: GitHub CLI inspect (list/view/status/diff/search; not create/merge/push).
