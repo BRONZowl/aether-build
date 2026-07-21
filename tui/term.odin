@@ -74,6 +74,29 @@ term_toggle_mouse :: proc(t: ^Term_State) -> bool {
 	return t.mouse_enabled
 }
 
+// term_set_isig: mid-turn Ctrl+C → SIGINT (async cancel) while keeping raw mode.
+// Idle TUI keeps ISIG off so Ctrl+C is a normal key event.
+term_set_isig :: proc(t: ^Term_State, enable: bool) {
+	if t == nil || !t.active {
+		return
+	}
+	fd := posix.FD(posix.STDIN_FILENO)
+	tio: posix.termios
+	if posix.tcgetattr(fd, &tio) != .OK {
+		return
+	}
+	if enable {
+		tio.c_lflag += {.ISIG}
+	} else {
+		tio.c_lflag -= {.ISIG}
+	}
+	// Keep non-canonical raw reads
+	tio.c_lflag -= {.ECHO, .ICANON, .IEXTEN}
+	tio.c_cc[.VMIN] = 1
+	tio.c_cc[.VTIME] = 0
+	_ = posix.tcsetattr(fd, .TCSANOW, &tio)
+}
+
 // term_suspend_for_pager: leave alt screen + raw so $PAGER can run; caller restores via term_resume_after_pager.
 term_suspend_for_pager :: proc(t: ^Term_State) {
 	if !t.active {

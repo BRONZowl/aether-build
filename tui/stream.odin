@@ -30,6 +30,18 @@ Stream_Ctx :: struct {
 @(private)
 g_rt: Stream_Ctx
 
+// Async SIGINT cancel while a turn is bound (ISIG re-enabled). Only writes a bool.
+@(private)
+g_sigint_cancel: ^bool
+
+@(private)
+stream_sigint_handler :: proc "c" (sig: posix.Signal) {
+	_ = sig
+	if g_sigint_cancel != nil {
+		g_sigint_cancel^ = true
+	}
+}
+
 // stream_bind wires UI + permission pointers for an agent turn / slash status.
 stream_bind :: proc(
 	st: ^App_State,
@@ -46,10 +58,24 @@ stream_bind :: proc(
 	g_rt.perm = perm
 	g_rt.perm_before = perm_before
 	g_rt.cancel = false
+	g_rt.last_poll_ns = 0
+	g_rt.render_depth = 0
+	// Mid-turn: Ctrl+C → SIGINT sets cancel even if stdin is not being read
+	// (e.g. stuck in a long tool/render). multi_poll also wakes ≤50ms.
+	g_sigint_cancel = &g_rt.cancel
+	_ = posix.signal(.SIGINT, stream_sigint_handler)
+	if term != nil {
+		term_set_isig(term, true)
+	}
 }
 
 // stream_clear drops all turn pointers (safe after turn ends).
 stream_clear :: proc() {
+	if g_rt.term != nil {
+		term_set_isig(g_rt.term, false)
+	}
+	g_sigint_cancel = nil
+	_ = posix.signal(.SIGINT, auto_cast posix.SIG_DFL)
 	g_rt = {}
 }
 
@@ -141,7 +167,11 @@ peek_turn_keys_throttled :: proc() {
 
 @(private)
 peek_turn_keys_impl :: proc(force: bool) {
+	// SIGINT handler may have set cancel asynchronously — surface it immediately
 	if g_rt.cancel {
+		if g_rt.st != nil {
+			state_set_status(g_rt.st, "cancelling…")
+		}
 		return
 	}
 	now := time.now()._nsec
@@ -161,17 +191,23 @@ peek_turn_keys_impl :: proc(force: bool) {
 	buf: [64]u8
 	n, _ := os.read(os.stdin, buf[:])
 	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &old)
+	// SIGINT during the brief read window
+	if g_rt.cancel {
+		if g_rt.st != nil {
+			state_set_status(g_rt.st, "cancelling…")
+		}
+		return
+	}
 	if n <= 0 {
 		return
 	}
-	// Scan for cancel first (any position)
+	// Scan for cancel first (any position) — 0x03 when ISIG is off
 	for i in 0 ..< n {
-		if buf[i] == 0x03 { // Ctrl+C
+		if buf[i] == 0x03 {
 			g_rt.cancel = true
 			if g_rt.st != nil {
 				state_set_status(g_rt.st, "cancelling…")
 			}
-			// Paint cancelling immediately even if a stream paint is in flight
 			if g_rt.term != nil && g_rt.st != nil {
 				stream_safe_render()
 			}

@@ -57,7 +57,27 @@ flatten_blocks :: proc(
 
 	prev_kind: Block_Kind = .User // force no leading blank before first real block
 	first_block := true
-	for bi in 0 ..< len(s.blocks) {
+	// Mid-stream: only paint a short tail of history so each frame stays cheap
+	// (full re-markdown of a long session freezes the main thread → Ctrl+C dead).
+	STREAM_HISTORY_TAIL :: 12
+	start_bi := 0
+	if s.streaming && len(s.blocks) > STREAM_HISTORY_TAIL {
+		start_bi = len(s.blocks) - STREAM_HISTORY_TAIL
+		// Notice that older transcript is hidden during stream
+		pref := "·" if compact else "· "
+		wrap_push(
+			out,
+			styles,
+			block_idxs,
+			-1,
+			fmt.tprintf("%s… %d earlier messages (shown after turn)", pref, start_bi),
+			.Dim,
+			w,
+			allocator,
+		)
+		first_block = false
+	}
+	for bi in start_bi ..< len(s.blocks) {
 		bl := s.blocks[bi]
 		// skip empty assistant/user noise
 		if (bl.kind == .Assistant || bl.kind == .User) && strings.trim_space(bl.text) == "" {
@@ -117,6 +137,23 @@ flatten_blocks :: proc(
 	}
 	if s.streaming {
 		live := strings.to_string(s.live_assist)
+		// Cap live paint to last ~12KB so huge drafts don't re-markdown every frame
+		STREAM_LIVE_CAP :: 12_000
+		if len(live) > STREAM_LIVE_CAP {
+			cut := len(live) - STREAM_LIVE_CAP
+			// snap to newline when possible
+			for cut < len(live) && live[cut] != '\n' {
+				cut += 1
+				if cut - (len(live) - STREAM_LIVE_CAP) > 200 {
+					cut = len(live) - STREAM_LIVE_CAP
+					break
+				}
+			}
+			if cut < len(live) && live[cut] == '\n' {
+				cut += 1
+			}
+			live = live[cut:]
+		}
 		if strings.trim_space(live) != "" {
 			if !first_block && !compact {
 				mark_line(out, styles, block_idxs, -1, "", .Normal, allocator)

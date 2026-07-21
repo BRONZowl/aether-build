@@ -11,8 +11,11 @@ The TUI main thread runs **entire agent turns** synchronously. Mid-turn keys onl
 - **Clipboard** waits are timed (~2s)
 - **Queue** auto-drains **at most one** follow-up per turn
 - **SSE stall**: libcurl `LOW_SPEED` (~1 B/s for 120s) aborts a dead mid-stream connection instead of waiting the full 300s
-- **Mid-output paint**: stream redraw ~80ms (not 16ms); mermaid layout skipped on live/open fences; render reentrancy guard; key peeks throttled during fast tokens
-- **Ctrl+C mid-stream**: xferinfo + write_cb poll; cancel stops buffering and paints `cancelling…`
+- **Mid-output paint**: stream redraw ~80ms; mermaid skipped on live/open fences; mid-stream only last 12 history blocks + live tail; reentrancy guard
+- **Ctrl+C mid-turn (hard)**:
+  - HTTP uses **curl multi_poll** (≤50ms wake) + stdin watch — cancel is not stuck waiting for xferinfo
+  - Mid-turn **ISIG + SIGINT handler** sets cancel asynchronously even if a tool/render is busy
+  - xferinfo + write_cb still poll; cancel stops buffering and paints `cancelling…`
 
 ## Env
 

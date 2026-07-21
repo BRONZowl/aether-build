@@ -407,7 +407,7 @@ odin test core -collection:aether=.
 
 Chat completions stream tokens to **stdout** as they arrive (SSE). Set `AETHER_NO_STREAM=1` to force non-streaming. Tool/progress lines stay on **stderr**. In the **TUI**, stream + tool cards update mid-turn; errors/cancel show in the status bar and notice lines (not only stderr).
 
-**HTTP:** connect timeout 15s; total timeout 120s (non-stream) / 300s (SSE). SSE also aborts on **stall** (under ~1 byte/s for 120s) so mid-output freezes do not sit until the full 300s. Transient transport failures and HTTP 429/502/503/504 retry up to twice (before any stream payload). Mid-request **Ctrl+C** in the TUI aborts the in-flight curl transfer (xferinfo + key poll), exit code **4**.
+**HTTP:** connect timeout 15s; total timeout 120s (non-stream) / 300s (SSE). SSE also aborts on **stall** (under ~1 byte/s for 120s). Transfers use **curl multi_poll** so mid-request **Ctrl+C** is checked every ~50ms (not only on xferinfo). The TUI also enables **SIGINT** mid-turn so cancel works if the main thread is busy in a tool/render. Exit code **4**. Transient 429/502/503/504 retry up to twice (before any stream payload).
 
 **Permissions mid-turn:** Ctrl+O and Shift+Tab update the live mode for **subsequent tools** in the same turn (not tools already running). In `ask` mode:
 

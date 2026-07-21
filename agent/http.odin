@@ -155,6 +155,10 @@ xferinfo_cb :: proc "c" (
 	return 0
 }
 
+// How often the multi-poll loop wakes to check cancel / keys when the socket is idle.
+// xferinfo alone is not enough: some stalls never invoke progress until LOW_SPEED fires.
+HTTP_CANCEL_POLL_MS :: 50
+
 @(private)
 easy_apply_common :: proc(easy: ^curl.CURL, opts: Http_Opts, xfer: ^Xfer_User) {
 	o := http_resolve_opts(opts)
@@ -169,9 +173,8 @@ easy_apply_common :: proc(easy: ^curl.CURL, opts: Http_Opts, xfer: ^Xfer_User) {
 		curl.easy_setopt(easy, .LOW_SPEED_TIME, c.long(o.low_speed_time))
 	}
 
-	// Cooperative cancel / key poll during blocking easy_perform.
-	// Always wire progress when cancel/on_poll set so Ctrl+C works during idle
-	// stalls (xferinfo is invoked ~1Hz even with no payload).
+	// Belt-and-suspenders with multi_poll: still wire xferinfo for cancel during
+	// active transfer (write_cb also polls).
 	if o.cancel != nil || o.on_poll != nil {
 		xfer.cancel = o.cancel
 		xfer.on_poll = o.on_poll
@@ -179,6 +182,89 @@ easy_apply_common :: proc(easy: ^curl.CURL, opts: Http_Opts, xfer: ^Xfer_User) {
 		curl.easy_setopt(easy, .XFERINFOFUNCTION, xferinfo_cb)
 		curl.easy_setopt(easy, .XFERINFODATA, xfer)
 	}
+}
+
+// easy_perform_cancellable runs easy via multi_poll so we can check cancel/on_poll
+// every HTTP_CANCEL_POLL_MS even when no bytes arrive (Ctrl+C mid-sample).
+// Without cancel hooks, falls back to blocking easy_perform.
+@(private)
+easy_perform_cancellable :: proc(easy: ^curl.CURL, opts: Http_Opts) -> curl.code {
+	if opts.cancel == nil && opts.on_poll == nil {
+		return curl.easy_perform(easy)
+	}
+
+	multi := curl.multi_init()
+	if multi == nil {
+		// Fallback: xferinfo still helps a little
+		return curl.easy_perform(easy)
+	}
+	defer curl.multi_cleanup(multi)
+
+	if curl.multi_add_handle(multi, easy) != .OK {
+		return curl.easy_perform(easy)
+	}
+	// Always remove before cleanup so transfer aborts cleanly on cancel
+	defer curl.multi_remove_handle(multi, easy)
+
+	still_running: c.int = 1
+	for still_running > 0 {
+		if opts.on_poll != nil {
+			opts.on_poll()
+		}
+		if opts.cancel != nil && opts.cancel^ {
+			core.hang_log("http cancel (multi_poll)")
+			return .E_ABORTED_BY_CALLBACK
+		}
+
+		mc := curl.multi_perform(multi, &still_running)
+		if mc == .CALL_MULTI_PERFORM {
+			continue
+		}
+		if mc != .OK {
+			set_curl_detail(.E_FAILED_INIT)
+			// Surface multi error as perform failed
+			if g_last_curl_detail == "" {
+				cs := curl.multi_strerror(mc)
+				if cs != nil {
+					g_last_curl_detail = string(cs)
+				}
+			}
+			return .E_FAILED_INIT
+		}
+		if still_running == 0 {
+			break
+		}
+
+		// Wait for socket activity OR timeout; also watch stdin so Ctrl+C wakes us
+		// immediately (ISIG may turn it into SIGINT; peek still drains 0x03).
+		numfds: c.int = 0
+		extra: curl.waitfd
+		extra.fd = curl.socket_t(0) // STDIN_FILENO
+		extra.events = c.short(curl.WAIT_POLLIN)
+		extra.revents = 0
+		_ = curl.multi_poll(multi, &extra, 1, c.int(HTTP_CANCEL_POLL_MS), &numfds)
+
+		if opts.on_poll != nil {
+			opts.on_poll()
+		}
+		if opts.cancel != nil && opts.cancel^ {
+			core.hang_log("http cancel (multi_poll after wait)")
+			return .E_ABORTED_BY_CALLBACK
+		}
+	}
+
+	// Harvest the easy result
+	for {
+		msgs_left: c.int = 0
+		msg := curl.multi_info_read(multi, &msgs_left)
+		if msg == nil {
+			break
+		}
+		if msg.msg == .DONE && msg.easy_handle == easy {
+			return msg.data.result
+		}
+	}
+	return .E_OK
 }
 
 @(private)
@@ -296,7 +382,7 @@ http_request :: proc(
 		curl.easy_setopt(easy, .HTTPHEADER, slist)
 	}
 
-	res := curl.easy_perform(easy)
+	res := easy_perform_cancellable(easy, opts)
 	if res != .E_OK {
 		return {}, classify_curl_error(res)
 	}
@@ -541,7 +627,7 @@ http_post_sse :: proc(
 		curl.easy_setopt(easy, .HTTPHEADER, slist)
 	}
 
-	res := curl.easy_perform(easy)
+	res := easy_perform_cancellable(easy, o)
 	sse_flush(&ctx)
 	if res != .E_OK {
 		// write_cb abort (return 0) may surface as WRITE_ERROR rather than ABORTED

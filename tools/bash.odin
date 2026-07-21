@@ -152,7 +152,15 @@ tool_run_terminal_cmd :: proc(
 			_, _ = os.process_wait(child, 2 * time.Second)
 			break
 		}
+		// Short sleep; cancel is re-checked every iteration (SIGINT → cancel flag)
 		time.sleep(10 * time.Millisecond)
+		if tool_should_cancel() {
+			_ = os.process_kill(child)
+			_, _ = os.process_wait(child, 2 * time.Second)
+			os.close(stdout_r)
+			os.close(stderr_r)
+			return strings.clone("error: cancelled", allocator)
+		}
 	}
 
 	os.close(stdout_r)
