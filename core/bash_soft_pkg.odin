@@ -125,39 +125,33 @@ bash_apt_cache_is_readonly :: proc(args: string) -> bool {
 }
 
 // B59: dnf / yum inspect (list/info/search/repolist; not install/remove/upgrade).
+DNF_VALUE_FLAGS := [?]string{"--enablerepo", "--disablerepo", "--repoid", "--setopt"}
+DNF_ALLOW := [?]string {
+	"list", "info", "search", "repolist", "repoinfo", "check-update", "check-upgrade",
+	"provides", "whatprovides", "repoquery", "history", "help", "check", "deplist",
+	"changelog", "leaves",
+}
+DNF_DENY := [?]string {
+	"install", "remove", "erase", "upgrade", "update", "downgrade", "reinstall",
+	"distro-sync", "makecache", "clean", "autoremove", "groupinstall", "groupremove", "mark",
+}
+DNF_MODULE_ALLOW := [?]string{"list", "info", "provides"}
+DNF_GROUP_ALLOW := [?]string{"list", "info", "summary"}
+DNF_NESTED := [?]Cli_Nested {
+	{sub = "module", allow = DNF_MODULE_ALLOW[:]},
+	{sub = "group", allow = DNF_GROUP_ALLOW[:]},
+}
+DNF_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = DNF_VALUE_FLAGS[:],
+	allow_subs    = DNF_ALLOW[:],
+	deny_subs     = DNF_DENY[:],
+	nested        = DNF_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_dnf_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string{"--enablerepo", "--disablerepo", "--repoid", "--setopt"}
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	// nested: module/group inspect only
-	if sub == "module" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "list" || n == "info" || n == "provides" || n == "" || n == "help"
-	}
-	if sub == "group" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "list" || n == "info" || n == "summary" || n == "" || n == "help"
-	}
-	deny := []string {
-		"install", "remove", "erase", "upgrade", "update", "downgrade", "reinstall",
-		"distro-sync", "makecache", "clean", "autoremove", "groupinstall", "groupremove", "mark",
-	}
-	allow := []string {
-		"list", "info", "search", "repolist", "repoinfo", "check-update", "check-upgrade",
-		"provides", "whatprovides", "repoquery", "history", "help", "check", "deplist",
-		"changelog", "leaves",
-	}
-	if bash_token_in(sub, deny) {
-		return false
-	}
-	return bash_token_in(sub, allow)
+	return bash_cli_is_readonly(args, DNF_READONLY_SPEC)
 }
 
 // B59: pacman query/search only (-Q/-S query forms; not -S install / -R / -Syu).
@@ -293,15 +287,20 @@ bash_pacman_is_readonly :: proc(args: string) -> bool {
 }
 
 // B64: pipx inspect (list/version/environment; not install/run/upgrade).
+PIPX_ALLOW := [?]string{"list", "version", "environment", "help"}
+PIPX_DENY := [?]string {
+	"install", "uninstall", "upgrade", "upgrade-all", "reinstall", "reinstall-all",
+	"inject", "uninject", "run", "runpip", "ensurepath", "completions",
+}
+PIPX_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = PIPX_ALLOW[:],
+	deny_subs     = PIPX_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_pipx_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {"list", "version", "environment", "help"},
-		deny = {
-			"install", "uninstall", "upgrade", "upgrade-all", "reinstall", "reinstall-all",
-			"inject", "uninject", "run", "runpip", "ensurepath", "completions",
-		},
-	)
+	return bash_cli_is_readonly(args, PIPX_READONLY_SPEC)
 }
 
 // B64: RubyGems inspect (list/search/env/outdated; not install/update).

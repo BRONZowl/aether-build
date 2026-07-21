@@ -70,6 +70,13 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"helm install chart", .Ask, "helm_install"},
 	{"apt list --upgradable", .Allow, "apt_list"},
 	{"apt install foo", .Ask, "apt_install"},
+	{"dnf list installed", .Allow, "dnf_list"},
+	{"dnf install foo", .Ask, "dnf_install"},
+	{"dnf module list", .Allow, "dnf_module_list"},
+	{"pipx list", .Allow, "pipx_list"},
+	{"pipx install cowsay", .Ask, "pipx_install"},
+	{"crane digest img", .Allow, "crane_digest"},
+	{"crane push img", .Ask, "crane_push"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

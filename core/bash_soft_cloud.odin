@@ -57,22 +57,28 @@ bash_k3d_is_readonly :: proc(args: string) -> bool {
 }
 
 // B84: tilt inspect (version/describe/get/args; not up/down/ci/trigger).
+TILT_ALLOW := [?]string {
+	"version", "help", "describe", "get", "args", "api-resources", "dump", "logs", "explain",
+}
+TILT_DENY := [?]string {
+	"up", "down", "ci", "demo", "trigger", "docker", "alpha", "snapshot",
+	"create-snapshot", "completion", "verify-install",
+}
+TILT_VALUE_FLAGS := [?]string{"-f", "--file", "--context", "--namespace"}
+TILT_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = TILT_ALLOW[:],
+	deny_subs     = TILT_DENY[:],
+	value_flags   = TILT_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_tilt_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "args" {
 		return true
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"version", "help", "describe", "get", "args", "api-resources", "dump", "logs", "explain",
-		},
-		deny = {
-			"up", "down", "ci", "demo", "trigger", "docker", "alpha", "snapshot",
-			"create-snapshot", "completion", "verify-install",
-		},
-		value_flags = {"-f", "--file", "--context", "--namespace"},
-	)
+	return bash_cli_is_readonly(args, TILT_READONLY_SPEC)
 }
 
 // B83: kind inspect (get/list/version/export; not create/delete/load).
@@ -172,18 +178,24 @@ bash_skaffold_is_readonly :: proc(args: string) -> bool {
 }
 
 // B81: kustomize inspect (build/cfg/version; not edit/create to disk).
+KUSTOMIZE_ALLOW := [?]string{"build", "cfg", "version", "help", "openapi"}
+KUSTOMIZE_DENY := [?]string{"edit", "create", "localize", "fix", "completion"}
+KUSTOMIZE_VALUE_FLAGS := [?]string{"-f", "--filename", "--load-restrictor"}
+KUSTOMIZE_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = KUSTOMIZE_ALLOW[:],
+	deny_subs     = KUSTOMIZE_DENY[:],
+	value_flags   = KUSTOMIZE_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_kustomize_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	// -o/--output to a path writes files — fail closed (anywhere in args)
 	if bash_kustomize_writes_output(a) {
 		return false
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {"build", "cfg", "version", "help", "openapi"},
-		deny = {"edit", "create", "localize", "fix", "completion"},
-		value_flags = {"-f", "--filename", "--load-restrictor"},
-	)
+	return bash_cli_is_readonly(args, KUSTOMIZE_READONLY_SPEC)
 }
 
 // bash_kustomize_writes_output: true if -o/--output targets a non-stdout path.
@@ -270,26 +282,27 @@ bash_istioctl_is_readonly :: proc(args: string) -> bool {
 }
 
 // B78: Flux CLI inspect (get/export/tree/logs; not create/delete/reconcile/bootstrap).
+FLUX_ALLOW := [?]string {
+	"get", "export", "tree", "logs", "diff", "version", "help", "check",
+	"events", "stats", "trace",
+}
+FLUX_DENY := [?]string {
+	"bootstrap", "install", "uninstall", "create", "delete", "suspend", "resume",
+	"reconcile", "migrate", "push", "pull", "build", "completion", "envsubst",
+}
+FLUX_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = FLUX_ALLOW[:],
+	deny_subs     = FLUX_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_flux_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "check" || strings.has_prefix(a, "check ") {
 		return true
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"get", "export", "tree", "logs", "diff", "version", "help", "check",
-			"events", "stats", "trace",
-		},
-		deny = {
-			"bootstrap", "install", "uninstall", "create", "delete", "suspend", "resume",
-			"reconcile", "migrate", "push", "pull", "build", "completion", "envsubst",
-		},
-		value_flags = {
-			"--kubeconfig", "--context", "--namespace", "-n",
-			"--kube-api-burst", "--kube-api-qps",
-		},
-	)
+	return bash_cli_is_readonly(args, FLUX_READONLY_SPEC)
 }
 
 // B77: Argo CD CLI inspect (app list/get/diff; not sync/delete/login).
@@ -760,12 +773,17 @@ bash_ansible_doc_is_readonly :: proc(args: string) -> bool {
 }
 
 // B72: ansible-config view/list/dump only (not init).
+ANSIBLE_CONFIG_ALLOW := [?]string{"list", "dump", "view", "help"}
+ANSIBLE_CONFIG_DENY := [?]string{"init"}
+ANSIBLE_CONFIG_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = ANSIBLE_CONFIG_ALLOW[:],
+	deny_subs     = ANSIBLE_CONFIG_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_ansible_config_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {"list", "dump", "view", "help"},
-		deny = {"init"},
-	)
+	return bash_cli_is_readonly(args, ANSIBLE_CONFIG_READONLY_SPEC)
 }
 
 // B72: ansible-galaxy list/search/info only (not install/remove).

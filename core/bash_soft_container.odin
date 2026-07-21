@@ -9,31 +9,41 @@ package core
 import "core:strings"
 
 // B85: crane inspect (manifest/digest/ls/config/version; not push/delete/copy).
+CRANE_ALLOW := [?]string {
+	"manifest", "digest", "config", "ls", "list", "catalog", "validate",
+	"blob", "raw", "version", "help",
+}
+CRANE_DENY := [?]string {
+	"push", "delete", "rm", "copy", "cp", "append", "mutate", "rebase",
+	"export", "pull", "auth", "login", "logout", "serve", "registry",
+	"edit", "flatten", "tag", "completion",
+}
+CRANE_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = CRANE_ALLOW[:],
+	deny_subs     = CRANE_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_crane_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"manifest", "digest", "config", "ls", "list", "catalog", "validate",
-			"blob", "raw", "version", "help",
-		},
-		deny = {
-			"push", "delete", "rm", "copy", "cp", "append", "mutate", "rebase",
-			"export", "pull", "auth", "login", "logout", "serve", "registry",
-			"edit", "flatten", "tag", "completion",
-		},
-	)
+	return bash_cli_is_readonly(args, CRANE_READONLY_SPEC)
 }
 
 // B85: skopeo inspect (inspect/list-tags/login no; not copy/delete).
+SKOPEO_ALLOW := [?]string{"inspect", "list-tags", "layers", "help", "version"}
+SKOPEO_DENY := [?]string {
+	"copy", "delete", "sync", "login", "logout",
+	"standalone-sign", "standalone-verify", "generate-sigstore-key",
+}
+SKOPEO_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = SKOPEO_ALLOW[:],
+	deny_subs     = SKOPEO_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_skopeo_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {"inspect", "list-tags", "layers", "help", "version"},
-		deny = {
-			"copy", "delete", "sync", "login", "logout",
-			"standalone-sign", "standalone-verify", "generate-sigstore-key",
-		},
-	)
+	return bash_cli_is_readonly(args, SKOPEO_READONLY_SPEC)
 }
 
 // B85: dive image layer explorer (always inspect of an image; no push).
@@ -229,19 +239,24 @@ bash_tfsec_is_readonly :: proc(args: string) -> bool {
 }
 
 // B91: infracost estimate (breakdown/diff/output; not configure/auth/upload/comment).
+INFRACOST_ALLOW := [?]string{"breakdown", "diff", "output", "estimate", "validate", "version", "help"}
+INFRACOST_DENY := [?]string {
+	"completion", "configure", "auth", "upload", "comment", "register", "login", "logout",
+}
+INFRACOST_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = INFRACOST_ALLOW[:],
+	deny_subs     = INFRACOST_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_infracost_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	// --out-file report
 	if bash_infracost_writes_file(a) {
 		return false
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {"breakdown", "diff", "output", "estimate", "validate", "version", "help"},
-		deny = {
-			"completion", "configure", "auth", "upload", "comment", "register", "login", "logout",
-		},
-	)
+	return bash_cli_is_readonly(args, INFRACOST_READONLY_SPEC)
 }
 
 bash_infracost_writes_file :: proc(args: string) -> bool {
@@ -714,19 +729,24 @@ bash_kubeconform_is_readonly :: proc(args: string) -> bool {
 }
 
 // B88: buildah inspect (images/containers/inspect/version; not bud/from/commit/push).
+BUILDAH_ALLOW := [?]string {
+	"images", "image", "containers", "ps", "ls", "list", "inspect", "info", "version", "help",
+}
+BUILDAH_DENY := [?]string {
+	"from", "bud", "build", "build-using-dockerfile", "commit", "push", "pull",
+	"login", "logout", "rm", "rmi", "run", "config", "copy", "add", "tag", "untag",
+	"rename", "manifest", "mkcw", "prune", "source", "unshare", "completion",
+	"mount", "umount", "unmount",
+}
+BUILDAH_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = BUILDAH_ALLOW[:],
+	deny_subs     = BUILDAH_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_buildah_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"images", "image", "containers", "ps", "ls", "list", "inspect", "info", "version", "help",
-		},
-		deny = {
-			"from", "bud", "build", "build-using-dockerfile", "commit", "push", "pull",
-			"login", "logout", "rm", "rmi", "run", "config", "copy", "add", "tag", "untag",
-			"rename", "manifest", "mkcw", "prune", "source", "unshare", "completion",
-			"mount", "umount", "unmount",
-		},
-	)
+	return bash_cli_is_readonly(args, BUILDAH_READONLY_SPEC)
 }
 
 // B88: nerdctl inspect (docker-compatible ps/images/logs; not run/build/push).
