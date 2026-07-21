@@ -7,7 +7,6 @@ package agent
 
 import "core:fmt"
 import "core:strings"
-import "aether:core"
 
 BTW_MAX_CONTEXT_CHARS :: 6_000
 BTW_MAX_MSGS :: 12

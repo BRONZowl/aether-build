@@ -4,15 +4,6 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
-import "core:fmt"
-import "core:os"
-import "core:strings"
-import "core:sys/posix"
-import "core:time"
-import "core:unicode/utf8"
-import "aether:agent"
-import "aether:core"
-import "aether:tools"
 
 // apply_mouse_click handles left-click: select scrollback block or focus prompt (C2.3).
 // Returns true if UI state changed.
@@ -20,7 +11,7 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 	_ = mx // column unused for now (full-line hit)
 	rows := max(6, term.rows)
 	cols := max(20, term.cols)
-	input_h := input_line_count(st, cols)
+	_ = input_line_count(st, cols)
 	block_h := composer_block_height(st, cols)
 	menu_h := slash_menu_height(st, rows, block_h)
 	fixed := chrome_fixed_rows(st)

@@ -5,14 +5,7 @@
 package tui
 
 import "core:fmt"
-import "core:os"
-import "core:strings"
-import "core:sys/posix"
-import "core:time"
-import "core:unicode/utf8"
 import "aether:agent"
-import "aether:core"
-import "aether:tools"
 
 // apply_middle_paste: PRIMARY/clipboard text + image path/clipboard image → prompt (C2.5 / M1).
 apply_middle_paste :: proc(st: ^App_State) -> bool {

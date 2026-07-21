@@ -9,10 +9,8 @@ package tui
 import "core:fmt"
 import "core:os"
 import "core:strings"
-import "core:sys/posix"
 import "core:terminal"
 import "core:time"
-import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
 

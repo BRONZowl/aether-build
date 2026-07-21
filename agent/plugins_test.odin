@@ -7,7 +7,6 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:testing"
-import "aether:core"
 
 @(test)
 test_discover_and_add_plugin :: proc(t: ^testing.T) {

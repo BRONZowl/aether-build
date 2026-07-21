@@ -9,7 +9,6 @@ import "core:strings"
 import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
-import "aether:tools"
 
 // format_context_chip: estimated context window usage for header (B26).
 // msgs = session history; live = in-flight assistant draft (streaming).

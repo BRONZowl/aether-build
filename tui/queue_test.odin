@@ -27,7 +27,7 @@ test_prompt_queue_push_pop_drop :: proc(t: ^testing.T) {
 	testing.expect(t, prompt_queue_drop(&st, 0))
 	testing.expect(t, prompt_queue_len(&st) == 0)
 
-	for i in 0 ..< MAX_PROMPT_QUEUE {
+	for _ in 0 ..< MAX_PROMPT_QUEUE {
 		testing.expect(t, prompt_queue_push(&st, "x"))
 	}
 	testing.expect(t, !prompt_queue_push(&st, "overflow"))

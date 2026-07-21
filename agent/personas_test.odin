@@ -7,7 +7,6 @@ import "core:os"
 import "core:path/filepath"
 import "core:strings"
 import "core:testing"
-import "aether:core"
 
 @(test)
 test_parse_and_discover_persona :: proc(t: ^testing.T) {

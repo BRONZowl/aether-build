@@ -5,14 +5,10 @@
 package tui
 
 import "core:fmt"
-import "core:os"
 import "core:strings"
-import "core:sys/posix"
-import "core:time"
 import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
-import "aether:tools"
 
 // tui_modal_yn shows ask modal with name/summary; returns true on y/Enter.
 // (Still used by plan-exit and callers that only need binary choice.)

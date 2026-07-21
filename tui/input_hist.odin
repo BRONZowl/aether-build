@@ -5,11 +5,7 @@
 package tui
 
 import "core:fmt"
-import "core:os"
 import "core:strings"
-import "core:sys/posix"
-import "core:time"
-import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
 
@@ -29,7 +25,6 @@ history_up :: proc(s: ^App_State) -> bool {
 	input_set_text(s, s.prompt_history[s.history_idx])
 	return true
 }
-
 
 
 history_down :: proc(s: ^App_State) -> bool {

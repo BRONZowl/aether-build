@@ -34,7 +34,7 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		if h > 0 && h < len(text) && text[h] == ' ' {
 			// Dim hashes stay so headings read as markdown structure
 			strings.write_string(b, "\x1b[2m")
-			for k in 0 ..< h {
+			for _ in 0 ..< h {
 				if visible >= cols {
 					break
 				}
