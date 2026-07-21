@@ -78,6 +78,22 @@ run_slash :: proc(
 		arg = strings.trim_space(text[sp + 1:])
 	}
 
+	// Table-driven emit-only commands (P3); session lifecycle stays in the switch.
+	if act, ok := slash_table_dispatch(
+		cmd,
+		Slash_Ctx {
+			sess  = sess,
+			arg   = arg,
+			opts  = opts,
+			model = model,
+			cwd   = cwd,
+			perm  = perm,
+			out   = out,
+		},
+	); ok {
+		return act
+	}
+
 	switch cmd {
 	case "/quit", "/exit", "/q":
 		// SessionEnd hooks before dream/leave (latch; host defer is no-op after)
@@ -380,18 +396,6 @@ run_slash :: proc(
 		rem_out := handle_remember_slash(rcwd, arg, context.temp_allocator)
 		emit_lines(out, rem_out)
 		return .Continue
-	case "/goal":
-		emit_line(out, handle_goal_slash(arg, context.temp_allocator))
-		return .Continue
-	case "/imagine":
-		img_out := handle_imagine_slash(arg, context.temp_allocator)
-		// emit line-by-line
-		emit_lines(out, img_out)
-		return .Continue
-	case "/imagine-video":
-		vid_out := handle_imagine_video_slash(arg, context.temp_allocator)
-		emit_lines(out, vid_out)
-		return .Continue
 	case "/theme", "/t":
 		// C2.1 — name stored in core; TUI re-reads each paint; B9 persists [ui] theme
 		a := strings.trim_space(arg)
@@ -465,14 +469,6 @@ run_slash :: proc(
 			out,
 		)
 		return .Continue
-	case "/loop":
-		// Multi-line result: emit line-by-line for TUI notices
-		loop_out := handle_loop_slash(arg, context.temp_allocator)
-		emit_lines(out, loop_out)
-		if len(loop_out) == 0 {
-			emit_line(out, loop_usage_message())
-		}
-		return .Continue
 	case "/todos", "/todo":
 		arg_l := strings.to_lower(arg, context.temp_allocator)
 		if arg_l == "clear" || arg_l == "reset" || arg_l == "empty" {
@@ -492,10 +488,6 @@ run_slash :: proc(
 		}
 		// split on newlines; skip trailing empty
 		emit_lines(out, sum)
-		return .Continue
-	case "/find":
-		// TUI handles /find; REPL documents it
-		emit_line(out, "aether: /find is TUI-only (Ctrl+F in aether tui)")
 		return .Continue
 	case "/plan":
 		arg_l := strings.to_lower(arg, context.temp_allocator)
@@ -536,16 +528,6 @@ run_slash :: proc(
 		sess.plan_mode =
 			plan_mode_is_active() || plan_mode_is_pending() || plan_mode_is_exit_pending()
 		return .Continue
-	case "/view-plan", "/show-plan", "/plan-view":
-		// B32: dump .grok/plan.md
-		pcwd := sess.cwd if sess.cwd != "" else cwd^
-		vp := handle_view_plan_slash(pcwd, context.temp_allocator)
-		emit_lines(out, vp)
-		return .Continue
-	case "/multiline", "/ml":
-		// TUI handles mode toggle; REPL just documents it (B36: /ml alias)
-		emit_line(out, "use Ctrl+M in the TUI to toggle multiline (or /multiline|/ml there)")
-		return .Continue
 	case "/whoami":
 		// whoami prints its own stderr path; also summarize for sink
 		code := run_whoami(opts.verbose)
@@ -570,28 +552,6 @@ run_slash :: proc(
 			emit_line(out, "login ok — try /whoami")
 		}
 		return .Continue
-	case "/logout":
-		emit_lines(out, handle_logout_slash(context.temp_allocator))
-		return .Continue
-	case "/docs", "/howto", "/guides":
-		emit_lines(out, handle_docs_slash(arg, context.temp_allocator))
-		return .Continue
-	case "/release-notes", "/changelog":
-		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
-		emit_lines(out, handle_release_notes_slash(dcwd, context.temp_allocator))
-		return .Continue
-	case "/privacy":
-		emit_lines(out, handle_privacy_slash(arg, context.temp_allocator))
-		return .Continue
-	case "/terminal-setup", "/terminal-check", "/terminal-info":
-		emit_lines(out, handle_terminal_setup_slash(context.temp_allocator))
-		return .Continue
-	case "/tasks":
-		emit_lines(out, handle_tasks_slash(context.temp_allocator))
-		return .Continue
-	case "/queue":
-		emit_lines(out, handle_queue_slash(arg, context.temp_allocator))
-		return .Continue
 	case "/transcript", "/log":
 		emit_lines(out, handle_transcript_slash(sess^, context.temp_allocator))
 		return .Continue
@@ -603,30 +563,12 @@ run_slash :: proc(
 	case "/share":
 		emit_lines(out, handle_share_slash(sess, context.temp_allocator))
 		return .Continue
-	case "/voice":
-		emit_lines(out, handle_voice_slash(context.temp_allocator))
-		return .Continue
-	case "/marketplace":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit_lines(out, handle_marketplace_slash(ws, context.temp_allocator))
-		return .Continue
-	case "/config-agents", "/agents":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit_lines(out, handle_config_agents_slash(ws, context.temp_allocator))
-		return .Continue
 	case "/import-claude":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 		emit_lines(out, handle_import_claude_slash(arg, ws, context.temp_allocator))
 		return .Continue
 	case "/dashboard", "/agents-dashboard":
 		emit_lines(out, handle_dashboard_slash(sess, context.temp_allocator))
-		return .Continue
-	case "/expand":
-		// TUI expands last tool card; REPL documents it
-		emit_lines(out, handle_expand_slash(context.temp_allocator))
-		return .Continue
-	case "/toggle-mouse-reporting":
-		emit_line(out, "aether: /toggle-mouse-reporting is TUI-only (toggles SGR mouse capture)")
 		return .Continue
 	case "/cd":
 		cur := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
@@ -725,55 +667,6 @@ run_slash :: proc(
 		} else {
 			emit_line(out, body)
 		}
-		return .Continue
-	case "/version":
-		ver := handle_version_slash(context.temp_allocator)
-		emit_lines(out, ver)
-		return .Continue
-	case "/about":
-		// B50: product blurb
-		ab_out := handle_about_slash(context.temp_allocator)
-		emit_lines(out, ab_out)
-		return .Continue
-	case "/aliases", "/alias":
-		// B53: slash alias table
-		al_out := handle_aliases_slash(arg, context.temp_allocator)
-		emit_lines(out, al_out)
-		return .Continue
-	case "/keys", "/bindings", "/shortcuts":
-		// B41: keyboard cheat sheet
-		keys_out := handle_keys_slash(context.temp_allocator)
-		emit_lines(out, keys_out)
-		return .Continue
-	case "/tools", "/tool":
-		// B45: model tool catalog
-		tools_out := handle_tools_slash(arg, context.temp_allocator)
-		emit_lines(out, tools_out)
-		return .Continue
-	case "/soft-bash", "/bash-soft", "/softbash":
-		// B47: soft bash safety status
-		sb_out := handle_soft_bash_slash(arg, context.temp_allocator)
-		emit_lines(out, sb_out)
-		return .Continue
-	case "/permissions", "/permission", "/perm", "/perms":
-		// B61: permission mode dashboard
-		pm_out := handle_permissions_slash(arg, perm_mode(perm), context.temp_allocator)
-		emit_lines(out, pm_out)
-		return .Continue
-	case "/env", "/environ", "/environment":
-		// B62: product env catalog
-		env_out := handle_env_slash(arg, context.temp_allocator)
-		emit_lines(out, env_out)
-		return .Continue
-	case "/paths", "/path", "/where":
-		// B63: product filesystem paths
-		paths_out := handle_paths_slash(arg, sess, context.temp_allocator)
-		emit_lines(out, paths_out)
-		return .Continue
-	case "/features", "/feature", "/flags":
-		// B68: process feature flags
-		feat_out := handle_features_slash(arg, context.temp_allocator)
-		emit_lines(out, feat_out)
 		return .Continue
 	case "/status":
 		m := model^ if model != nil else ""
