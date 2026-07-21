@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 // glob — Grok/OpenCode-shaped file pattern match via rg --files.

@@ -1,5 +1,9 @@
 // Persist selected keys into ~/.grok/config.toml (B9 / B15 / B17).
 // Best-effort; never required for runtime. Opt out: AETHER_NO_UI_PERSIST=1.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

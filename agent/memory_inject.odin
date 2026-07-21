@@ -1,5 +1,9 @@
 // Package agent — first-turn memory context injection (A2.3).
 // Simplified Grok first_turn_memory_reminder: file-backed MEMORY.md (+ optional keyword hits).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

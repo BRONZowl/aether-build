@@ -1,5 +1,9 @@
 // Package agent — /permissions mode dashboard (B61).
 // Explains permission modes and how to change them (discoverability).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

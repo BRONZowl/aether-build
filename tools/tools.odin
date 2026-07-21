@@ -1,5 +1,9 @@
 // Package tools — local tool registry for the headless agent.
 // Rust reference: xai-grok-tools (GrokBuild implementations).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 import "core:encoding/json"

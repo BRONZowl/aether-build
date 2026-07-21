@@ -6,6 +6,10 @@
 //   decided_at = 1710000000
 //
 // Project-local hooks/MCP/plugins consult is_folder_trusted / project_scope_allowed.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

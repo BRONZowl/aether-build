@@ -1,5 +1,9 @@
 // Package agent — /soft-bash status (B47).
 // Explains soft bash hard-deny + readonly auto-allow for users.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

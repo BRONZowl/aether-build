@@ -1,5 +1,9 @@
 // Package agent — /settings effective settings dump (B34; aliases /config /preferences /prefs).
 // Read-only view of process-effective product knobs; no secrets.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

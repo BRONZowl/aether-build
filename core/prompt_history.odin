@@ -1,6 +1,10 @@
 // Global durable prompt history for Up/Down recall (B23 / Grok-shaped).
 // File: $GROK_HOME/aether/prompt-history.jsonl — one JSON string per line.
 // Opt out: AETHER_NO_PROMPT_HISTORY=1
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:encoding/json"

@@ -1,5 +1,9 @@
 // Package agent — /doctor health check (B30 / B39).
 // Environment + host deps + soft systems; no secrets printed.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

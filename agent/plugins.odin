@@ -2,6 +2,10 @@
 // Roots: ~/.grok/plugins/<name>/ and <cwd>/.grok/plugins/<name>/
 // Project plugins require folder trust (M1). Skills under plugin skills/ are
 // scanned via skills discovery roots.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

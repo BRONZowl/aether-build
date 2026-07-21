@@ -1,5 +1,9 @@
 // Package mcp — stdio + Streamable HTTP MCP client (product shell).
 // JSON-RPC 2.0 over Content-Length stdio or HTTP POST (+ optional SSE body).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package mcp
 
 import "core:fmt"

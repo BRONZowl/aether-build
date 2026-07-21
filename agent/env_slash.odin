@@ -1,5 +1,9 @@
 // Package agent — /env product environment catalog (B62).
 // Lists known AETHER_*/product env knobs with set status; secrets redacted.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

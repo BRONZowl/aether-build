@@ -1,5 +1,9 @@
 // Package agent — /aliases slash alias reference (B53).
 // Rows derived from core.SLASH_CATALOG (same source as /help + menu).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

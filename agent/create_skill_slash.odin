@@ -1,6 +1,10 @@
 // Package agent — /create-skill scaffold (M10).
 // Writes ~/.grok/skills/<name>/SKILL.md or <cwd>/.grok/skills/<name>/SKILL.md
 // then reloads the skills registry.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

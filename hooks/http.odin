@@ -1,5 +1,9 @@
 // Package hooks — HTTP handler runner (A4.7 / Grok type:"http").
 // POSTs event envelope JSON; SSRF: https-only + blocked private ranges (loopback OK).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package hooks
 
 import "base:runtime"

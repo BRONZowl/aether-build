@@ -1,5 +1,9 @@
 // Package agent — host Grok CLI bridge (A5.2 login, A3.2 mcp doctor/list).
 // Aether does not implement in-process browser OAuth; it execs `grok` when needed.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

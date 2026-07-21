@@ -1,6 +1,10 @@
 // Package hooks — Grok-compatible discovery (A4.1–7).
 // Command + HTTP handlers; lifecycle, tools, prompts, permissions, subagents, compact, notifications.
 // Fail-open by default (except PreToolUse / UserPromptSubmit explicit deny).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package hooks
 
 import "core:fmt"

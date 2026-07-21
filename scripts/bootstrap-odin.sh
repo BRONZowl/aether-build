@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # Bootstrap the Odin compiler into aether/.tools or monorepo .tools (S1).
 # Does not require Cargo/Rust.
 #

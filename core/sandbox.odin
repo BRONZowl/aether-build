@@ -2,6 +2,10 @@
 // Modes: off | soft (workspace path gates + bash cwd) | bwrap (bubblewrap if present).
 // Landlock ABI is probed for doctor; full in-process Landlock apply is deferred
 // (bubblewrap provides equivalent child isolation when installed).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

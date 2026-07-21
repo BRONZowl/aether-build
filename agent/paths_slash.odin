@@ -1,5 +1,9 @@
 // Package agent — /paths product path dashboard (B63).
 // Shows where aether reads/writes user data; marks exists (Y/·).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

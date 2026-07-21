@@ -443,8 +443,16 @@ Braille art) are in [NOTICE](./NOTICE) and [assets/logo/NOTICE](./assets/logo/NO
 Redistributions of source or binary form **must** include `LICENSE` and
 `NOTICE` (Apache License §4).
 
+**Security:** report vulnerabilities privately — [SECURITY.md](./SECURITY.md)
+(HackerOne). **Contributing:** [CONTRIBUTING.md](./CONTRIBUTING.md).
+
 **Trademarks:** Apache-2.0 does not grant trademark rights. “Grok”, “xAI”,
 “SpaceXAI”, and “Aether” remain marks of their respective owners.
 
+**Product telemetry:** not shipped (the `telemetry/` package is an inert stub).
+`/privacy` only toggles a **local** `coding_data_share` preference (default **off**).
+
 **Runtime tools** (libcurl, ripgrep, Odin toolchain under `.tools/`) are not
 redistributed as part of this source tree and keep their upstream licenses.
+
+Hygiene check: `make check-license` (also run in CI).

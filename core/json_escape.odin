@@ -1,4 +1,8 @@
 // Shared JSON string-value escape for embedding in hand-built JSON.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

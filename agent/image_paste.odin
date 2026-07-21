@@ -1,5 +1,9 @@
 // Package agent — multimodal paste: path / data URL / clipboard → [Image #N] (M1).
 // Path paste and binary clipboard attach for TUI/REPL; chat vision expand separate.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

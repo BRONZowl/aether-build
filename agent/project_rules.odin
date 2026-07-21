@@ -2,6 +2,10 @@
 // Opt out all: AETHER_NO_PROJECT_RULES=1
 // Opt out Claude paths: AETHER_NO_CLAUDE_RULES=1 (also respects AETHER_NO_CLAUDE_SKILLS=1)
 // Opt out Cursor paths: AETHER_NO_CURSOR_RULES=1 (also respects AETHER_NO_CURSOR_SKILLS=1)
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:os"

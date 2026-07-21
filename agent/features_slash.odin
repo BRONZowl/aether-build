@@ -1,5 +1,9 @@
 // Package agent — /features process feature flags dashboard (B68).
 // Read-only view of product gates (env + config + process toggles).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

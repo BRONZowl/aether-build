@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # Install Aether wrappers into a user bin dir and optional bash completion.
 # Dual branding: aether-grok-odin, grok-odin, and optionally aether.
 # Does NOT install as `grok` — that name is the Rust product binary.

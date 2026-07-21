@@ -1,5 +1,9 @@
 // Package agent — memory flush (/flush) and /memory status (A2.1).
 // Grok refs: session/helpers/memory_flush.rs + memory storage write_daily_log.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

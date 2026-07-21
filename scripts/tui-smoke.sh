@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # Non-interactive TUI smoke via script(1) + key sequences.
 # No network required. Exit 0 on pass; 1 on fail; 0 skip if no script(1)/TTY tools.
 set -euo pipefail

@@ -1,4 +1,8 @@
 // Lightweight git location info for TUI chrome (Grok-shaped status bar).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:os"

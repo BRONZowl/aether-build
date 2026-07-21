@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 // ask_user_question — Grok Build AskUserQuestionTool port (product Full).

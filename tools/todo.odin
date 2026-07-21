@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 // todo_write — Grok Build TodoWriteTool port (product Full).

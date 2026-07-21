@@ -1,4 +1,8 @@
 // Package agent — /keys keyboard shortcuts reference (B41 / Grok-shaped cheat sheet).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

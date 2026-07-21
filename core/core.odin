@@ -1,5 +1,9 @@
 // Package core — shared types, version, paths, and config for Aether-Grok.
 // Rust reference: xai-grok-shared, xai-grok-version, xai-grok-env, xai-grok-config.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

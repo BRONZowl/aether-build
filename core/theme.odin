@@ -1,5 +1,9 @@
 // Package core — UI theme name registry (C2.1).
 // TUI maps names to SGR palettes; core only stores the active name + cycle order.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:fmt"

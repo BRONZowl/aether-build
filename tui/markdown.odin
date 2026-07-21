@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 #+build linux, darwin, freebsd, openbsd, netbsd
 // Package tui — lightweight markdown → ANSI for assistant scrollback (C1.1/C1.2).
 // TUI: render Grok-style; headless/NO_COLOR: keep markdown source visible.

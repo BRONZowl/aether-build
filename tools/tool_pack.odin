@@ -1,6 +1,10 @@
 // Package tools — tool pack selection (M5 hashline opt-in).
 // AETHER_TOOL_PACK=hashline (or standard/default) selects schema surface.
 // Hashline pack mutually excludes standard read_file / search_replace / grep.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 import "core:os"

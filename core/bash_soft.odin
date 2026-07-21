@@ -3,6 +3,10 @@
 // 2) Auto-allow recognized read-only shell commands (skip Ask prompt).
 // Opt out: AETHER_NO_BASH_SOFT=1  (env always wins over process toggle)
 // Process: /soft-bash on|off (B48)
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:os"

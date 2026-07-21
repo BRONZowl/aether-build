@@ -1,5 +1,9 @@
 // Package agent — /compact history summarization + auto-compact (B1.1–2).
 // Grok refs: helpers/session_compact.rs (manual + threshold path, abbreviated).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

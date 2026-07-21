@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # PARKED (S0): R5 delete path cancelled under dual-product separation plan.
 # This wrapper only runs a read-only inventory. It never deletes.
 #

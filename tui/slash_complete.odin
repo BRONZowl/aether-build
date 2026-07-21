@@ -1,6 +1,10 @@
 // Package tui — slash command Tab autocomplete (B20 / Grok-shaped).
 // Match list from core.SLASH_CATALOG: bare `/` = primaries; longer prefix
 // also matches aliases (type /ex → /exit still completes).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import "core:fmt"

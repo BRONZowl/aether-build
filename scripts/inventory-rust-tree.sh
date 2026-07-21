@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # Inventory monorepo Rust product paths (S0 — dual product / separation).
 # Safe read-only. Never deletes.
 #

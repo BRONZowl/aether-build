@@ -40,7 +40,8 @@ OUT_DIR := $(dir $(OUT))
 FLAGS := -collection:aether=. -out:$(OUT)
 
 .PHONY: all build debug vet test run clean smoke smoke-tui help install \
-	bootstrap-odin dist inventory-rust r5-dry-run extract export-standalone
+	bootstrap-odin dist inventory-rust r5-dry-run extract export-standalone \
+	check-license
 
 all: build
 
@@ -65,6 +66,7 @@ help:
 	@echo "  make dist           binary tarball under out/dist/"
 	@echo "  make extract        S4 standalone source export (EXTRACT_ARGS=...)"
 	@echo "  make inventory-rust list monorepo Rust paths (read-only)"
+	@echo "  make check-license  Apache-2.0 + SPDX hygiene"
 	@echo "  make clean          remove out/"
 	@echo "ODIN=$(ODIN)"
 	@echo "ODIN_ROOT=$(ODIN_ROOT)"
@@ -90,6 +92,10 @@ test:
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test skills -collection:aether=.
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test hooks -collection:aether=. -define:ODIN_TEST_THREADS=1
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test tui -collection:aether=.
+
+# Apache-2.0 LICENSE/NOTICE + first-party SPDX coverage
+check-license:
+	@bash scripts/check-apache-compliance.sh
 
 run: build
 	$(OUT) $(ARGS)

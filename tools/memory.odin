@@ -1,6 +1,10 @@
 // Package tools — file-backed memory_search / memory_get + session log writers.
 // Layout matches Grok: MEMORY.md, {slug}/MEMORY.md, {slug}/sessions/*.md.
 // No SQLite / embeddings / dream (A2.2).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 import "core:encoding/json"

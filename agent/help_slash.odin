@@ -1,6 +1,10 @@
 // Package agent — /help sectioned command list (B65).
 // Optional filter matches section titles or command lines.
 // Catalog: core.SLASH_CATALOG (menu order = Grok builtins; help groups by section).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

@@ -1,5 +1,9 @@
 // Package agent — memory dream (/dream) consolidate session logs → MEMORY.md (A2.2).
 // Grok refs: xai-grok-memory dream.rs + dream_lock.rs.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

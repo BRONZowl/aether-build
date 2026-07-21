@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 // lsp_client — stdio JSON-RPC Content-Length sessions (lazy per server name).

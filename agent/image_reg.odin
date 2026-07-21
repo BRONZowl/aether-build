@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 // image_reg — Grok AttachedImages-shaped [Image #N] registry for media tools.

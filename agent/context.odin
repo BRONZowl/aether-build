@@ -1,4 +1,8 @@
 // Package agent — context window usage estimate + /context slash (B1.1).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

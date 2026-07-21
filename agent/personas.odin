@@ -2,6 +2,10 @@
 // Discover ~/.grok/personas/*.md and <cwd>/.grok/personas/*.md
 // Optional frontmatter: name, description; body = instructions.
 // spawn_subagent / task accept persona=<name>.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

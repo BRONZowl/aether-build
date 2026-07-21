@@ -1,4 +1,8 @@
 // Package skills — SKILL.md discovery and invocation (product shell).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package skills
 
 import "base:runtime"

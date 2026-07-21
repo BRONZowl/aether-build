@@ -1,5 +1,9 @@
 // Package agent — local /feedback JSONL persistence (B1.3).
 // Grok kinship: session-dir feedback.jsonl; network FeedbackClient N/A.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

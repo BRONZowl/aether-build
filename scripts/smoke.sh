@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # Live smoke: one-shot completion. Skips (exit 0) without auth.
 set -euo pipefail
 

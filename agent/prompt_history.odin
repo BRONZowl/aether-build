@@ -1,4 +1,8 @@
 // Prompt history helpers for /history slash (Grok-shaped recall).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

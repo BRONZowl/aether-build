@@ -1,6 +1,10 @@
 // Package agent — in-process device-code login (M7 / R0-B).
 // RFC 8628 against xAI OAuth2 (https://auth.x.ai), Grok-compatible auth.json write.
 // No Rust `grok` binary required. Host bridge remains as --host fallback.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:encoding/base64"

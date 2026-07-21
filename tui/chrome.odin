@@ -1,3 +1,6 @@
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 #+build linux, darwin, freebsd, openbsd, netbsd
 // TUI chrome: Grok-shaped top bar (branch · cwd · mode · context chips).
 package tui

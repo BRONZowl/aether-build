@@ -1,5 +1,9 @@
 // Soft bash readonly helpers — Lang runtimes, DBs, HTTP, git, nix, aws (bundler..end).
 // Same package core — symbols used by bash_program_is_readonly.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package core
 
 import "core:strings"

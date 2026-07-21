@@ -1,5 +1,9 @@
 // Package cli — argument parsing and subcommand dispatch.
 // Rust reference: crates/codegen/xai-grok-pager-bin, shell entrypoints / headless -p.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package cli
 
 import "core:fmt"

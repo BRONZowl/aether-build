@@ -1,6 +1,10 @@
 // Package tools — soft file-edit rewind (B2.2).
 // Snapshot prior content before write/search_replace/delete; /rewind restores LIFO.
 // Process-local stack (not multi-session). Opt out: AETHER_NO_FILE_REWIND=1.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 import "base:runtime"

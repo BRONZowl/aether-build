@@ -2,6 +2,10 @@
 // Scheme: LINE:HASH where HASH is 3-char base36 FNV of whitespace-collapsed line.
 // Tools: hashline_read, hashline_edit, hashline_grep.
 // Reference: grok_build_hashline (content_only_v1 simplified).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tools
 
 import "core:fmt"

@@ -1,5 +1,9 @@
 // Package agent — headless agent runtime for Aether-Grok.
 // Rust reference: xai-grok-agent, xai-grok-shell, xai-chat-state, pager headless.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package agent
 
 import "core:fmt"

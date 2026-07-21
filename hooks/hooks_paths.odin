@@ -1,5 +1,9 @@
 // Extra hook search paths: ~/.grok/hooks-paths (B18 / Grok-shaped).
 // One absolute path per line under $GROK_HOME; loaded after default dirs.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package hooks
 
 import "core:fmt"

@@ -1,6 +1,10 @@
 // Package tui — @path / path Tab autocomplete (B22 / Grok-shaped @-mentions).
 // Minimal: directory listing + prefix match (no full fuzzy/rg). Opt out: none
 // (only runs when Tab hits a path-like token).
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
 package tui
 
 import "core:fmt"

@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# Copyright 2023-2026 SpaceXAI
+# SPDX-License-Identifier: Apache-2.0
+
 # S4 — Export Aether as a standalone product tree (source).
 # Does NOT remove or alter monorepo aether/; does not push remotes.
 #
@@ -335,7 +338,7 @@ run_verify() {
   if [[ "$VERIFY" != "1" ]]; then
     return 0
   fi
-  log "verify: make build vet test smoke-tui in $DEST"
+  log "verify: make check-license build vet test smoke-tui in $DEST"
 
   # Prefer monorepo/aether tools to avoid full Odin rebuild
   local tools=""
@@ -363,7 +366,7 @@ run_verify() {
       fi
     fi
     export AETHER_NO_DESKTOP_NOTIFY=1
-    make build vet test smoke-tui
+    make check-license build vet test smoke-tui
     ./out/aether --version
   )
   log "verify: ok"
