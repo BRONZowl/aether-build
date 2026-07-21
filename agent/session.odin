@@ -1052,7 +1052,10 @@ session_export_markdown :: proc(
 ) {
 	path = session_export_resolve_path(s, out_path, ".md", allocator)
 
+	// Builder owns the buffer; to_string is a view — never delete(to_string(b))
+	// with context.allocator (wrong allocator → bad free / segfault under tracking).
 	b := strings.builder_make(allocator)
+	defer strings.builder_destroy(&b)
 	title := s.title if s.title != "" else "(untitled)"
 	strings.write_string(&b, fmt.tprintf("# %s\n\n", title))
 	strings.write_string(&b, fmt.tprintf("- id: `%s`\n", s.id))
@@ -1091,10 +1094,8 @@ session_export_markdown :: proc(
 	}
 	if werr := os.write_entire_file(path, transmute([]byte)body); werr != nil {
 		delete(path)
-		delete(body)
 		return "", fmt.tprintf("export write failed: %v", werr)
 	}
-	delete(body)
 	return path, ""
 }
 

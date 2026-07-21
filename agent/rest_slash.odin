@@ -471,7 +471,8 @@ handle_share_slash :: proc(sess: ^Session, allocator := context.allocator) -> st
 	if sess == nil {
 		return strings.clone("aether: no active session to share", allocator)
 	}
-	path, e := session_export_markdown(sess^, "", context.temp_allocator)
+	// Path must be freed with the same allocator used to create it.
+	path, e := session_export_markdown(sess^, "", allocator)
 	if e != "" {
 		return strings.clone(
 			fmt.tprintf(
@@ -482,6 +483,7 @@ handle_share_slash :: proc(sess: ^Session, allocator := context.allocator) -> st
 			allocator,
 		)
 	}
+	defer delete(path, allocator)
 	// Clipboard gets path (and a short hint); public URL N/A
 	clip := fmt.tprintf("%s\n", path)
 	cst := copy_text_to_clipboard(clip)
