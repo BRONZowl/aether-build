@@ -304,44 +304,51 @@ bash_pipx_is_readonly :: proc(args: string) -> bool {
 }
 
 // B64: RubyGems inspect (list/search/env/outdated; not install/update).
-bash_gem_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	// sources --add/--remove mutates; bare sources lists
-	if sub == "sources" {
-		r2 := rem
-		for {
-			t2, r3 := first_shell_token(r2)
-			if t2 == "" {
-				return true
-			}
-			if t2 == "--add" ||
-			   t2 == "--remove" ||
-			   t2 == "--clear-all" ||
-			   t2 == "-a" ||
-			   t2 == "-r" {
-				return false
-			}
-			r2 = r3
+GEM_ALLOW := [?]string {
+	"list", "search", "query", "specification", "spec", "environment", "env",
+	"which", "outdated", "contents", "dependency", "info", "help", "check", "sources",
+}
+GEM_DENY := [?]string {
+	"install", "uninstall", "update", "cleanup", "build", "push", "yank",
+	"signout", "signin", "owner", "cert", "pristine", "lock", "unpack",
+	"generate_index", "server", "mirror", "fetch", "open", "rdoc", "stale",
+}
+GEM_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = GEM_ALLOW[:],
+	deny_subs     = GEM_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
+// gem sources --add/--remove mutates; bare sources lists.
+bash_gem_sources_is_readonly :: proc(rest: string) -> bool {
+	r2 := rest
+	for {
+		t2, r3 := first_shell_token(r2)
+		if t2 == "" {
+			return true
 		}
+		if t2 == "--add" ||
+		   t2 == "--remove" ||
+		   t2 == "--clear-all" ||
+		   t2 == "-a" ||
+		   t2 == "-r" {
+			return false
+		}
+		r2 = r3
 	}
-	deny := []string {
-		"install", "uninstall", "update", "cleanup", "build", "push", "yank",
-		"signout", "signin", "owner", "cert", "pristine", "lock", "unpack",
-		"generate_index", "server", "mirror", "fetch", "open", "rdoc", "stale",
+	return true
+}
+
+bash_gem_is_readonly :: proc(args: string) -> bool {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
+		return true
 	}
-	allow := []string {
-		"list", "search", "query", "specification", "spec", "environment", "env",
-		"which", "outdated", "contents", "dependency", "info", "help", "check",
+	sub, rem, ok := bash_peel_to_sub(a)
+	if ok && sub == "sources" {
+		return bash_gem_sources_is_readonly(rem)
 	}
-	if bash_token_in(sub, deny) {
-		return false
-	}
-	return bash_token_in(sub, allow)
+	return bash_cli_is_readonly(args, GEM_READONLY_SPEC)
 }
 

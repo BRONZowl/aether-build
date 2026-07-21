@@ -9,33 +9,29 @@ package core
 import "core:strings"
 
 // B66: Bundler inspect (list/show/check/outdated/env; not install/exec/update).
+BUNDLE_VALUE_FLAGS := [?]string{"--gemfile", "--path", "--binstubs"}
+BUNDLE_ALLOW := [?]string {
+	"list", "show", "info", "check", "outdated", "env", "platform", "doctor",
+	"help", "version", "viz", "licenses", "why",
+}
+BUNDLE_DENY := [?]string {
+	"install", "update", "exec", "add", "remove", "clean", "package", "pack",
+	"binstubs", "init", "inject", "open", "console", "lock", "cache", "pristine",
+	"plugin", "fund", "issue",
+}
+BUNDLE_CONFIG_ALLOW := [?]string{"list", "get"}
+BUNDLE_NESTED := [?]Cli_Nested{{sub = "config", allow = BUNDLE_CONFIG_ALLOW[:]}}
+BUNDLE_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = BUNDLE_VALUE_FLAGS[:],
+	allow_subs    = BUNDLE_ALLOW[:],
+	deny_subs     = BUNDLE_DENY[:],
+	nested        = BUNDLE_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_bundle_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, []string{"--gemfile", "--path", "--binstubs"})
-	if !ok {
-		return true
-	}
-	// config: get/list only
-	if sub == "config" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "" || n == "list" || n == "get" || n == "help" || n == "--help" || n == "-h"
-	}
-	deny := []string {
-		"install", "update", "exec", "add", "remove", "clean", "package", "pack",
-		"binstubs", "init", "inject", "open", "console", "lock", "cache", "pristine",
-		"plugin", "fund", "issue",
-	}
-	allow := []string {
-		"list", "show", "info", "check", "outdated", "env", "platform", "doctor",
-		"help", "version", "viz", "licenses", "why",
-	}
-	if bash_token_in(sub, deny) {
-		return false
-	}
-	return bash_token_in(sub, allow)
+	return bash_cli_is_readonly(args, BUNDLE_READONLY_SPEC)
 }
 
 // B66: rake task listing only (-T/-D/-P/…); bare rake runs default task → ask.
@@ -488,6 +484,18 @@ bash_bun_is_readonly :: proc(args: string) -> bool {
 }
 
 // B38: deno inspect (not run/test/install/compile/cache).
+DENO_ALLOW := [?]string{"info", "doc", "lint", "check", "types", "version", "help"}
+DENO_DENY := [?]string{"bench", "coverage", "jupyter"}
+DENO_TASK_ALLOW := [?]string{"list"}
+DENO_NESTED := [?]Cli_Nested{{sub = "task", allow = DENO_TASK_ALLOW[:]}}
+DENO_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = DENO_ALLOW[:],
+	deny_subs     = DENO_DENY[:],
+	nested        = DENO_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_deno_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -497,20 +505,11 @@ bash_deno_is_readonly :: proc(args: string) -> bool {
 		return true
 	}
 	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	if sub == "fmt" {
+	if ok && sub == "fmt" {
+		// only --check; bare fmt rewrites
 		return strings.contains(rest, "--check")
 	}
-	if sub == "task" {
-		// task list is inspect; bare task / task NAME runs
-		return bash_nested_allow(rest, []string{"list"})
-	}
-	if bash_token_in(sub, []string{"bench", "coverage", "jupyter"}) {
-		return false
-	}
-	return bash_token_in(sub, []string{"info", "doc", "lint", "check", "types", "version", "help"})
+	return bash_cli_is_readonly(args, DENO_READONLY_SPEC)
 }
 
 // B38: poetry inspect (not install/add/run/update).
@@ -723,22 +722,24 @@ bash_odin_is_readonly :: proc(args: string) -> bool {
 }
 
 // B40: zig version/env/ast-check/fmt --check (not build/run/test).
+ZIG_ALLOW := [?]string{"version", "help", "env", "targets", "libc", "std-docs", "ast-check"}
+ZIG_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = ZIG_ALLOW[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_zig_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	sub, rest, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true // bare zig prints help-ish
-	}
-	if sub == "fmt" {
+	sub, rest, ok := bash_peel_to_sub(a)
+	if ok && sub == "fmt" {
 		// only --check; bare fmt rewrites
 		return strings.contains(rest, "--check")
 	}
-	return bash_token_in(
-		sub,
-		[]string{"version", "help", "env", "targets", "libc", "std-docs", "ast-check"},
-	)
+	return bash_cli_is_readonly(args, ZIG_READONLY_SPEC)
 }
 
 // B42: swift package inspect (not build/run/test/package resolve).

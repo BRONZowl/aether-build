@@ -77,6 +77,16 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"pipx install cowsay", .Ask, "pipx_install"},
 	{"crane digest img", .Allow, "crane_digest"},
 	{"crane push img", .Ask, "crane_push"},
+	// language / tooling table wave
+	{"deno info main.ts", .Allow, "deno_info"},
+	{"deno run main.ts", .Ask, "deno_run"},
+	{"deno fmt --check", .Allow, "deno_fmt_check"},
+	{"deno fmt", .Ask, "deno_fmt"},
+	{"zig version", .Allow, "zig_version"},
+	{"zig build", .Ask, "zig_build"},
+	{"gem list", .Allow, "gem_list"},
+	{"gem install foo", .Ask, "gem_install"},
+	{"gem sources --add https://x", .Ask, "gem_sources_add"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

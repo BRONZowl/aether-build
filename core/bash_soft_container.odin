@@ -787,15 +787,19 @@ bash_nerdctl_is_readonly :: proc(args: string) -> bool {
 	)
 }
 
+NERDCTL_IMAGE_ALLOW := [?]string{"ls", "list", "inspect", "history"}
+NERDCTL_IMAGE_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = NERDCTL_IMAGE_ALLOW[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_nerdctl_image_is_readonly :: proc(args: string, bare_images: bool) -> bool {
 	if bare_images {
 		// nerdctl images [filters] — list
 		return true
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {"ls", "list", "inspect", "history"},
-	)
+	return bash_cli_is_readonly(args, NERDCTL_IMAGE_READONLY_SPEC)
 }
 
 // B88: ctr (containerd) inspect (images/containers/tasks/content list; not pull/run/rm).
