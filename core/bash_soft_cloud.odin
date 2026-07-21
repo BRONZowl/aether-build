@@ -749,146 +749,59 @@ bash_ansible_galaxy_is_readonly :: proc(args: string) -> bool {
 }
 
 // B71: Pulumi inspect (stack ls/output, config get, about; not up/destroy/preview).
+PULUMI_VALUE_FLAGS := [?]string{"-C", "--cwd", "-s", "--stack", "--color"}
+PULUMI_ALLOW := [?]string {
+	"logs", "history", "about", "whoami", "version", "help", "schema",
+}
+PULUMI_DENY := [?]string {
+	"up", "destroy", "refresh", "cancel", "import", "new", "init", "login", "logout",
+	"preview", "watch", "install", "convert", "package", "org", "env", "gen-completion",
+}
+PULUMI_STATE := [?]string{"list", "get"}
+PULUMI_PLUGIN := [?]string{"ls", "list"}
+PULUMI_STACK := [?]string{"ls", "list", "output", "outputs", "history", "export", "graph"}
+PULUMI_POLICY := [?]string{"ls", "list"}
+PULUMI_NESTED := [?]Cli_Nested {
+	{sub = "state", allow = PULUMI_STATE[:]},
+	{sub = "plugin", allow = PULUMI_PLUGIN[:]},
+	{sub = "stack", allow = PULUMI_STACK[:]},
+	{sub = "policy", allow = PULUMI_POLICY[:]},
+}
+PULUMI_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = PULUMI_VALUE_FLAGS[:],
+	allow_subs    = PULUMI_ALLOW[:],
+	deny_subs     = PULUMI_DENY[:],
+	nested        = PULUMI_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
+// pulumi config: allow get/list/key reads; deny set/rm/cp/refresh/env.
+bash_pulumi_config_is_readonly :: proc(rest: string) -> bool {
+	next, _ := first_shell_token(rest)
+	n := strings.to_lower(next, context.temp_allocator)
+	if n == "set" || n == "rm" || n == "cp" || n == "refresh" || n == "env" {
+		return false
+	}
+	return true
+}
+
 bash_pulumi_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   a == "about" ||
+	if a == "about" ||
 	   a == "whoami" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") ||
 	   strings.has_prefix(a, "about ") ||
 	   strings.has_prefix(a, "whoami ") {
 		return true
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		// globals that take values
-		if tok == "-C" ||
-		   tok == "--cwd" ||
-		   tok == "-s" ||
-		   tok == "--stack" ||
-		   tok == "--color" {
-			_, rest2 := first_shell_token(rem)
-			rest = rest2
-			continue
-		}
-		if tok == "-v" || tok == "--verbose" {
-			n, nrem := first_shell_token(rem)
-			if n != "" && len(n) > 0 && n[0] >= '0' && n[0] <= '9' {
-				rest = nrem
-				continue
-			}
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "--cwd=") ||
-		   strings.has_prefix(tok, "--stack=") ||
-		   strings.has_prefix(tok, "--color=") ||
-		   (strings.has_prefix(tok, "-C") && len(tok) > 2) ||
-		   (strings.has_prefix(tok, "-s") && len(tok) > 2) {
-			rest = rem
-			continue
-		}
-		if tok == "--non-interactive" ||
-		   tok == "-y" ||
-		   tok == "--yes" ||
-		   tok == "--logtostderr" ||
-		   tok == "--logflow" {
-			rest = rem
-			continue
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-
-		// hard mutators
-		if sub == "up" ||
-		   sub == "destroy" ||
-		   sub == "refresh" ||
-		   sub == "cancel" ||
-		   sub == "import" ||
-		   sub == "new" ||
-		   sub == "init" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "preview" ||
-		   sub == "watch" ||
-		   sub == "install" ||
-		   sub == "convert" ||
-		   sub == "package" ||
-		   sub == "org" ||
-		   sub == "env" ||
-		   sub == "gen-completion" {
-			return false
-		}
-
-		// state: list/get only
-		if sub == "state" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "list" || n == "get" || n == "help" || n == "--help"
-		}
-		// plugin: ls only
-		if sub == "plugin" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "ls" || n == "list" || n == "help" || n == "--help"
-		}
-		// stack: list/output/history/export/graph only
-		if sub == "stack" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" ||
-				n == "ls" ||
-				n == "list" ||
-				n == "output" ||
-				n == "outputs" ||
-				n == "history" ||
-				n == "export" ||
-				n == "graph" ||
-				n == "help" ||
-				n == "--help"
-		}
-		// config: get/list / bare list / key get
-		if sub == "config" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			if n == "set" || n == "rm" || n == "cp" || n == "refresh" || n == "env" {
-				return false
-			}
-			return true
-		}
-		// policy ls
-		if sub == "policy" {
-			next, _ := first_shell_token(rem)
-			n := strings.to_lower(next, context.temp_allocator)
-			return n == "" || n == "ls" || n == "list" || n == "help" || n == "--help"
-		}
-		// inspect top-level
-		if sub == "logs" ||
-		   sub == "history" ||
-		   sub == "about" ||
-		   sub == "whoami" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "schema" {
-			return true
-		}
-		return false
+	sub, rem, ok := bash_peel_to_sub(a, PULUMI_VALUE_FLAGS[:])
+	if ok && sub == "config" {
+		return bash_pulumi_config_is_readonly(rem)
 	}
+	return bash_cli_is_readonly(a, PULUMI_READONLY_SPEC)
 }
 
 // B70: Bazel / bazelisk inspect (query/cquery/info/version; not build/run/test).

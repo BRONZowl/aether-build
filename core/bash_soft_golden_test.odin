@@ -133,6 +133,16 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"meson compile", .Ask, "meson_compile"},
 	{"terraform-docs markdown .", .Allow, "tf_docs_md"},
 	{"terraform-docs completion bash", .Ask, "tf_docs_completion"},
+	// pulumi / gh / git
+	{"pulumi stack ls", .Allow, "pulumi_stack_ls"},
+	{"pulumi up", .Ask, "pulumi_up"},
+	{"pulumi config set k v", .Ask, "pulumi_config_set"},
+	{"gh pr list", .Allow, "gh_pr_list"},
+	{"gh pr create", .Ask, "gh_pr_create"},
+	{"gh issue list", .Allow, "gh_issue_list"},
+	{"git status", .Allow, "git_status"},
+	{"git commit -m x", .Ask, "git_commit"},
+	{"git stash list", .Allow, "git_stash_list"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

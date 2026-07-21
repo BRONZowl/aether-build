@@ -2226,108 +2226,58 @@ bash_gh_is_readonly :: proc(args: string) -> bool {
 	}
 }
 
+// Nested gh resource groups (list/view-style inspect only).
+GH_TOP_ALLOW := [?]string{"status", "search", "browse", "completion", "licenses"}
+GH_PR := [?]string{"list", "view", "status", "checks", "diff"}
+GH_ISSUE := [?]string{"list", "view", "status"}
+GH_REPO := [?]string{"view", "list"}
+GH_RUN := [?]string{"list", "view"}
+GH_WORKFLOW := [?]string{"list", "view"}
+GH_RELEASE := [?]string{"list", "view"} // download writes files
+GH_GIST := [?]string{"list", "view"}
+GH_AUTH := [?]string{"status"}
+GH_CONFIG := [?]string{"list", "get"}
+GH_LABEL := [?]string{"list"}
+GH_RULESET := [?]string{"list", "view", "check"}
+GH_ORG := [?]string{"list"}
+GH_CACHE := [?]string{"list"}
+GH_PROJECT := [?]string{"list", "view", "field-list", "item-list"}
+GH_DISCUSSION := [?]string{"list", "view"}
+GH_KEY := [?]string{"list"}
+GH_SECRET := [?]string{"list", "get"}
+GH_NESTED := [?]Cli_Nested {
+	{sub = "pr", allow = GH_PR[:]},
+	{sub = "issue", allow = GH_ISSUE[:]},
+	{sub = "repo", allow = GH_REPO[:]},
+	{sub = "run", allow = GH_RUN[:]},
+	{sub = "workflow", allow = GH_WORKFLOW[:]},
+	{sub = "release", allow = GH_RELEASE[:]},
+	{sub = "gist", allow = GH_GIST[:]},
+	{sub = "auth", allow = GH_AUTH[:]},
+	{sub = "config", allow = GH_CONFIG[:]},
+	{sub = "label", allow = GH_LABEL[:]},
+	{sub = "ruleset", allow = GH_RULESET[:]},
+	{sub = "org", allow = GH_ORG[:]},
+	{sub = "cache", allow = GH_CACHE[:]},
+	{sub = "project", allow = GH_PROJECT[:]},
+	{sub = "discussion", allow = GH_DISCUSSION[:]},
+	{sub = "ssh-key", allow = GH_KEY[:]},
+	{sub = "gpg-key", allow = GH_KEY[:]},
+	{sub = "variable", allow = GH_SECRET[:]},
+	{sub = "secret", allow = GH_SECRET[:]},
+}
+
 bash_gh_subcommand_is_readonly :: proc(sub, rest: string) -> bool {
-	switch sub {
-	case "status", "search", "browse", "completion", "licenses":
-		return true
-	case "pr":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view", "status", "checks", "diff"})
-	case "issue":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		// develop can create branches — not readonly
-		return bash_token_in(sub2, []string{"list", "view", "status"})
-	case "repo":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"view", "list"})
-	case "run":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view"})
-	case "workflow":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view"})
-	case "release":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		// download writes files
-		return bash_token_in(sub2, []string{"list", "view"})
-	case "gist":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view"})
-	case "auth":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return sub2 == "status"
-	case "config":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "get"})
-	case "label":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return sub2 == "list"
-	case "ruleset":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view", "check"})
-	case "org":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return sub2 == "list"
-	case "api":
+	if sub == "api" {
 		return bash_gh_api_is_readonly(rest)
-	case "cache":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "" || sub2 == "--help" || sub2 == "help"
-	case "project":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
+	}
+	if bash_token_in(sub, GH_TOP_ALLOW[:]) {
+		return true
+	}
+	for n in GH_NESTED {
+		if n.sub == sub {
+			return bash_cli_nested_match(rest, n)
 		}
-		return bash_token_in(sub2, []string{"list", "view", "field-list", "item-list"})
-	case "discussion":
-		sub2, _ := first_shell_token(rest)
-		if sub2 == "" || sub2 == "--help" || sub2 == "help" {
-			return true
-		}
-		return bash_token_in(sub2, []string{"list", "view"})
-	case "ssh-key", "gpg-key":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "" || sub2 == "--help" || sub2 == "help"
-	case "variable", "secret":
-		// list/get only — set/delete mutate
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "list" || sub2 == "get" || sub2 == "" || sub2 == "--help" || sub2 == "help"
 	}
 	return false
 }
@@ -2503,6 +2453,16 @@ bash_just_is_readonly :: proc(args: string) -> bool {
 	return saw_inspect
 }
 
+GIT_ALLOW := [?]string {
+	"status", "branch", "log", "diff", "show", "ls-files", "ls-tree",
+	"rev-parse", "describe", "blame", "shortlog", "reflog", "name-rev",
+	"cat-file", "grep", "whatchanged", "range-diff", "cherry", "version",
+	"help", "var", "check-ignore", "check-attr", "check-mailmap",
+	"count-objects", "fsck", "verify-pack", "rev-list", "show-branch",
+	"show-ref", "symbolic-ref", "for-each-ref", "ls-remote",
+}
+GIT_WORKTREE := [?]string{"list", "prune"}
+
 bash_git_is_readonly :: proc(args: string) -> bool {
 	sub, rest := first_shell_token(args)
 	// peel common global flags: -C, -c, --no-pager, --git-dir, etc.
@@ -2528,14 +2488,10 @@ bash_git_is_readonly :: proc(args: string) -> bool {
 		}
 		break
 	}
-	switch sub {
-	case "status", "branch", "log", "diff", "show", "ls-files", "ls-tree",
-	     "rev-parse", "describe", "blame", "shortlog", "reflog", "name-rev",
-	     "cat-file", "grep", "whatchanged", "range-diff", "cherry", "version",
-	     "help", "var", "check-ignore", "check-attr", "check-mailmap",
-	     "count-objects", "fsck", "verify-pack", "rev-list", "show-branch",
-	     "show-ref", "symbolic-ref", "for-each-ref", "ls-remote":
+	if bash_token_in(sub, GIT_ALLOW[:]) {
 		return true
+	}
+	switch sub {
 	case "config":
 		// only get/list forms
 		return strings.contains(rest, "--get") ||
@@ -2556,8 +2512,7 @@ bash_git_is_readonly :: proc(args: string) -> bool {
 			strings.has_prefix(rest, "-l") ||
 			strings.contains(rest, "--list")
 	case "worktree":
-		sub2, _ := first_shell_token(rest)
-		return sub2 == "" || sub2 == "list" || sub2 == "prune"
+		return bash_nested_allow(rest, GIT_WORKTREE[:])
 	case "archive":
 		// allow stdout-only; block -o / --output file write
 		return !strings.contains(rest, " -o") &&
