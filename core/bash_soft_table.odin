@@ -1,0 +1,57 @@
+// Package core — data-driven soft-bash CLI readonly classifier (P4).
+// Prefer Cli_Readonly_Spec + bash_cli_is_readonly over hand-rolled peel loops.
+
+// Copyright 2023-2026 SpaceXAI
+// SPDX-License-Identifier: Apache-2.0
+
+package core
+
+import "core:strings"
+
+// Cli_Nested: when top-level sub matches, require next token in allow (or empty/help).
+Cli_Nested :: struct {
+	sub:   string,
+	allow: []string,
+}
+
+// Cli_Readonly_Spec describes a program's inspect-only surface.
+Cli_Readonly_Spec :: struct {
+	value_flags:        []string, // flags that consume the next token
+	allow_subs:         []string, // allowed subcommands (if non-empty, allowlist mode)
+	deny_subs:          []string, // hard-deny subs (checked first)
+	nested:             []Cli_Nested, // e.g. config → get|list
+	// empty_args_ok: bare `prog` with no args is readonly (default false = fail closed)
+	empty_args_ok:      bool,
+	// peel_fail_ok: when peel finds no subcommand after flags → true (cargo-like) or false (npm)
+	peel_fail_ok:       bool,
+}
+
+// bash_cli_is_readonly: shared walker for Cli_Readonly_Spec.
+bash_cli_is_readonly :: proc(args: string, spec: Cli_Readonly_Spec) -> bool {
+	a := strings.trim_space(args)
+	if a == "" {
+		return spec.empty_args_ok
+	}
+	if bash_is_help_or_version(a) {
+		return true
+	}
+	sub, rest, ok := bash_peel_to_sub(a, spec.value_flags)
+	if !ok {
+		return spec.peel_fail_ok
+	}
+	for n in spec.nested {
+		if sub == n.sub {
+			return bash_nested_allow(rest, n.allow)
+		}
+	}
+	if len(spec.deny_subs) > 0 && bash_token_in(sub, spec.deny_subs) {
+		return false
+	}
+	if len(spec.allow_subs) > 0 {
+		return bash_token_in(sub, spec.allow_subs)
+	}
+	if len(spec.deny_subs) > 0 {
+		return true
+	}
+	return false
+}

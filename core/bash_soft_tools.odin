@@ -457,77 +457,60 @@ bash_docker_compose_is_readonly :: proc(args: string) -> bool {
 }
 
 // B16: cargo read-only / non-mutating inspection (no build/test/run).
+CARGO_VALUE_FLAGS := [?]string {
+	"-C", "--manifest-path", "--config", "--color", "-Z", "--target-dir",
+}
+CARGO_ALLOW_SUBS := [?]string {
+	"check", "metadata", "tree", "search", "help", "version",
+	"locate-project", "verify-project", "pkgid", "info", "fetch",
+}
+CARGO_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = CARGO_VALUE_FLAGS[:],
+	allow_subs    = CARGO_ALLOW_SUBS[:],
+	empty_args_ok = true, // bare cargo / peeled flags only → allow (bash_sub_readonly peel_fail true)
+	peel_fail_ok  = true,
+}
+
 bash_cargo_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"check", "metadata", "tree", "search", "help", "version",
-			"locate-project", "verify-project", "pkgid", "info", "fetch",
-		},
-		value_flags = {
-			"-C", "--manifest-path", "--config", "--color", "-Z", "--target-dir",
-		},
-	)
+	return bash_cli_is_readonly(args, CARGO_READONLY_SPEC)
 }
 
 // npm/pnpm/yarn: inspection only (not install/run/build — those write or execute project code).
+NPM_VALUE_FLAGS := [?]string{"--prefix", "--cwd", "-C", "--dir"}
+NPM_ALLOW_SUBS := [?]string {
+	"list", "ls", "ll", "la", "outdated", "why", "view", "info", "show",
+	"audit", "version", "help", "explain", "query", "root", "bin", "prefix",
+	"doctor", "fund", "search", "repo", "docs", "home", "bugs",
+}
+NPM_CONFIG_NESTED := [?]Cli_Nested{{"config", []string{"get", "list", "ls"}}}
+NPM_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = NPM_VALUE_FLAGS[:],
+	allow_subs    = NPM_ALLOW_SUBS[:],
+	nested        = NPM_CONFIG_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_npm_family_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(a, []string{"--prefix", "--cwd", "-C", "--dir"})
-	if !ok {
-		return false
-	}
-	// config get/list only
-	if sub == "config" {
-		return bash_nested_allow(rest, []string{"get", "list", "ls"})
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"list", "ls", "ll", "la", "outdated", "why", "view", "info", "show",
-			"audit", "version", "help", "explain", "query", "root", "bin", "prefix",
-			"doctor", "fund", "search", "repo", "docs", "home", "bugs",
-		},
-	)
+	return bash_cli_is_readonly(args, NPM_READONLY_SPEC)
 }
 
 // B38: bun inspect (not install/run/test/build).
+BUN_ALLOW_SUBS := [?]string{"pm", "outdated", "why", "info"}
+BUN_DENY_SUBS := [?]string{"x"}
+BUN_PM_NESTED := [?]Cli_Nested {
+	{"pm", []string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"}},
+}
+BUN_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = BUN_ALLOW_SUBS[:],
+	deny_subs     = BUN_DENY_SUBS[:],
+	nested        = BUN_PM_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_bun_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		// bare `bun` may start REPL — fail closed
-		return false
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	// package manager inspect
-	if sub == "pm" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "" || n == "--help" || n == "help" || n == "-h" {
-			return true
-		}
-		return bash_token_in(
-			n,
-			[]string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"},
-		)
-	}
-	// top-level inspect-ish; bun x runs packages — fail closed
-	if sub == "x" {
-		return false
-	}
-	return bash_token_in(sub, []string{"pm", "outdated", "why", "info"})
+	return bash_cli_is_readonly(args, BUN_READONLY_SPEC)
 }
 
 // B38: deno inspect (not run/test/install/compile/cache).
