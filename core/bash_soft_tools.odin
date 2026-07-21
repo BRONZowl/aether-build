@@ -607,6 +607,12 @@ bash_go_is_readonly :: proc(args: string) -> bool {
 
 // B25: make help / dry-run / version only (not build targets).
 // With -n/--dry-run/help/version, target names are OK (no side effects for dry-run).
+MAKE_INSPECT_FLAGS := [?]string {
+	"help", "--help", "-h", "-n", "--dry-run", "--just-print", "--recon", "--version",
+}
+MAKE_VALUE_FLAGS := [?]string{"-f", "--file", "--makefile"}
+MAKE_HARMLESS_FLAGS := [?]string{"-q", "--quiet", "-s", "--silent"}
+
 bash_make_is_readonly :: proc(args: string) -> bool {
 	if args == "" {
 		// bare `make` runs default target — not readonly
@@ -620,13 +626,12 @@ bash_make_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		rest = rem
-		switch tok {
-		case "help", "--help", "-h", "-n", "--dry-run", "--just-print", "--recon", "--version":
+		if bash_token_in(tok, MAKE_INSPECT_FLAGS[:]) {
 			saw_inspect = true
 			continue
 		}
 		// allow -f Makefile with value
-		if tok == "-f" || tok == "--file" || tok == "--makefile" {
+		if bash_token_in(tok, MAKE_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rest)
 			rest = rest2
 			continue
@@ -635,7 +640,7 @@ bash_make_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		// harmless listing-ish
-		if tok == "-q" || tok == "--quiet" || tok == "-s" || tok == "--silent" {
+		if bash_token_in(tok, MAKE_HARMLESS_FLAGS[:]) {
 			continue
 		}
 		// other flags (-j, -C, …) fail closed
@@ -1290,52 +1295,30 @@ bash_ffprobe_is_readonly :: proc(args: string) -> bool {
 
 // B49: ffmpeg probe via -i only (no encode/output file).
 // Typical inspect: ffmpeg -i file.mp4  (exits non-zero; still metadata on stderr)
+FFMPEG_HELP_FLAGS := [?]string{"-version", "-L", "-h", "-?"}
+FFMPEG_ENCODE_DENY := [?]string {
+	"-c:v", "-c:a", "-codec", "-vcodec", "-acodec", "-map",
+	"-filter", "-vf", "-af", "-y",
+}
+FFMPEG_PROBE_VALUE_FLAGS := [?]string{"-v", "-loglevel", "-f", "-ss", "-t", "-to"}
+FFMPEG_PROBE_FLAGS := [?]string{"-hide_banner", "-nostdin"}
+
 bash_ffmpeg_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		// bare ffmpeg → help/banner
 		return true
 	}
-	if a == "-version" ||
-	   a == "-L" ||
-	   a == "-h" ||
-	   a == "-?" ||
+	if bash_token_in(a, FFMPEG_HELP_FLAGS[:]) ||
 	   strings.has_prefix(a, "-version ") ||
 	   strings.has_prefix(a, "-h ") {
 		return true
 	}
-	// encode / write signals
+	// encode / write signals (substring scan for multi-token forms)
 	al := strings.to_lower(a, context.temp_allocator)
-	deny := []string {
-		"-c:v",
-		"-c:a",
-		"-codec",
-		"-vcodec",
-		"-acodec",
-		"-map",
-		"-filter",
-		"-vf",
-		"-af",
-		"-ss", // can be used with -i only for seek-probe; still often encode — fail closed if -to/-t with output
-		"-y", // overwrite output
-		"-f ",
-		" nullsrc",
-		" lavfi",
-	}
-	// allow -f null - as pure probe sink? still unusual — fail closed on -f unless null
-	for d in deny {
-		if d == "-ss" {
-			continue // -ss alone with -i is ok for probe
-		}
+	for d in FFMPEG_ENCODE_DENY {
 		if strings.contains(al, d) {
-			// -f null is inspect sink
-			if d == "-f " && (strings.contains(al, "-f null") || strings.contains(al, "-fnull")) {
-				continue
-			}
-			if d == "-y" || d == "-map" || d == "-c:v" || d == "-c:a" || d == "-codec" ||
-			   d == "-vcodec" || d == "-acodec" || d == "-filter" || d == "-vf" || d == "-af" {
-				return false
-			}
+			return false
 		}
 	}
 	// must have -i <input>
@@ -1364,26 +1347,16 @@ bash_ffmpeg_is_readonly :: proc(args: string) -> bool {
 			continue
 		}
 		// harmless probe flags
-		if tok == "-hide_banner" ||
-		   tok == "-nostdin" ||
-		   tok == "-v" ||
-		   tok == "-loglevel" ||
-		   strings.has_prefix(tok, "-loglevel=") ||
-		   tok == "-f" {
-			if tok == "-v" || tok == "-loglevel" || tok == "-f" {
-				_, rest2 := first_shell_token(rest)
-				rest = rest2
-			}
+		if bash_token_in(tok, FFMPEG_PROBE_FLAGS[:]) || strings.has_prefix(tok, "-loglevel=") {
+			continue
+		}
+		if bash_token_in(tok, FFMPEG_PROBE_VALUE_FLAGS[:]) {
+			_, rest2 := first_shell_token(rest)
+			rest = rest2
 			continue
 		}
 		if strings.has_prefix(tok, "-") {
 			// unknown flag — fail closed for safety
-			// allow a few more probe-only
-			if tok == "-ss" || tok == "-t" || tok == "-to" {
-				_, rest2 := first_shell_token(rest)
-				rest = rest2
-				continue
-			}
 			return false
 		}
 		// bare path without being -i value → output destination
@@ -2284,6 +2257,28 @@ bash_gh_api_is_readonly :: proc(args: string) -> bool {
 
 // B31: just --list / --show / help (not recipe run).
 // https://just.systems — bare `just` and `just RECIPE` execute; inspect flags only.
+JUST_VALUE_FLAGS := [?]string {
+	"-f", "--justfile", "-d", "--working-directory", "--set", "--shell",
+	"--shell-arg", "--dump-format", "--color", "--list-heading", "--list-prefix",
+	"--timestamp-format", "--module-path",
+}
+JUST_VALUE_EQ_PREFIXES := [?]string {
+	"--justfile=", "--working-directory=", "--set=", "--color=",
+	"--dump-format=", "--shell=",
+}
+JUST_INSPECT_FLAGS := [?]string {
+	"--help", "-h", "--version", "--man",
+	"--list", "-l", "--summary", "--dump", "--evaluate", "--variables",
+	"--list-submodules", "--unsorted",
+}
+JUST_SHOW_FLAGS := [?]string{"--show", "-s"}
+JUST_MUTATE_FLAGS := [?]string {
+	"--edit", "--fmt", "--init", "--command", "-c", "--chooser",
+	"--check", "--yes", "--dry-run", "--verbose", "-v", "--quiet", "-q",
+	"--clear-shell-args", "--one", "--unstable", "--highlight",
+	"--no-highlight", "--no-aliases",
+}
+
 bash_just_is_readonly :: proc(args: string) -> bool {
 	if strings.trim_space(args) == "" {
 		// bare just runs default recipe
@@ -2298,39 +2293,26 @@ bash_just_is_readonly :: proc(args: string) -> bool {
 		}
 		rest = rem
 		// config flags that take a value (path / shell / set) — peel, do not count as inspect alone
-		if tok == "-f" ||
-		   tok == "--justfile" ||
-		   tok == "-d" ||
-		   tok == "--working-directory" ||
-		   tok == "--set" ||
-		   tok == "--shell" ||
-		   tok == "--shell-arg" ||
-		   tok == "--dump-format" ||
-		   tok == "--color" ||
-		   tok == "--list-heading" ||
-		   tok == "--list-prefix" ||
-		   tok == "--timestamp-format" ||
-		   tok == "--module-path" {
+		if bash_token_in(tok, JUST_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rest)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--justfile=") ||
-		   strings.has_prefix(tok, "--working-directory=") ||
-		   strings.has_prefix(tok, "--set=") ||
-		   strings.has_prefix(tok, "--color=") ||
-		   strings.has_prefix(tok, "--dump-format=") ||
-		   strings.has_prefix(tok, "--shell=") ||
-		   (strings.has_prefix(tok, "-f") && len(tok) > 2) {
+		eq_value := false
+		for p in JUST_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value || (strings.has_prefix(tok, "-f") && len(tok) > 2) {
 			continue
 		}
-		switch tok {
-		case "--help", "-h", "--version", "--man",
-		     "--list", "-l", "--summary", "--dump", "--evaluate", "--variables",
-		     "--list-submodules", "--unsorted":
+		if bash_token_in(tok, JUST_INSPECT_FLAGS[:]) {
 			saw_inspect = true
 			continue
-		case "--show", "-s":
+		}
+		if bash_token_in(tok, JUST_SHOW_FLAGS[:]) {
 			name, rem2 := first_shell_token(rest)
 			rest = rem2
 			if name == "" || strings.has_prefix(name, "-") {
@@ -2338,7 +2320,8 @@ bash_just_is_readonly :: proc(args: string) -> bool {
 			}
 			saw_inspect = true
 			continue
-		case "--completions":
+		}
+		if tok == "--completions" {
 			shell, rem2 := first_shell_token(rest)
 			rest = rem2
 			if shell == "" {
@@ -2346,10 +2329,8 @@ bash_just_is_readonly :: proc(args: string) -> bool {
 			}
 			saw_inspect = true
 			continue
-		case "--edit", "--fmt", "--init", "--command", "-c", "--chooser",
-		     "--check", "--yes", "--dry-run", "--verbose", "-v", "--quiet", "-q",
-		     "--clear-shell-args", "--one", "--unstable", "--highlight",
-		     "--no-highlight", "--no-aliases":
+		}
+		if bash_token_in(tok, JUST_MUTATE_FLAGS[:]) {
 			// run/mutate — fail closed
 			return false
 		}

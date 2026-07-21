@@ -502,12 +502,24 @@ bash_vagrant_is_readonly :: proc(args: string) -> bool {
 }
 
 // B72: ansible ad-hoc — list-hosts/version only (not -m module runs).
+ANSIBLE_VALUE_FLAGS := [?]string {
+	"-i", "--inventory", "--inventory-file", "-l", "--limit",
+	"-e", "--extra-vars", "-u", "--user", "-c", "--connection", "-t", "--tree",
+}
+ANSIBLE_VALUE_EQ_PREFIXES := [?]string {
+	"--inventory=", "--limit=", "--extra-vars=", "--user=",
+}
+ANSIBLE_MUTATE_FLAGS := [?]string {
+	"-m", "--module-name", "-a", "--args", "-b", "--become", "-k", "--ask-pass",
+}
+ANSIBLE_INSPECT_FLAGS := [?]string{"--list-hosts", "--version", "--help", "-h"}
+
 bash_ansible_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return true
 	}
-	if a == "--version" || a == "--help" || a == "-h" {
+	if bash_token_in(a, ANSIBLE_INSPECT_FLAGS[:]) {
 		return true
 	}
 	rest := a
@@ -518,19 +530,7 @@ bash_ansible_is_readonly :: proc(args: string) -> bool {
 			break
 		}
 		// value-taking flags
-		if tok == "-i" ||
-		   tok == "--inventory" ||
-		   tok == "--inventory-file" ||
-		   tok == "-l" ||
-		   tok == "--limit" ||
-		   tok == "-e" ||
-		   tok == "--extra-vars" ||
-		   tok == "-u" ||
-		   tok == "--user" ||
-		   tok == "-c" ||
-		   tok == "--connection" ||
-		   tok == "-t" ||
-		   tok == "--tree" {
+		if bash_token_in(tok, ANSIBLE_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
@@ -539,28 +539,25 @@ bash_ansible_is_readonly :: proc(args: string) -> bool {
 			rest = rem
 			continue
 		}
-		if strings.has_prefix(tok, "--inventory=") ||
-		   strings.has_prefix(tok, "--limit=") ||
-		   strings.has_prefix(tok, "--extra-vars=") ||
-		   strings.has_prefix(tok, "--user=") {
+		eq_value := false
+		for p in ANSIBLE_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
 		// module execution — not inspect
-		if tok == "-m" ||
-		   tok == "--module-name" ||
-		   tok == "-a" ||
-		   tok == "--args" ||
-		   tok == "-b" ||
-		   tok == "--become" ||
-		   tok == "-k" ||
-		   tok == "--ask-pass" {
+		if bash_token_in(tok, ANSIBLE_MUTATE_FLAGS[:]) {
 			return false
 		}
 		if strings.has_prefix(tok, "--module-name=") || strings.has_prefix(tok, "--args=") {
 			return false
 		}
-		if tok == "--list-hosts" || tok == "--version" || tok == "--help" || tok == "-h" {
+		if bash_token_in(tok, ANSIBLE_INSPECT_FLAGS[:]) {
 			saw_inspect = true
 			rest = rem
 			continue
@@ -576,12 +573,28 @@ bash_ansible_is_readonly :: proc(args: string) -> bool {
 }
 
 // B72: ansible-playbook list/syntax only (not applying a playbook).
+PLAYBOOK_VALUE_FLAGS := [?]string {
+	"-i", "--inventory", "-l", "--limit", "-e", "--extra-vars",
+	"-t", "--tags", "--skip-tags", "--start-at-task",
+}
+PLAYBOOK_VALUE_EQ_PREFIXES := [?]string {
+	"--inventory=", "--limit=", "--tags=", "--extra-vars=",
+}
+PLAYBOOK_MUTATE_FLAGS := [?]string {
+	"--check", "-C", "--diff", "-D", "-b", "--become",
+	"-k", "--ask-pass", "--ask-become-pass", "-K",
+}
+PLAYBOOK_INSPECT_FLAGS := [?]string {
+	"--list-hosts", "--list-tasks", "--list-tags", "--syntax-check",
+	"--version", "--help", "-h",
+}
+
 bash_ansible_playbook_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
 		return false
 	}
-	if a == "--version" || a == "--help" || a == "-h" {
+	if bash_token_in(a, PLAYBOOK_INSPECT_FLAGS[:]) {
 		return true
 	}
 	rest := a
@@ -591,51 +604,27 @@ bash_ansible_playbook_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			break
 		}
-		if tok == "-i" ||
-		   tok == "--inventory" ||
-		   tok == "-l" ||
-		   tok == "--limit" ||
-		   tok == "-e" ||
-		   tok == "--extra-vars" ||
-		   tok == "-t" ||
-		   tok == "--tags" ||
-		   tok == "--skip-tags" ||
-		   tok == "--start-at-task" {
+		if bash_token_in(tok, PLAYBOOK_VALUE_FLAGS[:]) {
 			_, rest2 := first_shell_token(rem)
 			rest = rest2
 			continue
 		}
-		if strings.has_prefix(tok, "--inventory=") ||
-		   strings.has_prefix(tok, "--limit=") ||
-		   strings.has_prefix(tok, "--tags=") ||
-		   strings.has_prefix(tok, "--extra-vars=") {
+		eq_value := false
+		for p in PLAYBOOK_VALUE_EQ_PREFIXES {
+			if strings.has_prefix(tok, p) {
+				eq_value = true
+				break
+			}
+		}
+		if eq_value {
 			rest = rem
 			continue
 		}
-		// apply-ish
-		if tok == "--check" || // dry-run still touches remote somewhat; fail closed
-		   tok == "-C" ||
-		   tok == "--diff" ||
-		   tok == "-D" ||
-		   tok == "-b" ||
-		   tok == "--become" ||
-		   tok == "-k" ||
-		   tok == "--ask-pass" ||
-		   tok == "--ask-become-pass" ||
-		   tok == "-K" {
-			// --check is borderline; fail closed for apply family
-			if tok == "--check" || tok == "-C" || tok == "--diff" || tok == "-D" {
-				return false
-			}
+		// apply-ish — fail closed
+		if bash_token_in(tok, PLAYBOOK_MUTATE_FLAGS[:]) {
 			return false
 		}
-		if tok == "--list-hosts" ||
-		   tok == "--list-tasks" ||
-		   tok == "--list-tags" ||
-		   tok == "--syntax-check" ||
-		   tok == "--version" ||
-		   tok == "--help" ||
-		   tok == "-h" {
+		if bash_token_in(tok, PLAYBOOK_INSPECT_FLAGS[:]) {
 			saw_inspect = true
 			rest = rem
 			continue
@@ -651,6 +640,10 @@ bash_ansible_playbook_is_readonly :: proc(args: string) -> bool {
 }
 
 // B72: ansible-inventory is almost entirely inspect.
+INVENTORY_VALUE_FLAGS := [?]string{"-i", "--inventory", "--host", "--playbook-dir"}
+INVENTORY_FORMAT_FLAGS := [?]string{"--toml", "--yaml", "--json"}
+INVENTORY_INSPECT_FLAGS := [?]string{"--list", "--graph", "--export", "--version", "--help", "-h"}
+
 bash_ansible_inventory_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -663,15 +656,15 @@ bash_ansible_inventory_is_readonly :: proc(args: string) -> bool {
 		if tok == "" {
 			break
 		}
-		if tok == "-i" || tok == "--inventory" || tok == "--host" || tok == "--toml" || tok == "--yaml" || tok == "--json" {
-			if tok == "--host" || tok == "-i" || tok == "--inventory" {
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				if tok == "--host" {
-					saw_inspect = true
-				}
-				continue
+		if bash_token_in(tok, INVENTORY_VALUE_FLAGS[:]) {
+			_, rest2 := first_shell_token(rem)
+			rest = rest2
+			if tok == "--host" {
+				saw_inspect = true
 			}
+			continue
+		}
+		if bash_token_in(tok, INVENTORY_FORMAT_FLAGS[:]) {
 			rest = rem
 			continue
 		}
@@ -682,18 +675,7 @@ bash_ansible_inventory_is_readonly :: proc(args: string) -> bool {
 			rest = rem
 			continue
 		}
-		if tok == "--list" ||
-		   tok == "--graph" ||
-		   tok == "--export" ||
-		   tok == "--version" ||
-		   tok == "--help" ||
-		   tok == "-h" ||
-		   tok == "--playbook-dir" {
-			if tok == "--playbook-dir" {
-				_, rest2 := first_shell_token(rem)
-				rest = rest2
-				continue
-			}
+		if bash_token_in(tok, INVENTORY_INSPECT_FLAGS[:]) {
 			saw_inspect = true
 			rest = rem
 			continue
