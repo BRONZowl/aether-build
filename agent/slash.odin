@@ -325,40 +325,6 @@ run_slash :: proc(
 		}
 		emit_line(out, format_history_list(filtered, 20, 100, context.temp_allocator))
 		return .Continue
-	case "/btw":
-		// Wave 4: side agent answer (off-transcript); falls back to local note
-		m := model^ if model != nil else ""
-		btw_out := handle_btw_slash(sess, m, arg, context.temp_allocator)
-		emit_lines(out, btw_out)
-		return .Continue
-	case "/feedback":
-		fb := handle_feedback_slash(sess, arg, context.temp_allocator)
-		emit_lines(out, fb)
-		return .Continue
-	case "/context":
-		// Grok: /context → context window usage (not billing)
-		ctx_out := handle_context_slash(sess, arg, context.temp_allocator)
-		emit_lines(out, ctx_out)
-		return .Continue
-	case "/usage", "/cost":
-		// Grok: /usage|/cost → credit/billing UI. Aether has no billing surface.
-		// Match Grok name/aliases for discovery; show honest fallback + context stats.
-		emit_line(
-			out,
-			"aether: /usage credit/billing UI is not available (Grok Build only).",
-		)
-		emit_line(out, "Showing context window usage instead (/context):")
-		ctx_out := handle_context_slash(sess, arg, context.temp_allocator)
-		emit_lines(out, ctx_out)
-		return .Continue
-	case "/diff":
-		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
-		diff_out := handle_diff_slash(dcwd, arg, context.temp_allocator)
-		emit_lines(out, diff_out)
-		if len(diff_out) == 0 {
-			emit_line(out, "aether: /diff produced no output")
-		}
-		return .Continue
 	case "/compact":
 		cmp_out := handle_compact_slash(sess, model^, arg, perm_mode(perm), context.temp_allocator)
 		emit_lines(out, cmp_out)
@@ -552,24 +518,6 @@ run_slash :: proc(
 			emit_line(out, "login ok — try /whoami")
 		}
 		return .Continue
-	case "/transcript", "/log":
-		emit_lines(out, handle_transcript_slash(sess^, context.temp_allocator))
-		return .Continue
-	case "/recap":
-		// Wave 4: model recap with local fallback
-		m := model^ if model != nil else ""
-		emit_lines(out, handle_recap_slash(sess, m, context.temp_allocator))
-		return .Continue
-	case "/share":
-		emit_lines(out, handle_share_slash(sess, context.temp_allocator))
-		return .Continue
-	case "/import-claude":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit_lines(out, handle_import_claude_slash(arg, ws, context.temp_allocator))
-		return .Continue
-	case "/dashboard", "/agents-dashboard":
-		emit_lines(out, handle_dashboard_slash(sess, context.temp_allocator))
-		return .Continue
 	case "/cd":
 		cur := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
 		// msg is temp; new_path is heap-owned when non-empty
@@ -592,25 +540,6 @@ run_slash :: proc(
 			}
 			delete(new_path)
 		}
-		return .Continue
-	case "/mcp", "/mcps":
-		// /mcps is Grok primary; /mcp kept as alias (display catalog)
-		mcp_out := handle_mcp_slash(arg, opts.no_mcp, opts.quiet, context.temp_allocator)
-		emit_lines(out, mcp_out)
-		return .Continue
-	case "/hooks":
-		hcwd := sess.cwd if sess.cwd != "" else (cwd^ if cwd != nil else ".")
-		hooks_out := handle_hooks_slash(arg, hcwd, context.temp_allocator)
-		emit_lines(out, hooks_out)
-		return .Continue
-	case "/create-skill", "/createskill", "/new-skill":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		emit_line(out, handle_create_skill_slash(arg, ws, context.temp_allocator))
-		return .Continue
-	case "/plugins", "/plugin":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		pout := handle_plugins_slash(arg, ws, context.temp_allocator)
-		emit_lines(out, pout)
 		return .Continue
 	case "/personas", "/persona":
 		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
@@ -667,22 +596,6 @@ run_slash :: proc(
 		} else {
 			emit_line(out, body)
 		}
-		return .Continue
-	case "/status":
-		m := model^ if model != nil else ""
-		st_out := handle_status_slash(sess, m, perm_mode(perm), context.temp_allocator)
-		emit_lines(out, st_out)
-		return .Continue
-	case "/settings", "/config", "/preferences", "/prefs":
-		// B34: effective product settings (no modal; no secrets)
-		m := model^ if model != nil else ""
-		cfg_out := handle_config_slash(sess, m, perm_mode(perm), context.temp_allocator)
-		emit_lines(out, cfg_out)
-		return .Continue
-	case "/doctor":
-		dcwd := sess.cwd if sess != nil && sess.cwd != "" else (cwd^ if cwd != nil else ".")
-		doc_out := handle_doctor_slash(sess, dcwd, context.temp_allocator)
-		emit_lines(out, doc_out)
 		return .Continue
 	case "/session-info", "/session":
 		// Grok primary: /session-info; /session is alias (always show full info)

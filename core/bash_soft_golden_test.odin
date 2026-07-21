@@ -58,9 +58,18 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"make build", .Ask, "make_build"},
 	{"odin version", .Allow, "odin_version"},
 	{"odin build .", .Ask, "odin_build"},
-	// docker / containers (if classified)
+	// docker / containers / k8s / helm (table-driven wave)
 	{"docker ps", .Allow, "docker_ps"},
 	{"docker run -it ubuntu", .Ask, "docker_run"},
+	{"docker compose ps", .Allow, "docker_compose_ps"},
+	{"docker compose up -d", .Ask, "docker_compose_up"},
+	{"kubectl get pods", .Allow, "kubectl_get"},
+	{"kubectl apply -f x.yaml", .Ask, "kubectl_apply"},
+	{"kubectl config view", .Allow, "kubectl_config_view"},
+	{"helm list", .Allow, "helm_list"},
+	{"helm install chart", .Ask, "helm_install"},
+	{"apt list --upgradable", .Allow, "apt_list"},
+	{"apt install foo", .Ask, "apt_install"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

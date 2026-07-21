@@ -117,26 +117,32 @@ bash_rake_is_readonly :: proc(args: string) -> bool {
 }
 
 // B64: Composer inspect (show/search/outdated/validate; not install/require).
+COMPOSER_ALLOW := [?]string {
+	"show", "list", "search", "depends", "prohibits", "validate",
+	"check-platform-reqs", "outdated", "why", "why-not", "licenses",
+	"status", "about", "diagnose", "help", "suggests", "browse",
+}
+COMPOSER_DENY := [?]string {
+	"install", "update", "require", "remove", "create-project",
+	"dump-autoload", "dumpautoload", "clear-cache", "clearcache",
+	"self-update", "selfupdate", "exec", "run-script", "run",
+	"global", "config", "init", "archive", "fund", "bump", "reinstall",
+}
+COMPOSER_VALUE_FLAGS := [?]string{"--working-dir", "-d"}
+COMPOSER_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = COMPOSER_ALLOW[:],
+	deny_subs     = COMPOSER_DENY[:],
+	value_flags   = COMPOSER_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_composer_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "about" {
 		return true
 	}
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"show", "list", "search", "depends", "prohibits", "validate",
-			"check-platform-reqs", "outdated", "why", "why-not", "licenses",
-			"status", "about", "diagnose", "help", "suggests", "browse",
-		},
-		deny = {
-			"install", "update", "require", "remove", "create-project",
-			"dump-autoload", "dumpautoload", "clear-cache", "clearcache",
-			"self-update", "selfupdate", "exec", "run-script", "run",
-			"global", "config", "init", "archive", "fund", "bump", "reinstall",
-		},
-		value_flags = {"--working-dir", "-d"},
-	)
+	return bash_cli_is_readonly(args, COMPOSER_READONLY_SPEC)
 }
 
 // B58: Homebrew inspect (list/info/search/outdated; not install/upgrade/update).
@@ -288,49 +294,23 @@ bash_brew_is_readonly :: proc(args: string) -> bool {
 }
 
 // B36: kubectl get/describe/logs/… + config view (not apply/delete/create).
+KUBECTL_ALLOW_SUBS := [?]string {
+	"get", "logs", "describe", "top", "api-resources", "api-versions",
+	"explain", "cluster-info", "auth", "diff", "wait", "version", "help",
+}
+KUBECTL_CONFIG_ALLOW := [?]string {
+	"view", "get-contexts", "current-context", "get-clusters", "get-users",
+}
+KUBECTL_NESTED := [?]Cli_Nested{{sub = "config", allow = KUBECTL_CONFIG_ALLOW[:]}}
+KUBECTL_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = KUBECTL_ALLOW_SUBS[:],
+	nested        = KUBECTL_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_kubectl_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	if sub == "config" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "" || n == "--help" || n == "help" || n == "-h" {
-			return true
-		}
-		return bash_token_in(
-			n,
-			[]string{
-				"view",
-				"get-contexts",
-				"current-context",
-				"get-clusters",
-				"get-users",
-			},
-		)
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"get",
-			"logs",
-			"describe",
-			"top",
-			"api-resources",
-			"api-versions",
-			"explain",
-			"cluster-info",
-			"auth", // auth can-i is inspect
-			"diff",
-			"wait",
-			"version",
-			"help",
-		},
-	)
+	return bash_cli_is_readonly(args, KUBECTL_READONLY_SPEC)
 }
 
 // B36: terraform / tofu inspect (not apply/destroy/import).
@@ -382,78 +362,72 @@ bash_terraform_is_readonly :: proc(args: string) -> bool {
 }
 
 // B36: helm list/status/get/template/lint (not install/upgrade/uninstall).
+HELM_ALLOW_SUBS := [?]string {
+	"list", "ls", "status", "history", "get", "show", "search", "lint", "template", "env",
+}
+HELM_LIST_ALLOW := [?]string{"list", "ls"}
+HELM_EMPTY_ALLOW := [?]string{} // nested: empty/help only
+HELM_NESTED := [?]Cli_Nested {
+	{sub = "dependency", allow = HELM_LIST_ALLOW[:]},
+	{sub = "deps", allow = HELM_LIST_ALLOW[:]},
+	{sub = "repo", allow = HELM_LIST_ALLOW[:]},
+	{sub = "plugin", allow = HELM_LIST_ALLOW[:]},
+	{sub = "registry", allow = HELM_EMPTY_ALLOW[:]},
+}
+HELM_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = HELM_ALLOW_SUBS[:],
+	nested        = HELM_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_helm_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(args)
-	if !ok || sub == "env" {
-		return true
-	}
-	// nested: dependency/repo/plugin/registry inspect only
-	if sub == "dependency" || sub == "deps" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
-	}
-	if sub == "repo" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
-	}
-	if sub == "plugin" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || n == "list" || n == "ls" || n == "--help" || n == "help" || n == "-h"
-	}
-	if sub == "registry" {
-		// login mutates credentials — fail closed except help
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || n == "--help" || n == "help" || n == "-h"
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"list", "ls", "status", "history", "get", "show", "search", "lint", "template",
-		},
-	)
+	return bash_cli_is_readonly(args, HELM_READONLY_SPEC)
 }
 
 // B35: docker inspect + compose inspect (not run/up/build/exec).
+DOCKER_ALLOW_SUBS := [?]string {
+	"ps", "images", "logs", "inspect", "top", "stats", "port", "diff", "info",
+}
+DOCKER_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = DOCKER_ALLOW_SUBS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_docker_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	sub, rest, ok := bash_peel_to_sub(args)
+	sub, rest, ok := bash_peel_to_sub(a)
 	if !ok {
-		return true
-	}
-	if sub == "info" {
 		return true
 	}
 	// plugin-style: docker compose …
 	if sub == "compose" {
 		return bash_docker_compose_is_readonly(rest)
 	}
-	return bash_token_in(
-		sub,
-		[]string{"ps", "images", "logs", "inspect", "top", "stats", "port", "diff"},
-	)
+	return bash_cli_is_readonly(args, DOCKER_READONLY_SPEC)
 }
 
 // docker compose / docker-compose: list/config/ps/logs/images/top/version only.
+DOCKER_COMPOSE_ALLOW := [?]string {
+	"ps", "ls", "list", "config", "images", "logs", "top", "port", "events", "wait",
+}
+DOCKER_COMPOSE_VALUE_FLAGS := [?]string {
+	"-f", "--file", "-p", "--project-name", "--profile", "--project-directory",
+	"--env-file", "--ansi", "--progress",
+}
+DOCKER_COMPOSE_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = DOCKER_COMPOSE_ALLOW[:],
+	value_flags   = DOCKER_COMPOSE_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_docker_compose_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"ps", "ls", "list", "config", "images", "logs", "top", "port", "events", "wait",
-		},
-		value_flags = {
-			"-f", "--file", "-p", "--project-name", "--profile", "--project-directory",
-			"--env-file", "--ansi", "--progress",
-		},
-	)
+	return bash_cli_is_readonly(args, DOCKER_COMPOSE_READONLY_SPEC)
 }
 
 // B16: cargo read-only / non-mutating inspection (no build/test/run).

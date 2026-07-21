@@ -58,6 +58,23 @@ SLASH_N_PERMS := [?]string{"/permissions", "/permission", "/perm", "/perms"}
 SLASH_N_FIND := [?]string{"/find"}
 SLASH_N_MULTILINE := [?]string{"/multiline", "/ml"}
 SLASH_N_MOUSE := [?]string{"/toggle-mouse-reporting"}
+SLASH_N_BTW := [?]string{"/btw"}
+SLASH_N_FEEDBACK := [?]string{"/feedback"}
+SLASH_N_CONTEXT := [?]string{"/context"}
+SLASH_N_USAGE := [?]string{"/usage", "/cost"}
+SLASH_N_DIFF := [?]string{"/diff"}
+SLASH_N_TRANSCRIPT := [?]string{"/transcript", "/log"}
+SLASH_N_RECAP := [?]string{"/recap"}
+SLASH_N_SHARE := [?]string{"/share"}
+SLASH_N_IMPORT_CLAUDE := [?]string{"/import-claude"}
+SLASH_N_DASHBOARD := [?]string{"/dashboard", "/agents-dashboard"}
+SLASH_N_MCP := [?]string{"/mcp", "/mcps"}
+SLASH_N_HOOKS := [?]string{"/hooks"}
+SLASH_N_CREATE_SKILL := [?]string{"/create-skill", "/createskill", "/new-skill"}
+SLASH_N_PLUGINS := [?]string{"/plugins", "/plugin"}
+SLASH_N_STATUS := [?]string{"/status"}
+SLASH_N_SETTINGS := [?]string{"/settings", "/config", "/preferences", "/prefs"}
+SLASH_N_DOCTOR := [?]string{"/doctor"}
 
 // SLASH_ROUTES: emit-only commands (primary + aliases).
 SLASH_ROUTES := [?]Slash_Route {
@@ -90,6 +107,23 @@ SLASH_ROUTES := [?]Slash_Route {
 	{SLASH_N_FIND[:], slash_h_find},
 	{SLASH_N_MULTILINE[:], slash_h_multiline},
 	{SLASH_N_MOUSE[:], slash_h_toggle_mouse},
+	{SLASH_N_BTW[:], slash_h_btw},
+	{SLASH_N_FEEDBACK[:], slash_h_feedback},
+	{SLASH_N_CONTEXT[:], slash_h_context},
+	{SLASH_N_USAGE[:], slash_h_usage},
+	{SLASH_N_DIFF[:], slash_h_diff},
+	{SLASH_N_TRANSCRIPT[:], slash_h_transcript},
+	{SLASH_N_RECAP[:], slash_h_recap},
+	{SLASH_N_SHARE[:], slash_h_share},
+	{SLASH_N_IMPORT_CLAUDE[:], slash_h_import_claude},
+	{SLASH_N_DASHBOARD[:], slash_h_dashboard},
+	{SLASH_N_MCP[:], slash_h_mcp},
+	{SLASH_N_HOOKS[:], slash_h_hooks},
+	{SLASH_N_CREATE_SKILL[:], slash_h_create_skill},
+	{SLASH_N_PLUGINS[:], slash_h_plugins},
+	{SLASH_N_STATUS[:], slash_h_status},
+	{SLASH_N_SETTINGS[:], slash_h_settings},
+	{SLASH_N_DOCTOR[:], slash_h_doctor},
 }
 
 // slash_table_has reports whether cmd is table-dispatched.
@@ -280,5 +314,120 @@ slash_h_multiline :: proc(ctx: Slash_Ctx) -> Slash_Action {
 
 slash_h_toggle_mouse :: proc(ctx: Slash_Ctx) -> Slash_Action {
 	emit_line(ctx.out, "aether: /toggle-mouse-reporting is TUI-only (toggles SGR mouse capture)")
+	return .Continue
+}
+
+slash_ctx_model :: proc(ctx: Slash_Ctx) -> string {
+	if ctx.model != nil {
+		return ctx.model^
+	}
+	return ""
+}
+
+slash_ctx_perm :: proc(ctx: Slash_Ctx) -> core.Permission_Mode {
+	if ctx.perm != nil {
+		return ctx.perm^
+	}
+	return .Always_Approve
+}
+
+slash_h_btw :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_btw_slash(ctx.sess, slash_ctx_model(ctx), ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_feedback :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_feedback_slash(ctx.sess, ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_context :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_context_slash(ctx.sess, ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_usage :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_line(ctx.out, "aether: /usage credit/billing UI is not available (Grok Build only).")
+	emit_line(ctx.out, "Showing context window usage instead (/context):")
+	emit_lines(ctx.out, handle_context_slash(ctx.sess, ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_diff :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	diff_out := handle_diff_slash(slash_ctx_cwd(ctx), ctx.arg, context.temp_allocator)
+	emit_lines(ctx.out, diff_out)
+	if len(diff_out) == 0 {
+		emit_line(ctx.out, "aether: /diff produced no output")
+	}
+	return .Continue
+}
+
+slash_h_transcript :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	if ctx.sess == nil {
+		emit_line(ctx.out, "aether: no session")
+		return .Continue
+	}
+	emit_lines(ctx.out, handle_transcript_slash(ctx.sess^, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_recap :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_recap_slash(ctx.sess, slash_ctx_model(ctx), context.temp_allocator))
+	return .Continue
+}
+
+slash_h_share :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_share_slash(ctx.sess, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_import_claude :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_import_claude_slash(ctx.arg, slash_ctx_cwd(ctx), context.temp_allocator))
+	return .Continue
+}
+
+slash_h_dashboard :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_dashboard_slash(ctx.sess, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_mcp :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_mcp_slash(ctx.arg, ctx.opts.no_mcp, ctx.opts.quiet, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_hooks :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_hooks_slash(ctx.arg, slash_ctx_cwd(ctx), context.temp_allocator))
+	return .Continue
+}
+
+slash_h_create_skill :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_line(ctx.out, handle_create_skill_slash(ctx.arg, slash_ctx_cwd(ctx), context.temp_allocator))
+	return .Continue
+}
+
+slash_h_plugins :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_plugins_slash(ctx.arg, slash_ctx_cwd(ctx), context.temp_allocator))
+	return .Continue
+}
+
+slash_h_status :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(
+		ctx.out,
+		handle_status_slash(ctx.sess, slash_ctx_model(ctx), slash_ctx_perm(ctx), context.temp_allocator),
+	)
+	return .Continue
+}
+
+slash_h_settings :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(
+		ctx.out,
+		handle_config_slash(ctx.sess, slash_ctx_model(ctx), slash_ctx_perm(ctx), context.temp_allocator),
+	)
+	return .Continue
+}
+
+slash_h_doctor :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(ctx.out, handle_doctor_slash(ctx.sess, slash_ctx_cwd(ctx), context.temp_allocator))
 	return .Continue
 }

@@ -9,98 +9,119 @@ package core
 import "core:strings"
 
 // B60: flatpak inspect (list/info/search/remotes; not install/update/run).
+FLATPAK_VALUE_FLAGS := [?]string{"--columns", "--arch", "--installation"}
+FLATPAK_ALLOW := [?]string {
+	"list", "info", "search", "remote-list", "remotes", "remote-ls", "remote-info",
+	"history", "ps", "permission-show", "permission-list", "document-list",
+	"document-info", "help", "--version",
+}
+FLATPAK_DENY := [?]string {
+	"install", "uninstall", "update", "upgrade", "run", "override", "make-current",
+	"enter", "permission-set", "permission-reset", "permission-remove", "repair",
+	"create-usb", "build", "build-export", "build-bundle", "build-import-bundle",
+	"build-sign", "build-update-repo", "build-commit-from", "repo",
+	"document-export", "document-unexport", "kill", "spawn",
+	"remote-add", "remote-delete", "remote-modify", "mask", "unmask",
+}
+FLATPAK_CONFIG_ALLOW := [?]string{"--list", "get", "list"}
+FLATPAK_NESTED := [?]Cli_Nested{{sub = "config", allow = FLATPAK_CONFIG_ALLOW[:]}}
+FLATPAK_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = FLATPAK_VALUE_FLAGS[:],
+	allow_subs    = FLATPAK_ALLOW[:],
+	deny_subs     = FLATPAK_DENY[:],
+	nested        = FLATPAK_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_flatpak_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string{"--columns", "--arch", "--installation"}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if bash_is_help_or_version(strings.trim_space(args)) || !ok {
-		return true
-	}
-	if sub == "config" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "" || n == "--list" || n == "get" || n == "--help" || n == "-h" || n == "list"
-	}
-	deny := []string {
-		"install", "uninstall", "update", "upgrade", "run", "override", "make-current",
-		"enter", "permission-set", "permission-reset", "permission-remove", "repair",
-		"create-usb", "build", "build-export", "build-bundle", "build-import-bundle",
-		"build-sign", "build-update-repo", "build-commit-from", "repo",
-		"document-export", "document-unexport", "kill", "spawn",
-		"remote-add", "remote-delete", "remote-modify", "mask", "unmask",
-	}
-	allow := []string {
-		"list", "info", "search", "remote-list", "remotes", "remote-ls", "remote-info",
-		"history", "ps", "permission-show", "permission-list", "document-list",
-		"document-info", "help", "--version",
-	}
-	if bash_token_in(sub, deny) {
-		return false
-	}
-	return bash_token_in(sub, allow)
+	return bash_cli_is_readonly(args, FLATPAK_READONLY_SPEC)
 }
 
 // B60: snap inspect (list/info/find; not install/remove/refresh).
+SNAP_ALLOW := [?]string {
+	"list", "info", "find", "search", "version", "help", "known", "connections",
+	"interface", "interfaces", "model", "changes", "tasks", "warnings", "get",
+	"services", "logs", "whoami", "ok",
+}
+SNAP_DENY := [?]string {
+	"install", "remove", "refresh", "try", "download", "pack", "start", "stop",
+	"restart", "enable", "disable", "set", "unset", "connect", "disconnect",
+	"alias", "unalias", "prefer", "switch", "create-cohort", "ack", "sign",
+	"login", "logout", "buy", "abort", "watch", "wait", "run", "routine",
+	"prepare-image", "remodel", "reboot", "recovery", "debug",
+}
+SNAP_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = SNAP_ALLOW[:],
+	deny_subs     = SNAP_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_snap_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"list", "info", "find", "search", "version", "help", "known", "connections",
-			"interface", "interfaces", "model", "changes", "tasks", "warnings", "get",
-			"services", "logs", "whoami", "ok",
-		},
-		deny = {
-			"install", "remove", "refresh", "try", "download", "pack", "start", "stop",
-			"restart", "enable", "disable", "set", "unset", "connect", "disconnect",
-			"alias", "unalias", "prefer", "switch", "create-cohort", "ack", "sign",
-			"login", "logout", "buy", "abort", "watch", "wait", "run", "routine",
-			"prepare-image", "remodel", "reboot", "recovery", "debug",
-		},
-	)
+	return bash_cli_is_readonly(args, SNAP_READONLY_SPEC)
 }
 
 // B60: Alpine apk inspect (info/search/list/version; not add/del/upgrade).
+APK_ALLOW := [?]string {
+	"info", "search", "list", "version", "policy", "stats", "audit", "verify", "help",
+}
+APK_DENY := [?]string {
+	"add", "del", "delete", "fix", "upgrade", "update", "fetch", "manifest",
+	"dot", "cache", "index",
+}
+APK_VALUE_FLAGS := [?]string{"--repository", "-X", "--root", "--keys-dir"}
+APK_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = APK_ALLOW[:],
+	deny_subs     = APK_DENY[:],
+	value_flags   = APK_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_apk_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"info", "search", "list", "version", "policy", "stats", "audit", "verify", "help",
-		},
-		deny = {
-			"add", "del", "delete", "fix", "upgrade", "update", "fetch", "manifest",
-			"dot", "cache", "index",
-		},
-		value_flags = {"--repository", "-X", "--root", "--keys-dir"},
-	)
+	return bash_cli_is_readonly(args, APK_READONLY_SPEC)
 }
 
 // B59: apt / apt-get inspect (list/search/show/policy; not install/update/upgrade).
+APT_ALLOW := [?]string {
+	"list", "search", "show", "showsrc", "policy", "depends", "rdepends",
+	"changelog", "check", "help", "moo",
+}
+APT_DENY := [?]string {
+	"install", "remove", "purge", "update", "upgrade", "full-upgrade",
+	"dist-upgrade", "autoremove", "autopurge", "clean", "autoclean",
+	"source", "build-dep", "download", "reinstall", "mark", "hold", "unhold",
+}
+APT_VALUE_FLAGS := [?]string{"-o", "--option"}
+APT_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = APT_ALLOW[:],
+	deny_subs     = APT_DENY[:],
+	value_flags   = APT_VALUE_FLAGS[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_apt_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"list", "search", "show", "showsrc", "policy", "depends", "rdepends",
-			"changelog", "check", "help", "moo",
-		},
-		deny = {
-			"install", "remove", "purge", "update", "upgrade", "full-upgrade",
-			"dist-upgrade", "autoremove", "autopurge", "clean", "autoclean",
-			"source", "build-dep", "download", "reinstall", "mark", "hold", "unhold",
-		},
-		value_flags = {"-o", "--option"},
-	)
+	return bash_cli_is_readonly(args, APT_READONLY_SPEC)
 }
 
 // B59: apt-cache is read-only package metadata (no install path).
+APT_CACHE_ALLOW := [?]string {
+	"search", "show", "showpkg", "showsrc", "policy", "depends", "rdepends",
+	"pkgnames", "dotty", "xvcg", "unmet", "dump", "dumpavail", "stats",
+	"madison", "help",
+}
+APT_CACHE_DENY := [?]string{"gencaches"}
+APT_CACHE_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = APT_CACHE_ALLOW[:],
+	deny_subs     = APT_CACHE_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_apt_cache_is_readonly :: proc(args: string) -> bool {
-	return bash_sub_readonly(
-		args,
-		allow = {
-			"search", "show", "showpkg", "showsrc", "policy", "depends", "rdepends",
-			"pkgnames", "dotty", "xvcg", "unmet", "dump", "dumpavail", "stats",
-			"madison", "help",
-		},
-		deny = {"gencaches"},
-	)
+	return bash_cli_is_readonly(args, APT_CACHE_READONLY_SPEC)
 }
 
 // B59: dnf / yum inspect (list/info/search/repolist; not install/remove/upgrade).
