@@ -452,7 +452,8 @@ NPM_ALLOW_SUBS := [?]string {
 	"audit", "version", "help", "explain", "query", "root", "bin", "prefix",
 	"doctor", "fund", "search", "repo", "docs", "home", "bugs",
 }
-NPM_CONFIG_NESTED := [?]Cli_Nested{{"config", []string{"get", "list", "ls"}}}
+NPM_CONFIG_ALLOW := [?]string{"get", "list", "ls"}
+NPM_CONFIG_NESTED := [?]Cli_Nested{{sub = "config", allow = NPM_CONFIG_ALLOW[:]}}
 NPM_READONLY_SPEC := Cli_Readonly_Spec {
 	value_flags   = NPM_VALUE_FLAGS[:],
 	allow_subs    = NPM_ALLOW_SUBS[:],
@@ -468,8 +469,9 @@ bash_npm_family_is_readonly :: proc(args: string) -> bool {
 // B38: bun inspect (not install/run/test/build).
 BUN_ALLOW_SUBS := [?]string{"pm", "outdated", "why", "info"}
 BUN_DENY_SUBS := [?]string{"x"}
+BUN_PM_ALLOW := [?]string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"}
 BUN_PM_NESTED := [?]Cli_Nested {
-	{"pm", []string{"ls", "list", "whoami", "hash", "cache", "version", "pkg", "view", "why"}},
+	{sub = "pm", allow = BUN_PM_ALLOW[:]},
 }
 BUN_READONLY_SPEC := Cli_Readonly_Spec {
 	allow_subs    = BUN_ALLOW_SUBS[:],

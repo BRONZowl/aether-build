@@ -749,41 +749,41 @@ bash_buildah_is_readonly :: proc(args: string) -> bool {
 }
 
 // B88: nerdctl inspect (docker-compatible ps/images/logs; not run/build/push).
+NERDCTL_VALUE_FLAGS := [?]string {
+	"-n", "--namespace", "-a", "--address", "-H", "--host",
+	"--cgroup-manager", "--snapshotter", "--data-root",
+	"--cni-path", "--cni-netconfpath", "--bip", "--storage-driver",
+}
+NERDCTL_ALLOW := [?]string {
+	"version", "help", "info", "events", "ps", "logs", "inspect", "top", "stats", "port", "diff",
+}
+NERDCTL_SYS := [?]string{"df", "info", "events"}
+NERDCTL_CTR := [?]string{"ls", "list", "ps", "inspect", "logs", "top", "stats", "port", "diff"}
+NERDCTL_NESTED := [?]Cli_Nested {
+	{sub = "system", allow = NERDCTL_SYS[:]},
+	{sub = "container", allow = NERDCTL_CTR[:]},
+}
+NERDCTL_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = NERDCTL_VALUE_FLAGS[:],
+	allow_subs    = NERDCTL_ALLOW[:],
+	nested        = NERDCTL_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_nerdctl_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string {
-		"-n", "--namespace", "-a", "--address", "-H", "--host",
-		"--cgroup-manager", "--snapshotter", "--data-root",
-		"--cni-path", "--cni-netconfpath", "--bip", "--storage-driver",
-	}
-	if bash_is_help_or_version(strings.trim_space(args)) {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	if sub == "compose" {
+	sub, rem, ok := bash_peel_to_sub(a, NERDCTL_VALUE_FLAGS[:])
+	if ok && sub == "compose" {
 		return bash_docker_compose_is_readonly(rem)
 	}
-	if bash_token_in(sub, []string{"version", "help", "info", "events"}) {
-		return true
-	}
-	if sub == "image" || sub == "images" {
+	if ok && (sub == "image" || sub == "images") {
 		return bash_nerdctl_image_is_readonly(rem, sub == "images")
 	}
-	if sub == "system" {
-		return bash_nested_allow(rem, []string{"df", "info", "events"})
-	}
-	if sub == "container" {
-		return bash_nested_allow(
-			rem,
-			[]string{"ls", "list", "ps", "inspect", "logs", "top", "stats", "port", "diff"},
-		)
-	}
-	return bash_token_in(
-		sub,
-		[]string{"ps", "logs", "inspect", "top", "stats", "port", "diff"},
-	)
+	return bash_cli_is_readonly(args, NERDCTL_READONLY_SPEC)
 }
 
 NERDCTL_IMAGE_ALLOW := [?]string{"ls", "list", "inspect", "history"}

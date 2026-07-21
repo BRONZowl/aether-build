@@ -259,123 +259,117 @@ bash_flux_is_readonly :: proc(args: string) -> bool {
 }
 
 // B77: Argo CD CLI inspect (app list/get/diff; not sync/delete/login).
+ARGOCD_VALUE_FLAGS := [?]string {
+	"--server", "--auth-token", "--grpc-web-root-path", "--header", "-H",
+	"--loglevel", "--logformat",
+}
+ARGOCD_ALLOW := [?]string{"version", "help"}
+ARGOCD_DENY := [?]string{"login", "logout", "account", "gpg", "cert", "admin"}
+ARGOCD_LIST_GET := [?]string{"list", "get"}
+ARGOCD_LIST := [?]string{"list"}
+ARGOCD_APP := [?]string{"list", "get", "diff", "history", "manifests", "resources", "logs"}
+ARGOCD_NESTED := [?]Cli_Nested {
+	{sub = "cluster", allow = ARGOCD_LIST_GET[:]},
+	{sub = "repo", allow = ARGOCD_LIST_GET[:]},
+	{sub = "proj", allow = ARGOCD_LIST_GET[:]},
+	{sub = "project", allow = ARGOCD_LIST_GET[:]},
+	{sub = "app", allow = ARGOCD_APP[:]},
+	{sub = "applicationset", allow = ARGOCD_LIST_GET[:]},
+	{sub = "appset", allow = ARGOCD_LIST_GET[:]},
+	{sub = "context", allow = ARGOCD_LIST[:]},
+}
+ARGOCD_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = ARGOCD_VALUE_FLAGS[:],
+	allow_subs    = ARGOCD_ALLOW[:],
+	deny_subs     = ARGOCD_DENY[:],
+	nested        = ARGOCD_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_argocd_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string {
-		"--server", "--auth-token", "--grpc-web-root-path", "--header", "-H",
-		"--loglevel", "--logformat",
-	}
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	if bash_token_in(sub, []string{"login", "logout", "account", "gpg", "cert", "admin"}) {
-		return false
-	}
-	if sub == "cluster" || sub == "repo" || sub == "proj" || sub == "project" {
-		return bash_nested_allow(rem, []string{"list", "get"})
-	}
-	if sub == "app" {
-		return bash_nested_allow(
-			rem,
-			[]string{"list", "get", "diff", "history", "manifests", "resources", "logs"},
-		)
-	}
-	if sub == "applicationset" || sub == "appset" {
-		return bash_nested_allow(rem, []string{"list", "get"})
-	}
-	if sub == "context" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	return bash_token_in(sub, []string{"version", "help"})
+	return bash_cli_is_readonly(args, ARGOCD_READONLY_SPEC)
 }
 
 // B76: Vault inspect — status/version/list metadata only.
 // Never auto-allow read/kv get (secret exfil) or write/delete/login.
+VAULT_VALUE_FLAGS := [?]string {
+	"-address", "-namespace", "-ca-cert", "-client-cert", "-client-key", "-token",
+}
+VAULT_ALLOW := [?]string{"status", "version", "help", "print", "path-help"}
+VAULT_LIST := [?]string{"list"}
+VAULT_NESTED := [?]Cli_Nested {
+	{sub = "secrets", allow = VAULT_LIST[:]},
+	{sub = "auth", allow = VAULT_LIST[:]},
+	{sub = "policy", allow = VAULT_LIST[:]},
+}
+VAULT_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = VAULT_VALUE_FLAGS[:],
+	allow_subs    = VAULT_ALLOW[:],
+	nested        = VAULT_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+VAULT_OPERATOR_ALLOW := [?]string{"members", "key-status"}
+
+bash_vault_operator_is_readonly :: proc(rest: string) -> bool {
+	next, nrem := first_shell_token(rest)
+	n := strings.to_lower(next, context.temp_allocator)
+	if n == "raft" {
+		return bash_nested_allow(nrem, []string{"list-peers"})
+	}
+	if n == "" || n == "help" || n == "--help" || n == "-h" {
+		return true
+	}
+	return bash_token_in(n, VAULT_OPERATOR_ALLOW[:])
+}
+
 bash_vault_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "status" || strings.has_prefix(a, "status ") {
 		return true
 	}
-	value_flags := []string {
-		"-address", "-namespace", "-ca-cert", "-client-cert", "-client-key", "-token",
+	sub, rem, ok := bash_peel_to_sub(a, VAULT_VALUE_FLAGS[:])
+	if ok && sub == "operator" {
+		return bash_vault_operator_is_readonly(rem)
 	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(a, value_flags)
-	if !ok {
-		return true
-	}
-	if bash_token_in(sub, []string{"status", "version", "help", "print", "path-help"}) {
-		return true
-	}
-	// mount / auth method listing only
-	if sub == "secrets" || sub == "auth" || sub == "policy" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	if sub == "operator" {
-		next, nrem := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		if n == "raft" {
-			return bash_nested_allow(nrem, []string{"list-peers"})
-		}
-		return n == "" ||
-			n == "members" ||
-			n == "key-status" ||
-			n == "help" ||
-			n == "--help" ||
-			n == "-h"
-	}
-	// everything else (read/write/kv/login/token/…) asks
-	return false
+	return bash_cli_is_readonly(args, VAULT_READONLY_SPEC)
 }
 
 // B75: Consul inspect (members/catalog/kv get/info; not put/delete/join).
+CONSUL_VALUE_FLAGS := [?]string {
+	"-http-addr", "-datacenter", "-token", "-ca-file", "-client-cert", "-client-key",
+}
+CONSUL_ALLOW := [?]string{"members", "info", "validate", "version", "help"}
+CONSUL_DENY := [?]string {
+	"join", "leave", "force-leave", "reload", "monitor", "exec", "lock", "watch",
+	"connect", "acl", "operator", "services", "event", "rtt",
+}
+CONSUL_SNAP := [?]string{"inspect"}
+CONSUL_CFG := [?]string{"list", "read"}
+CONSUL_CAT := [?]string{"datacenters", "nodes", "services", "node", "service"}
+CONSUL_KV := [?]string{"get", "export"}
+CONSUL_INT := [?]string{"list", "get", "match", "check"}
+CONSUL_HEALTH := [?]string{"node", "checks", "service", "state"}
+CONSUL_NESTED := [?]Cli_Nested {
+	{sub = "snapshot", allow = CONSUL_SNAP[:]},
+	{sub = "config", allow = CONSUL_CFG[:]},
+	{sub = "catalog", allow = CONSUL_CAT[:]},
+	{sub = "kv", allow = CONSUL_KV[:], require_sub = true},
+	{sub = "intention", allow = CONSUL_INT[:]},
+	{sub = "health", allow = CONSUL_HEALTH[:]},
+}
+CONSUL_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = CONSUL_VALUE_FLAGS[:],
+	allow_subs    = CONSUL_ALLOW[:],
+	deny_subs     = CONSUL_DENY[:],
+	nested        = CONSUL_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_consul_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string {
-		"-http-addr", "-datacenter", "-token", "-ca-file", "-client-cert", "-client-key",
-	}
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"join", "leave", "force-leave", "reload", "monitor", "exec", "lock", "watch",
-			"connect", "acl", "operator", "services", "event", "rtt",
-		},
-	) {
-		return false
-	}
-	if sub == "snapshot" {
-		return bash_nested_allow(rem, []string{"inspect"})
-	}
-	if sub == "config" {
-		return bash_nested_allow(rem, []string{"list", "read"})
-	}
-	if sub == "catalog" {
-		return bash_nested_allow(rem, []string{"datacenters", "nodes", "services", "node", "service"})
-	}
-	if sub == "kv" {
-		// get/export only (not put/delete/import) — empty next not ok for kv
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "get" || n == "export" || n == "help" || n == "--help" || n == "-h"
-	}
-	if sub == "intention" {
-		return bash_nested_allow(rem, []string{"list", "get", "match", "check"})
-	}
-	if sub == "health" {
-		return bash_nested_allow(rem, []string{"node", "checks", "service", "state"})
-	}
-	return bash_token_in(sub, []string{"members", "info", "validate", "version", "help"})
+	return bash_cli_is_readonly(args, CONSUL_READONLY_SPEC)
 }
 
 // B75: Nomad inspect (status/node status/job status; not run/stop/alloc exec).
@@ -436,80 +430,72 @@ bash_nomad_is_readonly :: proc(args: string) -> bool {
 }
 
 // B74: Packer inspect (validate/inspect/version/fmt -check; not build/init).
+PACKER_VALUE_FLAGS := [?]string{"-var", "-var-file", "-except", "-only"}
+PACKER_ALLOW := [?]string{"validate", "inspect", "version", "help"}
+PACKER_DENY := [?]string{"build", "init", "console", "fix", "hcl2_upgrade", "plugins", "plugin"}
+PACKER_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = PACKER_VALUE_FLAGS[:],
+	allow_subs    = PACKER_ALLOW[:],
+	deny_subs     = PACKER_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
+bash_packer_writes :: proc(args: string) -> bool {
+	r := args
+	for {
+		tok, rem := first_shell_token(r)
+		if tok == "" {
+			return false
+		}
+		if tok == "-write" || tok == "-write=true" {
+			return true
+		}
+		r = rem
+	}
+	return false
+}
+
 bash_packer_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	// bare -write / -write=true rewrites files (-write=false is ok)
-	{
-		r := a
-		for {
-			tok, rem := first_shell_token(r)
-			if tok == "" {
-				break
-			}
-			if tok == "-write" || tok == "-write=true" {
-				return false
-			}
-			r = rem
-		}
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(
-		a,
-		[]string{"-var", "-var-file", "-except", "-only"},
-	)
-	if !ok {
-		return true
-	}
-	if bash_token_in(
-		sub,
-		[]string{"build", "init", "console", "fix", "hcl2_upgrade", "plugins", "plugin"},
-	) {
+	if bash_packer_writes(a) {
 		return false
 	}
-	if sub == "fmt" {
-		// only with -check (no write)
+	sub, rem, ok := bash_peel_to_sub(a, PACKER_VALUE_FLAGS[:])
+	if ok && sub == "fmt" {
 		return strings.contains(rem, "-check")
 	}
-	return bash_token_in(sub, []string{"validate", "inspect", "version", "help"})
+	return bash_cli_is_readonly(args, PACKER_READONLY_SPEC)
 }
 
 // B73: vagrant inspect (status/global-status/box list/validate; not up/destroy).
+VAGRANT_ALLOW := [?]string {
+	"status", "global-status", "validate", "version", "help",
+	"list-commands", "ssh-config", "port",
+}
+VAGRANT_DENY := [?]string {
+	"up", "destroy", "halt", "suspend", "resume", "reload", "provision",
+	"ssh", "rdp", "winrm", "push", "package", "init", "cloud", "rsync",
+	"rsync-auto", "share", "login", "upload", "download", "powershell",
+}
+VAGRANT_BOX := [?]string{"list", "outdated", "info"}
+VAGRANT_PLUGIN := [?]string{"list", "license"}
+VAGRANT_SNAP := [?]string{"list"}
+VAGRANT_NESTED := [?]Cli_Nested {
+	{sub = "box", allow = VAGRANT_BOX[:]},
+	{sub = "plugin", allow = VAGRANT_PLUGIN[:]},
+	{sub = "snapshot", allow = VAGRANT_SNAP[:]},
+}
+VAGRANT_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = VAGRANT_ALLOW[:],
+	deny_subs     = VAGRANT_DENY[:],
+	nested        = VAGRANT_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_vagrant_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	if sub == "box" {
-		return bash_nested_allow(rem, []string{"list", "outdated", "info"})
-	}
-	if sub == "plugin" {
-		return bash_nested_allow(rem, []string{"list", "license"})
-	}
-	if sub == "snapshot" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"up", "destroy", "halt", "suspend", "resume", "reload", "provision",
-			"ssh", "rdp", "winrm", "push", "package", "init", "cloud", "rsync",
-			"rsync-auto", "share", "login", "upload", "download", "powershell",
-		},
-	) {
-		return false
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"status", "global-status", "validate", "version", "help",
-			"list-commands", "ssh-config", "port",
-		},
-	)
+	return bash_cli_is_readonly(args, VAGRANT_READONLY_SPEC)
 }
 
 // B72: ansible ad-hoc — list-hosts/version only (not -m module runs).
