@@ -322,31 +322,23 @@ bash_peel_to_sub :: proc(
 // bash_sub_readonly: peel flags → first sub in allow (true) or deny (false).
 // Special nested pairs handled by caller after peel (e.g. dnf module list).
 // If no subcommand found after peel → true (bare/help only).
+// Implemented via Cli_Readonly_Spec (P4).
 bash_sub_readonly :: proc(
 	args: string,
 	allow: []string,
 	deny: []string = {},
 	value_flags: []string = {},
 ) -> bool {
-	a := strings.trim_space(args)
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, _, ok := bash_peel_to_sub(a, value_flags)
-	if !ok {
-		return true
-	}
-	if len(deny) > 0 && bash_token_in(sub, deny) {
-		return false
-	}
-	if len(allow) > 0 {
-		return bash_token_in(sub, allow)
-	}
-	// deny-only: anything not denied is allowed
-	if len(deny) > 0 {
-		return true
-	}
-	return false
+	return bash_cli_is_readonly(
+		args,
+		Cli_Readonly_Spec {
+			value_flags   = value_flags,
+			allow_subs    = allow,
+			deny_subs     = deny,
+			empty_args_ok = true, // empty peels as fail → peel_fail_ok
+			peel_fail_ok  = true,
+		},
+	)
 }
 
 // bash_nested_allow: after a top-level sub, next token empty/help or in allow.

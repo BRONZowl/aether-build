@@ -32,40 +32,47 @@ Cancel_Flag :: ^bool
 Poll_Handler :: #type proc()
 
 // Turn_Options carries per-run policy for the agent loop.
+// Field groups (flat for call-site compatibility; P5 docs):
+//   policy  — workspace, turns, quiet/verbose, permission*, deny_tools, feature flags
+//   ui      — on_status/history/ask/poll/cancel, plan enter/exit handlers
+//   ext     — session, memory_injected
 Turn_Options :: struct {
-	workspace:        string,
-	max_turns:        int,
-	quiet:            bool,
-	verbose:          bool,
-	permission_mode:  core.Permission_Mode, // snapshot / headless default
-	permission_live:  ^core.Permission_Mode, // optional; TUI mid-turn updates
-	permission_allow: []string,
-	permission_deny:  []string,
+	// --- policy ---
+	workspace:         string,
+	max_turns:         int,
+	quiet:             bool,
+	verbose:           bool,
+	permission_mode:   core.Permission_Mode, // snapshot / headless default
+	permission_live:   ^core.Permission_Mode, // optional; TUI mid-turn updates
+	permission_allow:  []string,
+	permission_deny:   []string,
 	// After first ask-mode allow this turn, subsequent Ask tools auto-allow.
 	// Reset by caller per turn (stack bool). Optional.
-	ask_turn_allow:   ^bool,
-	on_status:        Status_Handler, // optional
-	on_history:       History_Handler, // optional; after msgs append mid-turn
-	on_ask:           Ask_Handler, // optional; replaces stdin y/N when set
-	// ask_user_question: optional TUI multi-choice; nil → stdin path
-	on_ask_user:      Ask_User_Handler,
-	cancel:           Cancel_Flag, // optional; set *cancel=true to abort HTTP/tool loop
-	on_poll:          Poll_Handler, // optional; mid-HTTP key/cancel poll
+	ask_turn_allow:    ^bool,
+	// deny_tools: never offer or run these tool names (subagent policy)
+	deny_tools:        []string,
 	// MCP: when true and registry has servers, expose search_tool/use_tool
-	mcp_enabled:      bool,
+	mcp_enabled:       bool,
 	// Skills: expose skill tool when registry non-empty
-	skills_enabled:   bool,
+	skills_enabled:    bool,
 	// Subagents: expose spawn_subagent when enabled and depth allows
 	subagents_enabled: bool,
-	// deny_tools: never offer or run these tool names (subagent policy)
-	deny_tools:       []string,
+	// --- ui hooks ---
+	on_status:         Status_Handler, // optional
+	on_history:        History_Handler, // optional; after msgs append mid-turn
+	on_ask:            Ask_Handler, // optional; replaces stdin y/N when set
+	// ask_user_question: optional TUI multi-choice; nil → stdin path
+	on_ask_user:       Ask_User_Handler,
+	cancel:            Cancel_Flag, // optional; set *cancel=true to abort HTTP/tool loop
+	on_poll:           Poll_Handler, // optional; mid-HTTP key/cancel poll
 	// Plan enter/exit approval (TUI modal); nil → default asks / headless auto
-	on_plan_enter:    Plan_Enter_Handler,
-	on_plan_exit:     Plan_Exit_Handler,
+	on_plan_enter:     Plan_Enter_Handler,
+	on_plan_exit:      Plan_Exit_Handler,
+	// --- ext / session ---
 	// Optional session latch for first-turn memory inject (A2.3)
-	memory_injected:  ^bool,
+	memory_injected:   ^bool,
 	// Optional session for auto-compact / flush (B1.2)
-	session:          ^Session,
+	session:           ^Session,
 }
 
 // effective_permission_mode prefers live TUI mode when set.

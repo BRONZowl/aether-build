@@ -114,29 +114,12 @@ resolve_video_image_ref :: proc(ref: string, allocator := context.allocator) -> 
 
 // video_output_dir: AETHER_VIDEO_DIR or {sessions}/videos
 video_output_dir :: proc(allocator := context.allocator) -> string {
-	if v := os.get_env("AETHER_VIDEO_DIR", context.temp_allocator); v != "" {
-		return strings.clone(v, allocator)
-	}
-	base := core.aether_sessions_dir("", context.temp_allocator)
-	joined, _ := filepath.join({base, "videos"}, allocator)
-	return joined
+	return media_output_dir("AETHER_VIDEO_DIR", "videos", allocator)
 }
 
 next_video_path :: proc(allocator := context.allocator) -> (abs_path: string, rel: string, err: string) {
 	dir := video_output_dir(context.temp_allocator)
-	if !core.ensure_dir(dir) {
-		return "", "", fmt.tprintf("cannot create video dir %s", dir)
-	}
-	sync.mutex_lock(&g_video_mu)
-	g_video_ctr += 1
-	n := g_video_ctr
-	sync.mutex_unlock(&g_video_mu)
-	name := fmt.tprintf("%d.mp4", n)
-	path, jerr := filepath.join({dir, name}, allocator)
-	if jerr != nil {
-		return "", "", "path join failed"
-	}
-	return path, fmt.tprintf("videos/%d.mp4", n), ""
+	return next_media_path(dir, "videos", "mp4", &g_video_mu, &g_video_ctr, allocator)
 }
 
 save_video_bytes :: proc(data: []byte, allocator := context.allocator) -> (path: string, rel: string, err: string) {

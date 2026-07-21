@@ -593,73 +593,59 @@ bash_poetry_is_readonly :: proc(args: string) -> bool {
 }
 
 // uv inspection (not sync/add/run/build/venv).
+UV_ALLOW_SUBS := [?]string{"tree", "version", "help"}
+UV_PIP_ALLOW := [?]string{"list", "show", "freeze", "check", "tree", "help"}
+UV_PYTHON_ALLOW := [?]string{"list", "find", "dir", "help"}
+UV_CACHE_ALLOW := [?]string{"dir", "size", "help"}
+UV_SELF_ALLOW := [?]string{"version", "help"}
+UV_NESTED := [?]Cli_Nested {
+	{sub = "pip", allow = UV_PIP_ALLOW[:]},
+	{sub = "python", allow = UV_PYTHON_ALLOW[:]},
+	{sub = "cache", allow = UV_CACHE_ALLOW[:]},
+	{sub = "self", allow = UV_SELF_ALLOW[:]},
+}
+UV_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = UV_ALLOW_SUBS[:],
+	nested        = UV_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_uv_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	if sub == "pip" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return bash_token_in(n, []string{"list", "show", "freeze", "check", "tree", "help"})
-	}
-	if sub == "python" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || bash_token_in(n, []string{"list", "find", "dir", "help"})
-	}
-	if sub == "cache" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || bash_token_in(n, []string{"dir", "size", "help"})
-	}
-	if sub == "self" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "" || bash_token_in(n, []string{"version", "help"})
-	}
-	return bash_token_in(sub, []string{"tree", "version", "help"})
+	return bash_cli_is_readonly(args, UV_READONLY_SPEC)
 }
 
 // rustup inspection / list (not update/default that mutates toolchain install — update mutates).
 // Keep only show/which/doc/help and list-style under toolchain/target/component.
+RUSTUP_ALLOW_SUBS := [?]string{"show", "which", "doc", "help", "completions"}
+RUSTUP_LIST_ALLOW := [?]string{"list"}
+RUSTUP_NESTED := [?]Cli_Nested {
+	{sub = "toolchain", allow = RUSTUP_LIST_ALLOW[:]},
+	{sub = "target", allow = RUSTUP_LIST_ALLOW[:]},
+	{sub = "component", allow = RUSTUP_LIST_ALLOW[:]},
+	{sub = "override", allow = RUSTUP_LIST_ALLOW[:]},
+}
+RUSTUP_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = RUSTUP_ALLOW_SUBS[:],
+	nested        = RUSTUP_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_rustup_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false // bare rustup may prompt / not pure inspect
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	if sub == "toolchain" || sub == "target" || sub == "component" || sub == "override" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return n == "list" || n == "" || n == "help" || n == "--help" || n == "-h"
-	}
-	return bash_token_in(sub, []string{"show", "which", "doc", "help", "completions"})
+	return bash_cli_is_readonly(args, RUSTUP_READONLY_SPEC)
 }
 
 // pip inspection only.
+PIP_ALLOW_SUBS := [?]string{"list", "show", "freeze", "check", "index", "help", "debug", "hash", "inspect"}
+PIP_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = PIP_ALLOW_SUBS[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_pip_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false
-	}
-	return bash_sub_readonly(
-		a,
-		allow = {"list", "show", "freeze", "check", "index", "help", "debug", "hash", "inspect"},
-	)
+	return bash_cli_is_readonly(args, PIP_READONLY_SPEC)
 }
 
 // python --version / -V / --help / -m site|pip|pytest inspect (not -c / scripts).
@@ -690,24 +676,18 @@ bash_python_is_readonly :: proc(args: string) -> bool {
 }
 
 // go: version / env / list / help / doc / mod graph|why|verify.
+GO_ALLOW_SUBS := [?]string{"version", "env", "help", "doc", "list"}
+GO_MOD_ALLOW := [?]string{"graph", "why", "verify"}
+GO_NESTED := [?]Cli_Nested{{sub = "mod", allow = GO_MOD_ALLOW[:]}}
+GO_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = GO_ALLOW_SUBS[:],
+	nested        = GO_NESTED[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_go_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false
-	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return false
-	}
-	if sub == "mod" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		return bash_token_in(n, []string{"graph", "why", "verify"})
-	}
-	return bash_token_in(sub, []string{"version", "env", "help", "doc", "list"})
+	return bash_cli_is_readonly(args, GO_READONLY_SPEC)
 }
 
 // B25: make help / dry-run / version only (not build targets).
@@ -757,15 +737,15 @@ bash_make_is_readonly :: proc(args: string) -> bool {
 }
 
 // B25: odin version/help only (not build/run/test).
+ODIN_ALLOW_SUBS := [?]string{"version", "help", "doc"}
+ODIN_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = ODIN_ALLOW_SUBS[:],
+	empty_args_ok = false,
+	peel_fail_ok  = false,
+}
+
 bash_odin_is_readonly :: proc(args: string) -> bool {
-	a := strings.trim_space(args)
-	if a == "" {
-		return false
-	}
-	return bash_sub_readonly(
-		a,
-		allow = {"version", "help", "doc"},
-	)
+	return bash_cli_is_readonly(args, ODIN_READONLY_SPEC)
 }
 
 // B40: zig version/env/ast-check/fmt --check (not build/run/test).

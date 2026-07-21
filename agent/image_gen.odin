@@ -55,29 +55,12 @@ normalize_aspect_ratio :: proc(s: string) -> string {
 
 // image_output_dir: AETHER_IMAGE_DIR or {sessions}/images
 image_output_dir :: proc(allocator := context.allocator) -> string {
-	if v := os.get_env("AETHER_IMAGE_DIR", context.temp_allocator); v != "" {
-		return strings.clone(v, allocator)
-	}
-	base := core.aether_sessions_dir("", context.temp_allocator)
-	joined, _ := filepath.join({base, "images"}, allocator)
-	return joined
+	return media_output_dir("AETHER_IMAGE_DIR", "images", allocator)
 }
 
 next_image_path :: proc(allocator := context.allocator) -> (abs_path: string, rel: string, err: string) {
 	dir := image_output_dir(context.temp_allocator)
-	if !core.ensure_dir(dir) {
-		return "", "", fmt.tprintf("cannot create image dir %s", dir)
-	}
-	sync.mutex_lock(&g_image_mu)
-	g_image_ctr += 1
-	n := g_image_ctr
-	sync.mutex_unlock(&g_image_mu)
-	name := fmt.tprintf("%d.jpg", n)
-	path, jerr := filepath.join({dir, name}, allocator)
-	if jerr != nil {
-		return "", "", "path join failed"
-	}
-	return path, fmt.tprintf("images/%d.jpg", n), ""
+	return next_media_path(dir, "images", "jpg", &g_image_mu, &g_image_ctr, allocator)
 }
 
 // save_image_bytes writes JPEG bytes; registers [Image #N]; returns path + display n.
