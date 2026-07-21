@@ -12,7 +12,11 @@ import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
 
-STREAM_REDRAW_NS :: i64(16_000_000) // ~16ms
+// Mid-stream full paints are expensive (markdown/mermaid flatten of live draft).
+// ~12 fps is enough for tokens; 16ms (~60fps) starved curl + made the TUI feel frozen.
+STREAM_REDRAW_NS :: i64(80_000_000) // ~80ms
+// Key peek during stream_delta / xferinfo: don't tcsetattr every token.
+STREAM_POLL_NS :: i64(40_000_000) // ~40ms
 
 
 // run starts the fullscreen TUI.

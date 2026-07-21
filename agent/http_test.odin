@@ -28,6 +28,15 @@ test_http_retry_backoff_ms :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_http_sse_opts_stall :: proc(t: ^testing.T) {
+	o := http_sse_opts()
+	testing.expect(t, o.timeout_s == 300)
+	testing.expect(t, o.connect_timeout_s == 15)
+	testing.expect(t, o.low_speed_limit == 1)
+	testing.expect(t, o.low_speed_time == 120)
+}
+
+@(test)
 test_http_error_string_cancelled :: proc(t: ^testing.T) {
 	testing.expect(t, http_error_string(.Cancelled) == "cancelled")
 	testing.expect(t, http_error_string(.Timed_Out) == "timed out" || strings.contains(http_error_string(.Timed_Out), "timed out"))

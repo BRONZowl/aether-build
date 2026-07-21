@@ -192,6 +192,46 @@ destroy_assistant_turn :: proc(t: ^Assistant_Turn) {
 	delete(t.raw_error)
 }
 
+// format_http_error_body: user-visible detail for non-2xx chat API responses.
+// Prefers API error.message; otherwise shows truncated raw body (HTML/plain).
+format_http_error_body :: proc(status: int, body: string, allocator := context.allocator) -> string {
+	trim := strings.trim_space(body)
+	if trim == "" {
+		return fmt.aprintf(
+			"HTTP %d: empty body (check model id, base URL, and auth)",
+			status,
+			allocator = allocator,
+		)
+	}
+	// Try structured API error even when status is 4xx
+	_, perr := parse_chat_completions_response(body, context.temp_allocator)
+	if perr != "" {
+		// "API error: …" is useful; bare parse failures need raw body
+		if strings.has_prefix(perr, "API error:") {
+			return fmt.aprintf("HTTP %d: %s", status, perr, allocator = allocator)
+		}
+		// Non-JSON (proxy HTML, plain text) — surface body, not only parse noise
+		if strings.has_prefix(perr, "invalid JSON") ||
+		   strings.contains(perr, "not a JSON") {
+			return fmt.aprintf(
+				"HTTP %d: %s",
+				status,
+				truncate(trim, 500),
+				allocator = allocator,
+			)
+		}
+		// Other structured parse issues — include both
+		return fmt.aprintf(
+			"HTTP %d: %s | body: %s",
+			status,
+			perr,
+			truncate(trim, 300),
+			allocator = allocator,
+		)
+	}
+	return fmt.aprintf("HTTP %d: %s", status, truncate(trim, 500), allocator = allocator)
+}
+
 // parse_chat_completions_response extracts the first choice message.
 parse_chat_completions_response :: proc(
 	body: string,
@@ -331,13 +371,7 @@ chat_completion :: proc(
 				time.sleep(time.Duration(http_retry_backoff_ms(attempt)) * time.Millisecond)
 				continue
 			}
-			_, perr := parse_chat_completions_response(resp.body, allocator)
-			msg: string
-			if perr != "" {
-				msg = fmt.tprintf("HTTP %d: %s", resp.status, perr)
-			} else {
-				msg = fmt.tprintf("HTTP %d: %s", resp.status, truncate(resp.body, 400))
-			}
+			msg := format_http_error_body(resp.status, resp.body, allocator)
 			delete(resp.body)
 			return {}, msg
 		}
@@ -395,12 +429,10 @@ chat_completion_stream :: proc(
 	url := fmt.tprintf("%s/chat/completions", strings.trim_right(creds.base_url, "/"))
 	headers := build_auth_headers(creds, context.temp_allocator)
 
-	opts := Http_Opts {
-		connect_timeout_s = 15,
-		timeout_s         = 300,
-		cancel            = http_opts.cancel,
-		on_poll           = http_opts.on_poll,
-	}
+	// SSE defaults: 300s total, stall abort <1 B/s for 120s (mid-output freeze)
+	opts := http_sse_opts()
+	opts.cancel = http_opts.cancel
+	opts.on_poll = http_opts.on_poll
 
 	// Headless output policy (clean, Grok-scriptable):
 	//   default → buffer; agent loop prints the *final* answer once (no mid-tool noise)
@@ -480,11 +512,7 @@ chat_completion_stream :: proc(
 				time.sleep(time.Duration(http_retry_backoff_ms(attempt)) * time.Millisecond)
 				continue
 			}
-			_, perr := parse_chat_completions_response(full_body, allocator)
-			if perr != "" {
-				return {}, fmt.tprintf("HTTP %d: %s", status, perr)
-			}
-			return {}, fmt.tprintf("HTTP %d: %s", status, truncate(full_body, 400))
+			return {}, format_http_error_body(status, full_body, allocator)
 		}
 
 		if accum.saw_error != "" {

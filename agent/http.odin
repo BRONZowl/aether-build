@@ -25,6 +25,11 @@ Http_Error :: enum {
 Http_Opts :: struct {
 	connect_timeout_s: int, // default 15 when <= 0
 	timeout_s:         int, // default 120 when <= 0; use http_sse_opts for long samples
+	// Abort if transfer averages below low_speed_limit bytes/s for low_speed_time
+	// seconds (libcurl CURLOPT_LOW_SPEED_*). 0 = leave unset. SSE defaults use a
+	// stall window so a mid-output hang does not sit until the full timeout_s.
+	low_speed_limit:   int,
+	low_speed_time:    int,
 	cancel:            ^bool,
 	on_poll:           proc(), // optional; invoked from xferinfo (e.g. TUI key peek)
 }
@@ -37,10 +42,13 @@ http_default_opts :: proc() -> Http_Opts {
 }
 
 // http_sse_opts is for chat completions streaming (long samples).
+// Stall: <1 B/s for 120s → Timed_Out (unblocks frozen mid-output; total still 300s).
 http_sse_opts :: proc() -> Http_Opts {
 	return Http_Opts {
 		connect_timeout_s = 15,
 		timeout_s         = 300,
+		low_speed_limit   = 1,
+		low_speed_time    = 120,
 	}
 }
 
@@ -155,7 +163,15 @@ easy_apply_common :: proc(easy: ^curl.CURL, opts: Http_Opts, xfer: ^Xfer_User) {
 	curl.easy_setopt(easy, .CONNECTTIMEOUT, c.long(o.connect_timeout_s))
 	curl.easy_setopt(easy, .TIMEOUT, c.long(o.timeout_s))
 
-	// Cooperative cancel / key poll during blocking easy_perform
+	// Mid-stream stall abort (esp. SSE): dead connections that keep the socket open
+	if o.low_speed_limit > 0 && o.low_speed_time > 0 {
+		curl.easy_setopt(easy, .LOW_SPEED_LIMIT, c.long(o.low_speed_limit))
+		curl.easy_setopt(easy, .LOW_SPEED_TIME, c.long(o.low_speed_time))
+	}
+
+	// Cooperative cancel / key poll during blocking easy_perform.
+	// Always wire progress when cancel/on_poll set so Ctrl+C works during idle
+	// stalls (xferinfo is invoked ~1Hz even with no payload).
 	if o.cancel != nil || o.on_poll != nil {
 		xfer.cancel = o.cancel
 		xfer.on_poll = o.on_poll
@@ -451,13 +467,22 @@ http_post_sse :: proc(
 	}
 	defer curl.easy_cleanup(easy)
 
-	// Prefer SSE defaults when caller left timeout unset
+	// Prefer SSE defaults when caller left timeout / stall unset
 	o := opts
 	if o.timeout_s <= 0 {
 		o.timeout_s = 300
 	}
 	if o.connect_timeout_s <= 0 {
 		o.connect_timeout_s = 15
+	}
+	// Stall window so mid-output freezes surface as Timed_Out instead of a
+	// dead UI until the full 300s budget. Pass low_speed_limit < 0 to disable.
+	if o.low_speed_limit < 0 || o.low_speed_time < 0 {
+		o.low_speed_limit = 0
+		o.low_speed_time = 0
+	} else if o.low_speed_limit == 0 && o.low_speed_time == 0 {
+		o.low_speed_limit = 1
+		o.low_speed_time = 120
 	}
 
 	ctx: Sse_Stream_Ctx
@@ -467,6 +492,11 @@ http_post_sse :: proc(
 	ctx.user = user
 	ctx.cancel = o.cancel
 	ctx.on_poll = o.on_poll
+
+	// Ensure xferinfo is active for cancel/poll even if caller only set cancel
+	// (easy_apply_common already wires when either is set).
+	core.hang_log("http_post_sse enter")
+	defer core.hang_log("http_post_sse exit")
 
 	xfer: Xfer_User
 	easy_apply_common(easy, o, &xfer)

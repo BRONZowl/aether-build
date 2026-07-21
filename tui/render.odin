@@ -298,13 +298,19 @@ push_assistant :: proc(
 ) {
 	// fence split
 	parts := strings.split(text, "```", context.temp_allocator)
+	// Live stream uses bi == -1. Incomplete trailing fences + mermaid layout
+	// every ~80ms freezes the main thread mid-output.
+	live_stream := bi < 0
 	for pi in 0 ..< len(parts) {
 		part := parts[pi]
 		if pi % 2 == 1 {
 			// C1.3: language-tagged fences (mermaid, rust, …)
 			body_start, lang := fence_body_start_and_lang(part)
-			// M8: mermaid → Unicode box-drawing layout when enabled
-			if is_mermaid_lang(lang) {
+			// Closed fence = another ``` segment follows (even open-count).
+			// Skip mermaid layout for open/trailing fences and for live stream
+			// (re-layout on every delta is too expensive; final history paint does it).
+			closed_fence := pi + 1 < len(parts)
+			if closed_fence && !live_stream && is_mermaid_lang(lang) {
 				// body is after language tag; when tag is flowchart/sequence the
 				// tag itself is the diagram header — rejoin as source.
 				body: string
@@ -323,13 +329,21 @@ push_assistant :: proc(
 				}
 			}
 			head := fence_header_line(lang, context.temp_allocator)
-			foot := fence_footer_line(lang, context.temp_allocator)
-			mark_line(out, styles, block_idxs, bi, head, .Code, allocator)
-			// body from body_start
-			if body_start < len(part) {
-				wrap_push(out, styles, block_idxs, bi, part[body_start:], .Code, width, allocator)
+			// Open/trailing fence: no footer while incomplete
+			if closed_fence {
+				foot := fence_footer_line(lang, context.temp_allocator)
+				mark_line(out, styles, block_idxs, bi, head, .Code, allocator)
+				if body_start < len(part) {
+					wrap_push(out, styles, block_idxs, bi, part[body_start:], .Code, width, allocator)
+				}
+				mark_line(out, styles, block_idxs, bi, foot, .Code, allocator)
+			} else {
+				// Streaming open fence — show header + raw body, no fake closer
+				mark_line(out, styles, block_idxs, bi, head, .Code, allocator)
+				if body_start < len(part) {
+					wrap_push(out, styles, block_idxs, bi, part[body_start:], .Code, width, allocator)
+				}
 			}
-			mark_line(out, styles, block_idxs, bi, foot, .Code, allocator)
 		} else if part != "" {
 			// C1.2: GFM pipe tables + prose wrap
 			push_markdown_prose(out, styles, block_idxs, bi, part, width, allocator)

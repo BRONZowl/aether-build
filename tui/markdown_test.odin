@@ -99,6 +99,20 @@ test_push_assistant_mermaid_fence :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(joined, "See:") || strings.contains(joined, "Done"))
 }
 
+// Open/trailing fence (mid-stream): no crash, body visible, no fake footer-only hang.
+@(test)
+test_push_assistant_open_fence_live :: proc(t: ^testing.T) {
+	out := make([dynamic]string, 0, 16, context.temp_allocator)
+	styles := make([dynamic]Line_Style, 0, 16, context.temp_allocator)
+	idxs := make([dynamic]int, 0, 16, context.temp_allocator)
+	// Unclosed mermaid while streaming (bi == -1 skips layout)
+	text := "Intro\n```mermaid\nflowchart TD\n  A-->B"
+	push_assistant(&out, &styles, &idxs, -1, text, 80, context.temp_allocator)
+	joined := strings.join(out[:], "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "Intro") || strings.contains(joined, "mermaid"))
+	testing.expect(t, strings.contains(joined, "A-->B") || strings.contains(joined, "flowchart"))
+}
+
 @(test)
 test_is_table_delimiter_line :: proc(t: ^testing.T) {
 	testing.expect(t, is_table_delimiter_line("| --- | --- |"))

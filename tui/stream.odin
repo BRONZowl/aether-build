@@ -13,15 +13,17 @@ import "aether:core"
 // One active turn at a time — bind at turn start, clear at turn end.
 
 Stream_Ctx :: struct {
-	cancel:      bool,
-	perm:        ^core.Permission_Mode,
-	perm_before: ^core.Permission_Mode,
-	st:          ^App_State,
-	term:        ^Term_State,
-	status_st:   ^App_State,
-	status_term: ^Term_State,
-	sess:        ^agent.Session,
-	slash_st:    ^App_State,
+	cancel:         bool,
+	perm:           ^core.Permission_Mode,
+	perm_before:    ^core.Permission_Mode,
+	st:             ^App_State,
+	term:           ^Term_State,
+	status_st:      ^App_State,
+	status_term:    ^Term_State,
+	sess:           ^agent.Session,
+	slash_st:       ^App_State,
+	last_poll_ns:   i64, // throttle peek_turn_keys during fast SSE
+	render_depth:   int, // reentrancy guard (peek may paint mid stream_delta)
 }
 
 // Package-level active context (callbacks have no user-data slot).
@@ -127,11 +129,27 @@ stream_tool_done_cb :: proc() {
 
 // Non-blocking peek during long turns: Ctrl+C cancel, Ctrl+O yolo, Shift+Tab cycle,
 // and B31 scroll keys (so stream_follow can detach while tokens/tools still run).
-// Also used as agent on_poll during in-flight HTTP.
+// Also used as agent on_poll during in-flight HTTP (must stay proc() for Poll_Handler).
 peek_turn_keys :: proc() {
+	peek_turn_keys_impl(true)
+}
+
+// Throttled peek for stream_delta (avoid tcsetattr every token).
+peek_turn_keys_throttled :: proc() {
+	peek_turn_keys_impl(false)
+}
+
+@(private)
+peek_turn_keys_impl :: proc(force: bool) {
 	if g_rt.cancel {
 		return
 	}
+	now := time.now()._nsec
+	if !force && g_rt.last_poll_ns != 0 && (now - g_rt.last_poll_ns) < STREAM_POLL_NS {
+		return
+	}
+	g_rt.last_poll_ns = now
+
 	old: posix.termios
 	if posix.tcgetattr(posix.FD(posix.STDIN_FILENO), &old) != .OK {
 		return
@@ -153,6 +171,10 @@ peek_turn_keys :: proc() {
 			if g_rt.st != nil {
 				state_set_status(g_rt.st, "cancelling…")
 			}
+			// Paint cancelling immediately even if a stream paint is in flight
+			if g_rt.term != nil && g_rt.st != nil {
+				stream_safe_render()
+			}
 			return
 		}
 	}
@@ -166,7 +188,7 @@ peek_turn_keys :: proc() {
 			if buf[i] == 0x0f {
 				toggle_yolo(g_rt.st, g_rt.perm, g_rt.perm_before)
 				if g_rt.term != nil {
-					render(g_rt.term, g_rt.st)
+					stream_safe_render()
 				}
 				return
 			}
@@ -179,7 +201,7 @@ peek_turn_keys :: proc() {
 			}
 			cycle_mode(g_rt.st, g_rt.perm, g_rt.perm_before, cwd)
 			if g_rt.term != nil {
-				render(g_rt.term, g_rt.st)
+				stream_safe_render()
 			}
 			return
 		}
@@ -187,16 +209,29 @@ peek_turn_keys :: proc() {
 	// B31: mid-turn scroll (Ctrl+U/J/K, arrows, PgUp/Dn, wheel)
 	if peek_apply_stream_scroll(buf[:n]) {
 		if g_rt.term != nil {
-			render(g_rt.term, g_rt.st)
+			stream_safe_render()
 		}
 		return
 	}
 	// Wave 1: mid-turn compose + queue (printable / Enter / Backspace)
 	if peek_apply_stream_compose(buf[:n]) {
 		if g_rt.term != nil {
-			render(g_rt.term, g_rt.st)
+			stream_safe_render()
 		}
 	}
+}
+
+// stream_safe_render: skip nested full paints (re-entry from peek during stream_delta).
+stream_safe_render :: proc() {
+	if g_rt.term == nil || g_rt.st == nil {
+		return
+	}
+	if g_rt.render_depth > 0 {
+		return
+	}
+	g_rt.render_depth += 1
+	render(g_rt.term, g_rt.st)
+	g_rt.render_depth -= 1
 }
 
 // peek_apply_stream_compose: type into prompt while agent runs; Enter queues
@@ -392,15 +427,18 @@ stream_delta :: proc(text: string) {
 	if g_rt.st == nil {
 		return
 	}
-	peek_turn_keys()
+	// Throttled poll so fast SSE does not tcsetattr/read every token
+	peek_turn_keys_throttled()
+	if g_rt.cancel {
+		// Stop buffering once cancel is requested; curl aborts via xferinfo/write_cb
+		state_set_status(g_rt.st, "cancelling…")
+		return
+	}
 	strings.write_string(&g_rt.st.live_assist, text)
 	g_rt.st.streaming = true
 	now := time.now()._nsec
 	if g_rt.term != nil && (now - g_rt.st.last_redraw_ns) >= STREAM_REDRAW_NS {
 		g_rt.st.last_redraw_ns = now
-		if g_rt.cancel {
-			state_set_status(g_rt.st, "cancelling…")
-		}
-		render(g_rt.term, g_rt.st)
+		stream_safe_render()
 	}
 }
