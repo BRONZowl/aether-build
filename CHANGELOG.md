@@ -4,6 +4,13 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### /fork worktree (Grok-shaped)
+
+- `/fork [--worktree|--no-worktree] [title]` — peer session clone
+- TUI bare `/fork` asks worktree vs same workspace every time
+- `--worktree` creates detached git worktree under `~/.grok/aether/worktrees/` and sets session cwd
+- Directive/title fills composer after fork (not auto-submitted)
+
 ### Remaining surfaces (except billing)
 
 - **Command palette** (`/help`): searchable slash list; Enter inserts into composer

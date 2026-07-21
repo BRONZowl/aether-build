@@ -96,6 +96,28 @@ handle_slash :: proc(
 		state_set_status(st, "settings")
 		return true
 	}
+	// bare /fork or /fork <title> without flags → worktree modal
+	if line == "/fork" || strings.has_prefix(line, "/fork ") {
+		arg := ""
+		if sp := strings.index_byte(line, ' '); sp >= 0 {
+			arg = strings.trim_space(line[sp + 1:])
+		}
+		wt, rest, perr := agent.parse_fork_args(arg)
+		if perr != "" {
+			input_clear(st)
+			state_add_notice(st, fmt.tprintf("aether: %s", perr))
+			state_set_status(st, "fork error")
+			return true
+		}
+		if wt == .Ask {
+			// Grok: always ask when no flags
+			input_clear(st)
+			fork_modal_open(&st.fork_modal, rest)
+			state_set_status(st, "fork: worktree?")
+			return true
+		}
+		// flagged: fall through to agent
+	}
 	// /help bare → command palette
 	if line == "/help" || line == "/?" {
 		input_clear(st)
@@ -319,6 +341,14 @@ handle_slash :: proc(
 		rebuild_blocks(st, sess.msgs[:])
 		seed_prompt_history(st, sess.msgs[:])
 		stream_pin_bottom(st)
+		// After /fork with directive, fill composer once
+		if strings.has_prefix(line, "/fork") {
+			if dir := agent.take_fork_pending_composer(); dir != "" {
+				input_set_text(st, dir)
+				delete(dir)
+				focus_prompt(st)
+			}
+		}
 		// B56: /clear, /new, /home drop ephemeral notice spam
 		if line == "/clear" ||
 		   line == "/new" ||

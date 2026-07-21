@@ -22,6 +22,7 @@ Overlay_Kind :: enum {
 	Command_Palette,
 	Docs_Picker,
 	Personas,
+	Fork,
 }
 
 // overlay_kind: highest-priority active overlay (ask steals first).
@@ -64,6 +65,9 @@ overlay_kind :: proc(s: ^App_State) -> Overlay_Kind {
 	}
 	if s.personas_modal.active {
 		return .Personas
+	}
+	if s.fork_modal.active {
+		return .Fork
 	}
 	return .None
 }

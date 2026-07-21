@@ -15,6 +15,17 @@ Slash_Action :: enum {
 // Slash_Writer receives user-visible slash output (one logical line at a time).
 Slash_Writer :: #type proc(line: string)
 
+// After /fork with a directive, TUI may pull this into the composer once.
+// Owned heap string; take_fork_pending_composer transfers ownership.
+g_fork_pending_composer: string
+
+// take_fork_pending_composer: returns and clears pending directive (caller frees).
+take_fork_pending_composer :: proc() -> string {
+	s := g_fork_pending_composer
+	g_fork_pending_composer = ""
+	return s
+}
+
 
 // emit_line writes one slash output line (stderr when out is nil).
 emit_line :: proc(out: Slash_Writer, line: string) {
@@ -893,35 +904,100 @@ run_slash :: proc(
 		}
 		return .Continue
 	case "/fork":
-		// Save current first if autosave so parent is durable
+		// Grok-shaped: /fork [--worktree|--no-worktree] [title/directive]
+		wt, rest, perr := parse_fork_args(arg)
+		if perr != "" {
+			emit_line(out, fmt.tprintf("aether: %s", perr))
+			emit_line(out, "aether: usage: /fork [--worktree|--no-worktree] [title]")
+			return .Continue
+		}
+		// REPL/headless: Ask → No (TUI modal resolves Ask before calling with Yes/No)
+		if wt == .Ask {
+			wt = .No
+			if strings.trim_space(arg) == "" || strings.trim_space(rest) == strings.trim_space(arg) {
+				// bare or title-only: tip about worktree
+				emit_line(out, "aether: forking in same workspace (use /fork --worktree for isolated git worktree)")
+			}
+		}
+		if wt == .Yes && !worktree_enabled() {
+			emit_line(out, "aether: worktree isolation disabled (AETHER_NO_WORKTREE=1); using same workspace")
+			wt = .No
+		}
+
+		parent_cwd := sess.cwd
+		if parent_cwd == "" && cwd != nil {
+			parent_cwd = cwd^
+		}
+		if parent_cwd == "" {
+			parent_cwd = "."
+		}
+
+		// Create worktree before switching session (need parent cwd + new id)
+		// We need an id first for path naming — generate via dry fork path:
+		// 1) autosave parent 2) fork session 3) worktree with forked.id 4) set cwd
 		if sess.auto_save {
 			if e := session_save(sess); e != "" {
 				emit_line(out, fmt.tprintf("aether: autosave before fork failed: %s", e))
 			}
 		}
-		forked, ferr := session_fork(sess^, strings.trim_space(arg), context.allocator)
+
+		title := fork_title_from_rest(rest)
+		if len(title) > 77 && len(strings.trim_space(rest)) > 77 {
+			title = fmt.tprintf("%s…", title)
+		}
+
+		forked, ferr := session_fork(sess^, title, context.allocator)
 		if ferr != "" {
 			emit_line(out, fmt.tprintf("aether: fork failed: %s", ferr))
 			return .Continue
 		}
+
+		wt_note := "worktree=no"
+		if wt == .Yes {
+			wt_path, wterr := create_subagent_worktree(parent_cwd, forked.id, context.allocator)
+			if wterr != "" {
+				// Roll back forked session file
+				_ = session_delete_by_ref(forked.path, forked.sessions_dir, "")
+				destroy_session(&forked)
+				emit_line(out, fmt.tprintf("aether: worktree failed: %s", wterr))
+				emit_line(out, "aether: parent session unchanged; try /fork --no-worktree or fix git")
+				return .Continue
+			}
+			delete(forked.cwd)
+			forked.cwd = wt_path // takes ownership of allocated path
+			if e := session_save(&forked); e != "" {
+				emit_line(out, fmt.tprintf("aether: forked but save cwd failed: %s", e))
+			}
+			wt_note = fmt.tprintf("worktree=yes cwd=%s", forked.cwd)
+		}
+
 		// Switch to fork
 		old_auto := sess.auto_save
 		destroy_session(sess)
 		sess^ = forked
 		sess.auto_save = old_auto
-		if sess.model != "" {
-			model^ = sess.model
+		if sess.model != "" && model != nil {
+			delete(model^)
+			model^ = strings.clone(sess.model)
 		}
-		if sess.cwd != "" {
-			cwd^ = sess.cwd
+		if sess.cwd != "" && cwd != nil {
+			delete(cwd^)
+			cwd^ = strings.clone(sess.cwd)
+		}
+		// Stash directive for TUI composer (process-local; optional)
+		delete(g_fork_pending_composer)
+		g_fork_pending_composer = ""
+		if strings.trim_space(rest) != "" {
+			g_fork_pending_composer = strings.clone(strings.trim_space(rest))
 		}
 		emit_line(
 			out,
 			fmt.tprintf(
-				"aether: forked → session %s %q (%d messages)",
+				"aether: forked → session %s %q (%d messages) %s",
 				sess.id,
 				sess.title,
 				len(sess.msgs),
+				wt_note,
 			),
 		)
 		return .Session_Changed

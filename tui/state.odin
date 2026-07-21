@@ -112,6 +112,7 @@ App_State :: struct {
 	command_palette: Command_Palette,
 	docs_picker:     Docs_Picker,
 	personas_modal:  Personas_Modal,
+	fork_modal:      Fork_Modal,
 	// Mid-turn prompt queue (Grok /queue)
 	prompt_queue:       [dynamic]string, // owned FIFO
 	queue_pane_active:  bool,
@@ -157,6 +158,7 @@ state_init :: proc(s: ^App_State) {
 	command_palette_init(&s.command_palette)
 	docs_picker_init(&s.docs_picker)
 	personas_modal_init(&s.personas_modal)
+	fork_modal_init(&s.fork_modal)
 	prompt_queue_init(s)
 	s.ask_active = false
 	s.ask_name = ""
@@ -220,6 +222,7 @@ state_destroy :: proc(s: ^App_State) {
 	command_palette_destroy(&s.command_palette)
 	docs_picker_destroy(&s.docs_picker)
 	personas_modal_destroy(&s.personas_modal)
+	fork_modal_destroy(&s.fork_modal)
 	prompt_queue_destroy(s)
 	delete(s.ask_name)
 	delete(s.ask_summary)

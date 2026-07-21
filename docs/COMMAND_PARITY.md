@@ -9,7 +9,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/docs` (`howto`, `guides`) | How-to guides / docs.x.ai | TUI docs picker (local md + web + discover) | **Match** |
 | `/home` (`welcome`) | Welcome screen | New empty session (welcome when TUI blocks empty) | **Match** |
 | `/new` (`clear`) | New session | New session (`/clear` = same) | **Match** |
-| `/fork` | Branch peer agent | Branch new session | **Partial** (no worktree fork UI) |
+| `/fork` | Branch peer agent | Peer session; TUI asks worktree; `--worktree`/`--no-worktree` | **Match** |
 | `/compact` | Compact history | Compact history | **Match** |
 | `/copy` | Copy Nth assistant | Copy Nth / TUI selection | **Match** |
 | `/find` | Scrollback search | Scrollback search (TUI) | **Match** |
@@ -72,7 +72,7 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | Public session URL share | No cloud share backend |
 | Remote marketplace catalog | Local plugins only |
 | Remote privacy / feedback APIs | Local files only |
-| Worktree fork UI | Session fork exists; dashboard worktree UI later |
+| Dual-pane multi-session after fork | Single in-process switch (peer session) |
 
 ## Policy
 

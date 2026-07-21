@@ -79,8 +79,8 @@ SLASH_CATALOG := [?]Slash_Entry {
 	{
 		primary = "/fork",
 		section = "Session",
-		help_left = "/fork [title]",
-		help_right = "branch conversation into a new session",
+		help_left = "/fork [--worktree] [title]",
+		help_right = "peer session; optional git worktree",
 		desc = "Branch the current session into a peer agent",
 		in_menu = true,
 	},

@@ -223,6 +223,22 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 			continue
 		}
+		if st.fork_modal.active {
+			if handle_fork_modal_key(
+				&st,
+				&sess,
+				&term,
+				key,
+				&model,
+				&cwd,
+				&perm,
+				&perm_before_yolo,
+				opts,
+			) {
+				dirty = true
+			}
+			continue
+		}
 		// Scrollback find mode
 		if st.search.active {
 			if handle_search_key(&st, key) {
