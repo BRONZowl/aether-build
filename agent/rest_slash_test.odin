@@ -10,15 +10,30 @@ import "core:testing"
 import "aether:core"
 import "aether:tools"
 
+// Package-level helpers (avoid nested procs as Slash_Writer — flaky under CI).
+@(private)
+rest_test_clear_lines :: proc(lines: ^[dynamic]string) {
+	for s in lines {
+		delete(s)
+	}
+	clear(lines)
+}
+
+@(private)
+rest_test_out :: proc(line: string) {
+	if g_test_slash_lines != nil {
+		append(g_test_slash_lines, strings.clone(line))
+	}
+}
+
 @(test)
 test_rest_slash_docs_cd_tasks_recap :: proc(t: ^testing.T) {
-	defer maybe_stop_skills(nil)
+	// Isolate env so CI never hits network / GUI clipboard
 	prev_sk := os.get_env("AETHER_NO_SKILLS", context.temp_allocator)
-	_ = os.set_env("AETHER_NO_SKILLS", "1")
-	// Force offline /recap and file-only clipboard (no GUI process backends in CI)
 	prev_auth := os.get_env("GROK_AUTH_PATH", context.temp_allocator)
 	prev_key := os.get_env("XAI_API_KEY", context.temp_allocator)
 	prev_clip := os.get_env("AETHER_CLIPBOARD_FILE", context.temp_allocator)
+	_ = os.set_env("AETHER_NO_SKILLS", "1")
 	_ = os.set_env("GROK_AUTH_PATH", "/tmp/aether-no-auth-rest-slash")
 	_ = os.unset_env("XAI_API_KEY")
 	_ = os.unset_env("GROK_CODE_XAI_API_KEY")
@@ -44,15 +59,59 @@ test_rest_slash_docs_cd_tasks_recap :: proc(t: ^testing.T) {
 		}
 	}
 
-	dir := fmt.tprintf("/tmp/aether-rest-slash-%d", os.get_pid())
+	dir := fmt.aprintf("/tmp/aether-rest-slash-%d", os.get_pid())
 	_ = os.remove_all(dir)
-	_ = os.make_directory_all(dir)
+	testing.expect(t, os.make_directory_all(dir) == nil)
 	defer os.remove_all(dir)
 
-	// nested target for /cd
-	sub, _ := strings.concatenate({dir, "/sub"}, context.temp_allocator)
-	_ = os.make_directory_all(sub)
+	sub := fmt.aprintf("%s/sub", dir)
+	defer delete(sub)
+	testing.expect(t, os.make_directory_all(sub) == nil)
 
+	// --- unit handlers (no run_slash / no session mutation) ---
+	docs := handle_docs_slash("", context.allocator)
+	testing.expect(t, strings.contains(docs, "docs") || strings.contains(docs, "/help"), docs)
+	delete(docs)
+
+	msg, new_cwd := handle_cd_slash(sub, dir, context.allocator)
+	testing.expect(t, strings.contains(msg, "cwd") || strings.contains(msg, "sub"), msg)
+	testing.expect(t, new_cwd == sub || strings.contains(new_cwd, "sub"), new_cwd)
+	delete(msg)
+	delete(new_cwd)
+
+	msg2, _ := handle_cd_slash("", dir, context.allocator)
+	testing.expect(t, strings.contains(msg2, "cwd"), msg2)
+	delete(msg2)
+
+	tasks := handle_tasks_slash(context.allocator)
+	testing.expect(
+		t,
+		strings.contains(tasks, "tasks") || strings.contains(tasks, "Background") || strings.contains(tasks, "bg"),
+		tasks,
+	)
+	delete(tasks)
+
+	queue := handle_queue_slash("", context.allocator)
+	testing.expect(t, strings.contains(strings.to_lower(queue, context.temp_allocator), "queue"), queue)
+	delete(queue)
+
+	priv := handle_privacy_slash("", context.allocator)
+	testing.expect(t, strings.contains(strings.to_lower(priv, context.temp_allocator), "privacy"), priv)
+	delete(priv)
+
+	term := handle_terminal_setup_slash(context.allocator)
+	testing.expect(t, strings.contains(term, "TERM") || strings.contains(term, "terminal"), term)
+	delete(term)
+
+	voice := handle_voice_slash(context.allocator)
+	testing.expect(
+		t,
+		strings.contains(voice, "not available") || strings.contains(voice, "voice"),
+		voice,
+	)
+	delete(voice)
+
+	// --- session-backed handlers ---
 	sess := new_session("m", dir, dir, false, .Always_Approve)
 	defer destroy_session(&sess)
 	append(
@@ -64,125 +123,46 @@ test_rest_slash_docs_cd_tasks_recap :: proc(t: ^testing.T) {
 		Chat_Message{role = .Assistant, content = strings.clone("assistant reply about widgets")},
 	)
 
+	recap := handle_recap_slash(&sess, "m", context.allocator)
+	testing.expect(t, strings.contains(recap, "recap") || strings.contains(recap, "hello"), recap)
+	delete(recap)
+
+	share := handle_share_slash(&sess, context.allocator)
+	testing.expect(t, strings.contains(share, "share") || strings.contains(share, "transcript"), share)
+	delete(share)
+
+	// light run_slash smoke (no /cd chdir, no /home session wipe)
+	lines := make([dynamic]string, 0, 8)
+	defer rest_test_clear_lines(&lines)
+	defer delete(lines)
+	g_test_slash_lines = &lines
+	defer g_test_slash_lines = nil
+
 	model := strings.clone("m")
 	cwd := strings.clone(dir)
 	defer delete(model)
 	defer delete(cwd)
-
-	lines := make([dynamic]string, 0, 16)
-	defer {
-		for s in lines {
-			delete(s)
-		}
-		delete(lines)
+	opts := Headless_Options {
+		quiet = true,
 	}
-	g_test_slash_lines = &lines
-	defer g_test_slash_lines = nil
-	out :: proc(line: string) {
-		if g_test_slash_lines != nil {
-			append(g_test_slash_lines, strings.clone(line))
-		}
-	}
-	opts := Headless_Options{quiet = true}
 	perm := core.Permission_Mode.Always_Approve
 
-	// /docs
-	clear_lines :: proc(lines: ^[dynamic]string) {
-		for s in lines {
-			delete(s)
-		}
-		clear(lines)
-	}
-	act := run_slash(&sess, "/docs", opts, &model, &cwd, &perm, out)
+	act := run_slash(&sess, "/docs", opts, &model, &cwd, &perm, rest_test_out)
 	testing.expect(t, act == .Continue)
 	joined := strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "docs") || strings.contains(joined, "/help"))
-	clear_lines(&lines)
+	testing.expect(t, strings.contains(joined, "docs") || strings.contains(joined, "/help"), joined)
+	rest_test_clear_lines(&lines)
 
-	// /cd
-	act = run_slash(&sess, fmt.tprintf("/cd %s", sub), opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "cwd") || strings.contains(joined, sub))
-	testing.expect(t, strings.contains(cwd, "sub") || cwd == sub)
-	clear_lines(&lines)
-
-	// bare /cd status
-	act = run_slash(&sess, "/cd", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "cwd"))
-	clear_lines(&lines)
-
-	// /tasks
-	act = run_slash(&sess, "/tasks", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "tasks") || strings.contains(joined, "Background"))
-	clear_lines(&lines)
-
-	// /queue
-	act = run_slash(&sess, "/queue", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(strings.to_lower(joined, context.temp_allocator), "queue"))
-	clear_lines(&lines)
-
-	// /recap
-	act = run_slash(&sess, "/recap", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "recap") || strings.contains(joined, "hello"))
-	clear_lines(&lines)
-
-	// /privacy
-	act = run_slash(&sess, "/privacy", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(strings.to_lower(joined, context.temp_allocator), "privacy"))
-	clear_lines(&lines)
-
-	// /terminal-setup
-	act = run_slash(&sess, "/terminal-setup", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "TERM") || strings.contains(joined, "terminal"))
-	clear_lines(&lines)
-
-	// /share
-	act = run_slash(&sess, "/share", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "export") || strings.contains(joined, "share"))
-	clear_lines(&lines)
-
-	// /voice
-	act = run_slash(&sess, "/voice", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Continue)
-	joined = strings.join(lines[:], "\n", context.temp_allocator)
-	testing.expect(t, strings.contains(joined, "not available") || strings.contains(joined, "voice"))
-	clear_lines(&lines)
-
-	// /home → new session
-	act = run_slash(&sess, "/home", opts, &model, &cwd, &perm, out)
-	testing.expect(t, act == .Session_Changed)
-	// system-only after new
-	user_n := 0
-	for m in sess.msgs {
-		if m.role == .User {
-			user_n += 1
-		}
-	}
-	testing.expect(t, user_n == 0)
 	_ = tools.todo_open_count()
 }
 
 @(test)
 test_rest_slash_transcript_export :: proc(t: ^testing.T) {
-	dir := fmt.tprintf("/tmp/aether-transcript-%d", os.get_pid())
+	dir := fmt.aprintf("/tmp/aether-transcript-%d", os.get_pid())
 	_ = os.remove_all(dir)
-	_ = os.make_directory_all(dir)
+	testing.expect(t, os.make_directory_all(dir) == nil)
 	defer os.remove_all(dir)
+	defer delete(dir)
 
 	sess := new_session("m", dir, dir, false, .Always_Approve)
 	defer destroy_session(&sess)

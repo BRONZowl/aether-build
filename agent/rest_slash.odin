@@ -422,14 +422,10 @@ handle_cd_slash :: proc(
 	if !os.is_directory(abs) {
 		return strings.clone(fmt.tprintf("aether: not a directory: %s", abs), allocator), ""
 	}
+	// Logical workspace only — do not os.change_directory the agent process.
+	// Tools use sess.cwd / --cwd as working_dir; process chdir breaks CI and
+	// multi-session isolation (and can leave the process in a deleted /tmp tree).
 	owned := strings.clone(abs, allocator)
-	if cerr := os.change_directory(owned); cerr != nil {
-		// Still update logical cwd for tools even if process chdir fails
-		return strings.clone(
-			fmt.tprintf("aether: workspace set to %s (process chdir failed: %v)", owned, cerr),
-			allocator,
-		), owned
-	}
 	return strings.clone(fmt.tprintf("aether: cwd → %s", owned), allocator), owned
 }
 
