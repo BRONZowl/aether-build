@@ -286,19 +286,6 @@ format_box_rail :: proc(
 	return strings.to_string(b)
 }
 
-// composer_session_title: short title for top rail (empty if untitled).
-composer_session_title :: proc(s: ^App_State) -> string {
-	t := strings.trim_space(s.session_title)
-	if t == "" {
-		return ""
-	}
-	// keep rail readable
-	if utf8.rune_count(t) > 32 {
-		return truncate_runes(t, 32)
-	}
-	return t
-}
-
 // composer_border_ansi: stronger when prompt focused, dim when scrollback-focused.
 composer_border_ansi :: proc(focused: bool, th: Theme) -> string {
 	if focused {

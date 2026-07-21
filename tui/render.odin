@@ -982,8 +982,8 @@ write_input :: proc(
 			}
 			strings.write_string(b, "\r\n")
 		}
-		title := composer_session_title(s)
-		top := format_composer_top_border(cols, title)
+		// Plain top rail (no session title inset — title lives in session picker/dashboard)
+		top := format_composer_top_border(cols, "")
 		strings.write_string(b, border_ansi)
 		n := write_fit(b, top, cols)
 		strings.write_string(b, "\x1b[0m")
