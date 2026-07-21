@@ -5,10 +5,12 @@ package agent
 
 import "core:fmt"
 import "core:os"
+import "core:strings"
 import "core:time"
 
 // copy_text_to_clipboard best-effort write (wl-copy / xclip / xsel / pbcopy / file).
 // Returns a short status string (never empty).
+// Headless/CI (no display) or AETHER_CLIPBOARD_FILE=1 skips process backends.
 copy_text_to_clipboard :: proc(text: string) -> string {
 	data := text
 	trunc := false
@@ -16,19 +18,31 @@ copy_text_to_clipboard :: proc(text: string) -> string {
 		data = data[:1_000_000]
 		trunc = true
 	}
-	when ODIN_OS == .Darwin {
-		if pipe_stdin_cmd(data, {"pbcopy"}) {
+	file_only := false
+	if v := os.get_env("AETHER_CLIPBOARD_FILE", context.temp_allocator); v == "1" ||
+	   strings.equal_fold(v, "true") {
+		file_only = true
+	}
+	// No GUI session: process clipboard tools often hang or crash in CI
+	if os.get_env("DISPLAY", context.temp_allocator) == "" &&
+	   os.get_env("WAYLAND_DISPLAY", context.temp_allocator) == "" {
+		file_only = true
+	}
+	if !file_only {
+		when ODIN_OS == .Darwin {
+			if pipe_stdin_cmd(data, {"pbcopy"}) {
+				return "copied" if !trunc else "copied (truncated)"
+			}
+		}
+		if cmd_on_path("wl-copy") && pipe_stdin_cmd(data, {"wl-copy"}) {
 			return "copied" if !trunc else "copied (truncated)"
 		}
-	}
-	if cmd_on_path("wl-copy") && pipe_stdin_cmd(data, {"wl-copy"}) {
-		return "copied" if !trunc else "copied (truncated)"
-	}
-	if cmd_on_path("xclip") && pipe_stdin_cmd(data, {"xclip", "-selection", "clipboard"}) {
-		return "copied" if !trunc else "copied (truncated)"
-	}
-	if cmd_on_path("xsel") && pipe_stdin_cmd(data, {"xsel", "--clipboard", "--input"}) {
-		return "copied" if !trunc else "copied (truncated)"
+		if cmd_on_path("xclip") && pipe_stdin_cmd(data, {"xclip", "-selection", "clipboard"}) {
+			return "copied" if !trunc else "copied (truncated)"
+		}
+		if cmd_on_path("xsel") && pipe_stdin_cmd(data, {"xsel", "--clipboard", "--input"}) {
+			return "copied" if !trunc else "copied (truncated)"
+		}
 	}
 	path := "/tmp/aether-clipboard.txt"
 	if err := os.write_entire_file(path, transmute([]byte)data); err == nil {

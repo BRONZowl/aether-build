@@ -139,7 +139,8 @@ handle_btw_slash :: proc(
 			allocator,
 		)
 	}
-	answer := strings.trim_space(turn.content)
+	// Clone before destroy — turn.content is freed with the turn
+	answer := strings.clone(strings.trim_space(turn.content), context.temp_allocator)
 	destroy_assistant_turn(&turn)
 	if answer == "" {
 		return strings.clone(fmt.tprintf("btw: (empty model reply)\n  %s", q), allocator)
@@ -215,7 +216,8 @@ handle_recap_slash :: proc(
 			)
 			turn, err := chat_completion(creds, m, req[:], "")
 			if err == "" {
-				ans := strings.trim_space(turn.content)
+				// Clone before destroy_assistant_turn — content is freed with the turn
+				ans := strings.clone(strings.trim_space(turn.content), context.temp_allocator)
 				destroy_assistant_turn(&turn)
 				if ans != "" {
 					if len(ans) > 6000 {

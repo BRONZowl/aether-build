@@ -15,11 +15,32 @@ test_rest_slash_docs_cd_tasks_recap :: proc(t: ^testing.T) {
 	defer maybe_stop_skills(nil)
 	prev_sk := os.get_env("AETHER_NO_SKILLS", context.temp_allocator)
 	_ = os.set_env("AETHER_NO_SKILLS", "1")
+	// Force offline /recap and file-only clipboard (no GUI process backends in CI)
+	prev_auth := os.get_env("GROK_AUTH_PATH", context.temp_allocator)
+	prev_key := os.get_env("XAI_API_KEY", context.temp_allocator)
+	prev_clip := os.get_env("AETHER_CLIPBOARD_FILE", context.temp_allocator)
+	_ = os.set_env("GROK_AUTH_PATH", "/tmp/aether-no-auth-rest-slash")
+	_ = os.unset_env("XAI_API_KEY")
+	_ = os.unset_env("GROK_CODE_XAI_API_KEY")
+	_ = os.set_env("AETHER_CLIPBOARD_FILE", "1")
 	defer {
 		if prev_sk != "" {
 			_ = os.set_env("AETHER_NO_SKILLS", prev_sk)
 		} else {
 			_ = os.unset_env("AETHER_NO_SKILLS")
+		}
+		if prev_auth != "" {
+			_ = os.set_env("GROK_AUTH_PATH", prev_auth)
+		} else {
+			_ = os.unset_env("GROK_AUTH_PATH")
+		}
+		if prev_key != "" {
+			_ = os.set_env("XAI_API_KEY", prev_key)
+		}
+		if prev_clip != "" {
+			_ = os.set_env("AETHER_CLIPBOARD_FILE", prev_clip)
+		} else {
+			_ = os.unset_env("AETHER_CLIPBOARD_FILE")
 		}
 	}
 

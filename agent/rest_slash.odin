@@ -120,7 +120,7 @@ handle_docs_slash :: proc(arg: string, allocator := context.allocator) -> string
 		)
 	}
 	if al == "" || al == "how-to" || al == "howto" || al == "guides" || al == "list" {
-		b := strings.builder_make(allocator)
+		b := strings.builder_make(context.temp_allocator)
 		strings.write_string(&b, "## docs\n")
 		strings.write_string(&b, "In-product discover:\n")
 		strings.write_string(&b, "  /help [filter]   sectioned slash commands\n")
@@ -132,7 +132,8 @@ handle_docs_slash :: proc(arg: string, allocator := context.allocator) -> string
 		strings.write_string(&b, "\nOnline (Grok Build):\n")
 		fmt.sbprintf(&b, "  /docs web        → %s\n", BUILD_DOCS_URL)
 		strings.write_string(&b, "  Repo: README.md · PORTING.md · docs/COMMAND_PARITY.md\n")
-		return strings.to_string(b)
+		// Clone into caller allocator; temp builder is discarded with the frame
+		return strings.clone(strings.to_string(b), allocator)
 	}
 	// Title-ish: search help catalog + about
 	help_blob := handle_help_slash(a, context.temp_allocator)
