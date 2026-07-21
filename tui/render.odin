@@ -249,27 +249,26 @@ tool_body_looks_error :: proc(body: string) -> bool {
 	return strings.has_prefix(r, "error:") || strings.has_prefix(r, "Error:")
 }
 
-wrap_push :: proc(
-	out: ^[dynamic]string,
-	styles: ^[dynamic]Line_Style,
-	block_idxs: ^[dynamic]int,
-	bi: int,
+// wrap_text_lines breaks text into display rows of at most `width` runes.
+// Soft-wraps on spaces when possible; hard-breaks long tokens. Trims leading
+// spaces on continuation lines. Pure helper for tests + wrap_push.
+wrap_text_lines :: proc(
 	text: string,
-	style: Line_Style,
 	width: int,
 	allocator := context.allocator,
-) {
+) -> []string {
+	out := make([dynamic]string, 0, 8, allocator)
 	if len(text) == 0 {
-		append(out, strings.clone("", allocator))
-		append(styles, style)
-		append(block_idxs, bi)
-		return
+		append(&out, strings.clone("", allocator))
+		return out[:]
 	}
+	w := max(1, width)
 	start := 0
 	for start < len(text) {
+		line_start := start
 		// hard break on newline
 		nl := -1
-		limit := min(start + width * 4, len(text)) // byte scan upper bound
+		limit := min(start + w * 4, len(text)) // byte scan upper bound
 		for i in start ..< limit {
 			if text[i] == '\n' {
 				nl = i
@@ -283,7 +282,7 @@ wrap_push :: proc(
 			// take up to `width` display runes
 			end = start
 			cols := 0
-			for end < len(text) && cols < width {
+			for end < len(text) && cols < w {
 				if text[end] == '\n' {
 					break
 				}
@@ -295,32 +294,51 @@ wrap_push :: proc(
 				cols += 1
 			}
 			if end < len(text) && text[end] != '\n' {
-				// prefer word boundary
+				// prefer word boundary: back up to first char of overflowing word
 				sp := end
 				for sp > start && text[sp - 1] != ' ' {
 					sp -= 1
 				}
-				if sp > start + width / 4 {
+				if sp > start + w / 4 {
 					end = sp
 				}
 			}
 		}
-		append(out, strings.clone(text[start:end], allocator))
-		append(styles, style)
-		append(block_idxs, bi)
+		append(&out, strings.clone(text[line_start:end], allocator))
 		if nl >= 0 {
 			start = nl + 1
-		} else {
+		} else if end > line_start {
+			// Advanced: next line starts at end (first char of next word after soft wrap).
+			// Do NOT treat start==end after assignment as "stuck" — that dropped the
+			// first letter of every soft-wrapped word.
 			start = end
 			for start < len(text) && text[start] == ' ' {
 				start += 1
 			}
-			if start == end && start < len(text) {
-				// no progress (very long token) — force advance one rune
-				_, size := utf8.decode_rune(text[start:])
-				start += max(1, size)
-			}
+		} else {
+			// True stall (e.g. pathological width) — force one rune to avoid infinite loop
+			_, size := utf8.decode_rune(text[line_start:])
+			start = line_start + max(1, size)
 		}
+	}
+	return out[:]
+}
+
+wrap_push :: proc(
+	out: ^[dynamic]string,
+	styles: ^[dynamic]Line_Style,
+	block_idxs: ^[dynamic]int,
+	bi: int,
+	text: string,
+	style: Line_Style,
+	width: int,
+	allocator := context.allocator,
+) {
+	lines := wrap_text_lines(text, width, context.temp_allocator)
+	for line in lines {
+		append(out, strings.clone(line, allocator))
+		append(styles, style)
+		append(block_idxs, bi)
 	}
 }
 
