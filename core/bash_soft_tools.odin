@@ -310,15 +310,31 @@ bash_kubectl_is_readonly :: proc(args: string) -> bool {
 }
 
 // B36: terraform / tofu inspect (not apply/destroy/import).
+TF_VALUE_FLAGS := [?]string{"-chdir"}
+TF_ALLOW := [?]string {
+	"validate", "providers", "output", "show", "graph", "metadata", "version", "help",
+}
+TF_STATE := [?]string{"list", "show", "pull"}
+TF_WS := [?]string{"list", "show"}
+TF_NESTED := [?]Cli_Nested {
+	{sub = "state", allow = TF_STATE[:]},
+	{sub = "workspace", allow = TF_WS[:]},
+}
+TF_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = TF_VALUE_FLAGS[:],
+	allow_subs    = TF_ALLOW[:],
+	nested        = TF_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_terraform_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
+	a := strings.trim_space(args)
+	if bash_is_help_or_version(a) {
 		return true
 	}
-	sub, rest, ok := bash_peel_to_sub(args, []string{"-chdir"})
-	if !ok {
-		return true
-	}
-	if sub == "fmt" {
+	sub, rest, ok := bash_peel_to_sub(a, TF_VALUE_FLAGS[:])
+	if ok && sub == "fmt" {
 		// only check/diff modes; bare fmt rewrites files
 		if strings.contains(rest, "-check") || strings.contains(rest, "-diff") {
 			if strings.contains(rest, "-write=true") {
@@ -328,33 +344,14 @@ bash_terraform_is_readonly :: proc(args: string) -> bool {
 		}
 		return false
 	}
-	if sub == "plan" {
+	if ok && sub == "plan" {
 		// plan inspect unless -out / generate-config-out write artifacts
 		if strings.contains(rest, "-out") || strings.contains(rest, "-generate-config-out") {
 			return false
 		}
 		return true
 	}
-	if sub == "state" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "" || n == "--help" || n == "help" || n == "-h" {
-			return true
-		}
-		return bash_token_in(n, []string{"list", "show", "pull"})
-	}
-	if sub == "workspace" {
-		sub2, _ := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "" || n == "--help" || n == "help" || n == "-h" {
-			return true
-		}
-		return bash_token_in(n, []string{"list", "show"})
-	}
-	return bash_token_in(
-		sub,
-		[]string{"validate", "providers", "output", "show", "graph", "metadata", "version", "help"},
-	)
+	return bash_cli_is_readonly(args, TF_READONLY_SPEC)
 }
 
 // B36: helm list/status/get/template/lint (not install/upgrade/uninstall).
@@ -745,6 +742,25 @@ bash_zig_is_readonly :: proc(args: string) -> bool {
 }
 
 // B42: swift package inspect (not build/run/test/package resolve).
+SWIFT_PKG_ALLOW := [?]string {
+	"describe", "show-dependencies", "show-executables", "dump-package",
+	"dump-symbol-graph", "tools-version", "completion-tool",
+}
+
+bash_swift_package_is_readonly :: proc(rest: string) -> bool {
+	sub2, rest2 := first_shell_token(rest)
+	n := strings.to_lower(sub2, context.temp_allocator)
+	if n == "" || n == "--help" || n == "help" || n == "-h" {
+		return true
+	}
+	if n == "plugin" {
+		sub3, _ := first_shell_token(rest2)
+		p := strings.to_lower(sub3, context.temp_allocator)
+		return p == "" || p == "--list" || p == "list" || p == "--help" || p == "help" || p == "-h"
+	}
+	return bash_token_in(n, SWIFT_PKG_ALLOW[:])
+}
+
 bash_swift_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
@@ -758,40 +774,44 @@ bash_swift_is_readonly :: proc(args: string) -> bool {
 		return false
 	}
 	if sub == "package" {
-		sub2, rest2 := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "" || n == "--help" || n == "help" || n == "-h" {
-			return true
-		}
-		if bash_token_in(
-			n,
-			[]string{
-				"describe", "show-dependencies", "show-executables", "dump-package",
-				"dump-symbol-graph", "tools-version", "completion-tool",
-			},
-		) {
-			return true
-		}
-		// plugin list only
-		if n == "plugin" {
-			sub3, _ := first_shell_token(rest2)
-			p := strings.to_lower(sub3, context.temp_allocator)
-			return p == "" || p == "--list" || p == "list" || p == "--help" || p == "help" || p == "-h"
-		}
-		return false
+		return bash_swift_package_is_readonly(rest)
 	}
-	// swiftc --version style sometimes invoked as swift -frontend …
 	return false
 }
 
 // B42: dotnet info/list (not build/run/test/new/restore).
+DOTNET_TOOL := [?]string{"list"}
+DOTNET_WL := [?]string{"list", "search"}
+DOTNET_SDK := [?]string{"check"}
+DOTNET_NESTED := [?]Cli_Nested {
+	{sub = "tool", allow = DOTNET_TOOL[:]},
+	{sub = "workload", allow = DOTNET_WL[:]},
+	{sub = "sdk", allow = DOTNET_SDK[:]},
+}
+// allow empty list → unknown top-level fails closed except nested/nuget
+DOTNET_READONLY_SPEC := Cli_Readonly_Spec {
+	nested        = DOTNET_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
+bash_dotnet_nuget_is_readonly :: proc(rest: string) -> bool {
+	sub2, rest2 := first_shell_token(rest)
+	n := strings.to_lower(sub2, context.temp_allocator)
+	if n == "list" || n == "locals" {
+		if n == "locals" && strings.contains(rest2, "--clear") {
+			return false
+		}
+		return true
+	}
+	return n == "" || n == "--help" || n == "help" || n == "-h"
+}
+
 bash_dotnet_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	if a == "" {
-		// bare `dotnet` prints help
 		return true
 	}
-	// global flag-style inspect
 	if a == "--info" ||
 	   a == "--list-sdks" ||
 	   a == "--list-runtimes" ||
@@ -799,31 +819,10 @@ bash_dotnet_is_readonly :: proc(args: string) -> bool {
 		return true
 	}
 	sub, rest, ok := bash_peel_to_sub(a)
-	if !ok {
-		return true
+	if ok && sub == "nuget" {
+		return bash_dotnet_nuget_is_readonly(rest)
 	}
-	if sub == "nuget" {
-		sub2, rest2 := first_shell_token(rest)
-		n := strings.to_lower(sub2, context.temp_allocator)
-		if n == "list" || n == "locals" {
-			// locals --list is inspect; --clear mutates
-			if n == "locals" && strings.contains(rest2, "--clear") {
-				return false
-			}
-			return true
-		}
-		return n == "" || n == "--help" || n == "help" || n == "-h"
-	}
-	if sub == "tool" {
-		return bash_nested_allow(rest, []string{"list"})
-	}
-	if sub == "workload" {
-		return bash_nested_allow(rest, []string{"list", "search"})
-	}
-	if sub == "sdk" {
-		return bash_nested_allow(rest, []string{"check"})
-	}
-	return false
+	return bash_cli_is_readonly(args, DOTNET_READONLY_SPEC)
 }
 
 // B43: sqlite3 inspect metacommands / SELECT (not INSERT/UPDATE/interactive bare).

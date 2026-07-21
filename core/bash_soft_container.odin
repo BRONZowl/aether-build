@@ -1036,75 +1036,29 @@ bash_ctr_namespaces_is_readonly :: proc(args: string) -> bool {
 }
 
 // B87: cosign inspect (verify/tree/triangulate/version; not sign/upload/login).
+COSIGN_ALLOW := [?]string {
+	"verify", "verify-blob", "verify-attestation", "verify-blob-attestation",
+	"tree", "triangulate", "download", "dockerfile", "manifest", "public-key",
+	"env", "version", "help", "man",
+}
+COSIGN_DENY := [?]string {
+	"sign", "sign-blob", "attest", "attest-blob", "attach", "upload", "copy", "clean",
+	"login", "logout", "generate-key-pair", "import-key-pair", "initialize",
+	"load", "save", "completion", "piv-tool", "pkcs11-tool",
+}
+COSIGN_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = COSIGN_ALLOW[:],
+	deny_subs     = COSIGN_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_cosign_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if a == "" {
-		return true
-	}
-	if a == "version" ||
-	   a == "--version" ||
-	   a == "help" ||
-	   a == "--help" ||
-	   a == "-h" ||
-	   strings.has_prefix(a, "help ") ||
-	   strings.has_prefix(a, "version ") {
-		return true
-	}
-	// --output-file / download to path
 	if bash_cosign_writes_file(a) {
 		return false
 	}
-	rest := a
-	for {
-		tok, rem := first_shell_token(rest)
-		if tok == "" {
-			return true
-		}
-		if strings.has_prefix(tok, "-") {
-			rest = rem
-			continue
-		}
-		sub := strings.to_lower(tok, context.temp_allocator)
-		// mutators / key material / auth
-		if sub == "sign" ||
-		   sub == "sign-blob" ||
-		   sub == "attest" ||
-		   sub == "attest-blob" ||
-		   sub == "attach" ||
-		   sub == "upload" ||
-		   sub == "copy" ||
-		   sub == "clean" ||
-		   sub == "login" ||
-		   sub == "logout" ||
-		   sub == "generate-key-pair" ||
-		   sub == "import-key-pair" ||
-		   sub == "initialize" ||
-		   sub == "load" ||
-		   sub == "save" ||
-		   sub == "completion" ||
-		   sub == "piv-tool" ||
-		   sub == "pkcs11-tool" {
-			return false
-		}
-		// inspect (public-key/env stdout; outfile caught above)
-		if sub == "verify" ||
-		   sub == "verify-blob" ||
-		   sub == "verify-attestation" ||
-		   sub == "verify-blob-attestation" ||
-		   sub == "tree" ||
-		   sub == "triangulate" ||
-		   sub == "download" ||
-		   sub == "dockerfile" ||
-		   sub == "manifest" ||
-		   sub == "public-key" ||
-		   sub == "env" ||
-		   sub == "version" ||
-		   sub == "help" ||
-		   sub == "man" {
-			return true
-		}
-		return false
-	}
+	return bash_cli_is_readonly(args, COSIGN_READONLY_SPEC)
 }
 
 bash_cosign_writes_file :: proc(args: string) -> bool {
