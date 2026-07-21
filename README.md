@@ -1,4 +1,5 @@
-# Aether
+<h1 align="center">Aether</h1>
+
 
 **Aether** is a high-performance coding agent written in **Odin**: headless one-shots, multi-turn REPL, and a fullscreen terminal UI.
 
@@ -14,7 +15,8 @@ It is a **peer product** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)
 
 ---
 
-## Highlights
+<h2 align="center">Highlights</h2>
+
 
 - **Agent loop** — streaming chat completions (SSE), tools, multi-turn sessions  
 - **TUI + REPL** — fullscreen chat or line mode; Grok-compatible keys where practical  
@@ -27,7 +29,8 @@ Porting ledger and intentional non-goals live in **PORTING.md** (not repeated as
 
 ---
 
-## Quick start
+<h2 align="center">Quick start</h2>
+
 
 ### Dependencies
 
@@ -96,7 +99,8 @@ Session API base defaults to the Grok CLI chat proxy; OIDC tokens refresh when n
 
 ---
 
-## Standalone export
+<h2 align="center">Standalone export</h2>
+
 
 Export a self-contained source tree without removing this copy:
 
@@ -110,7 +114,8 @@ See [STANDALONE.md](./STANDALONE.md). `make dist` builds a **binary** tarball (i
 
 ---
 
-## CLI
+<h2 align="center">CLI</h2>
+
 
 | Flag / command | Meaning |
 |----------------|---------|
@@ -171,7 +176,8 @@ Slash commands include `/session`, `/sessions`, `/save`, `/load`, `/rename`, `/f
 
 ---
 
-## TUI (`aether tui`)
+<h2 align="center">TUI (`aether tui`)</h2>
+
 
 Fullscreen raw-terminal chat. Requires a TTY. Mid-turn: live stream, tool cards, status, permission modals.
 
@@ -215,7 +221,8 @@ Empty sessions can show welcome art (opt out: `AETHER_NO_ASCII_ART=1`). Brand ar
 
 ---
 
-## Tools
+<h2 align="center">Tools</h2>
+
 
 | Name | Notes |
 |------|--------|
@@ -249,13 +256,15 @@ Writes outside `--cwd` are denied.
 
 ---
 
-## Plan mode
+<h2 align="center">Plan mode</h2>
+
 
 Enter via `/plan` or Shift+Tab: research freely, but file edits are limited to **`<cwd>/.grok/plan.md`**. Exit via `exit_plan_mode` / `/plan off` (TUI may prompt to approve). Opt out: `AETHER_NO_PLAN_MODE=1`.
 
 ---
 
-## Subagents
+<h2 align="center">Subagents</h2>
+
 
 | Type | Behavior |
 |------|----------|
@@ -267,7 +276,8 @@ Supports background spawn, resume, worktree isolation, and optional **personas**
 
 ---
 
-## Skills & MCP
+<h2 align="center">Skills & MCP</h2>
+
 
 **Skills:** discovers `SKILL.md` under `~/.grok/skills`, project `.grok/skills`, Claude-compatible roots, etc. Model uses the `skill` tool; users use `/skills`, `/skill`, `/create-skill`. Opt out: `AETHER_NO_SKILLS=1`.
 
@@ -275,13 +285,15 @@ Supports background spawn, resume, worktree isolation, and optional **personas**
 
 ---
 
-## Memory
+<h2 align="center">Memory</h2>
+
 
 File-backed layout compatible with Grok Build under `~/.grok/memory/` (override `AETHER_MEMORY_DIR`). Tools: `memory_search`, `memory_get`. Slash: `/flush`, `/dream`, `/remember`, `/memory`. Opt out: `AETHER_NO_MEMORY=1`.
 
 ---
 
-## Layout
+<h2 align="center">Layout</h2>
+
 
 | Path | Role |
 |------|------|
@@ -299,7 +311,8 @@ File-backed layout compatible with Grok Build under `~/.grok/memory/` (override 
 
 ---
 
-## Tests
+<h2 align="center">Tests</h2>
+
 
 ```bash
 make build test smoke-tui
@@ -316,13 +329,15 @@ odin test tui -collection:aether=.
 
 ---
 
-## Non-goals
+<h2 align="center">Non-goals</h2>
+
 
 Documented in detail in [PORTING.md](./PORTING.md). In short: ACP multi-client UI, remote marketplace, product analytics/Mixpanel, voice, self-update, mermaid PNG/SVG (Unicode layout ships), full MCP browser OAuth DCR, SQLite embeddings memory, and related enterprise surfaces are **out of scope** for this tree.
 
 ---
 
-## License
+<h2 align="center">License</h2>
+
 
 First-party code and assets in this repository are licensed under the
 **Apache License, Version 2.0** — see [LICENSE](./LICENSE).
