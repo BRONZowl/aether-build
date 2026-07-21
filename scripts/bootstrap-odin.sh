@@ -67,7 +67,7 @@ if ! command -v llvm-config >/dev/null 2>&1; then
   done
   if [[ -z "$found" ]]; then
     log "error: llvm-config (LLVM 17–22) is required"
-    log "  Debian/Ubuntu: sudo apt-get install -y llvm clang build-essential"
+    log "  Debian/Ubuntu: sudo apt-get install -y llvm clang build-essential libcurl4-openssl-dev libmbedtls-dev ripgrep"
     log "  Arch:          sudo pacman -S llvm clang"
     exit 1
   fi

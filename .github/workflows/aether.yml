@@ -24,12 +24,15 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
+          # Odin vendor:curl links -lcurl and -lmbedtls/-lmbedx509/-lmbedcrypto
+          # (even when the system libcurl is OpenSSL-built).
           sudo apt-get install -y --no-install-recommends \
             build-essential \
             clang \
             llvm \
             llvm-dev \
             libcurl4-openssl-dev \
+            libmbedtls-dev \
             ripgrep \
             bsdutils
 

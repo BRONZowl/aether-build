@@ -34,9 +34,11 @@ Porting ledger and intentional non-goals live in **PORTING.md** (not repeated as
 | Kind | Packages |
 |------|----------|
 | **Build** | Odin (LLVM 17–22), `clang`/`c++`, `make` |
-| **Runtime (required)** | **libcurl**, **ripgrep** (`rg`) |
+| **Runtime (required)** | **libcurl**, **mbedTLS** (link deps for Odin’s curl vendor), **ripgrep** (`rg`) |
 | **Runtime (optional)** | `pdftotext` (PDF), `unzip` (PPTX), ImageMagick (media helpers) |
 | **Auth** | **`XAI_API_KEY`** (recommended), or `~/.grok/auth.json` |
+
+Debian/Ubuntu packages: `libcurl4-openssl-dev`, `libmbedtls-dev`, `ripgrep`, `build-essential`, `clang`, `llvm`.
 
 No Cargo/Rust tree and no installed Rust `grok` binary are required for normal use. Shared `~/.grok` files are optional **interop** with an existing Grok install.
 
