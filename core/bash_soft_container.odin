@@ -703,16 +703,15 @@ bash_helmfile_writes_file :: proc(args: string) -> bool {
 }
 
 // B89: stern multi-pod logs (always inspect; no cluster mutate).
+STERN_DENY := [?]string{"completion"}
+STERN_READONLY_SPEC := Cli_Readonly_Spec {
+	deny_subs     = STERN_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true, // flags/bare pod pattern — log query
+}
+
 bash_stern_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, _, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true // flags only / bare — log query
-	}
-	// completion scripts may write; bare query string / pod pattern — logs
-	return sub != "completion"
+	return bash_cli_is_readonly(args, STERN_READONLY_SPEC)
 }
 
 // B89: kubeconform manifest validate (always inspect; not schema install mutators).
@@ -1589,77 +1588,57 @@ bash_regctl_output_file :: proc(args: string) -> bool {
 }
 
 // B86: syft SBOM inspect (scan/packages/version; not login/attest).
+SYFT_DENY := [?]string{"login", "attest", "completion"}
+SYFT_READONLY_SPEC := Cli_Readonly_Spec {
+	deny_subs     = SYFT_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true, // bare image/dir source
+}
+
 bash_syft_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	// file write destinations
 	if bash_syft_grype_writes_file(a) {
 		return false
 	}
-	sub, _, ok := bash_peel_to_sub(a)
-	if !ok {
-		return true
-	}
-	if bash_token_in(sub, []string{"login", "attest", "completion"}) {
-		return false
-	}
-	// known inspect verbs or bare image/dir/source ref (legacy: `syft alpine:3`)
-	return true
+	return bash_cli_is_readonly(args, SYFT_READONLY_SPEC)
 }
 
 // B86: grype vuln scan (scan/version/db status; not db delete/update login).
+GRYPE_DENY := [?]string{"login", "completion"}
+GRYPE_DB := [?]string{"status", "list", "check", "providers"}
+GRYPE_NESTED := [?]Cli_Nested{{sub = "db", allow = GRYPE_DB[:]}}
+GRYPE_READONLY_SPEC := Cli_Readonly_Spec {
+	deny_subs     = GRYPE_DENY[:],
+	nested        = GRYPE_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true, // bare target scan
+}
+
 bash_grype_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
-	if bash_is_help_or_version(a) {
-		return true
-	}
 	if bash_syft_grype_writes_file(a) {
 		return false
 	}
-	sub, rem, ok := bash_peel_to_sub(a)
-	if !ok {
-		return true
-	}
-	if bash_token_in(sub, []string{"login", "completion"}) {
-		return false
-	}
-	if sub == "explain" || sub == "version" || sub == "help" {
-		return true
-	}
-	if sub == "db" {
-		// grype db status|list|check inspect; update/delete mutates local DB
-		return bash_nested_allow(rem, []string{"status", "list", "check", "providers"})
-	}
-	// bare target scan: grype alpine:3
-	return true
+	return bash_cli_is_readonly(args, GRYPE_READONLY_SPEC)
 }
 
 // B86: trivy scan (image/fs/config/repo/sbom/k8s/version; not server/plugin/login/clean).
+TRIVY_DENY := [?]string {
+	"server", "plugin", "login", "registry", "clean", "completion", "module", "vex",
+}
+TRIVY_READONLY_SPEC := Cli_Readonly_Spec {
+	deny_subs     = TRIVY_DENY[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true, // legacy: trivy <image>
+}
+
 bash_trivy_is_readonly :: proc(args: string) -> bool {
 	a := strings.trim_space(args)
 	// --output / -o file (not stdout)
 	if bash_trivy_writes_file(a) {
 		return false
 	}
-	if bash_is_help_or_version(a) {
-		return true
-	}
-	sub, _, ok := bash_peel_to_sub(a)
-	if !ok {
-		return true
-	}
-	// mutators / long-running / auth
-	if bash_token_in(
-		sub,
-		[]string{"server", "plugin", "login", "registry", "clean", "completion", "module", "vex"},
-	) {
-		return false
-	}
-	// known scanners or legacy: trivy <image>
-	_ = sub
-	return true
+	return bash_cli_is_readonly(args, TRIVY_READONLY_SPEC)
 }
 
 // syft/grype: -o/--file report path (not stdout/-)

@@ -87,6 +87,17 @@ GOLDEN_SOFT_BASH := [?]Soft_Bash_Case {
 	{"gem list", .Allow, "gem_list"},
 	{"gem install foo", .Ask, "gem_install"},
 	{"gem sources --add https://x", .Ask, "gem_sources_add"},
+	// scanners / k3d / istio (table wave)
+	{"trivy image alpine:3", .Allow, "trivy_image"},
+	{"trivy server", .Ask, "trivy_server"},
+	{"grype alpine:3", .Allow, "grype_scan"},
+	{"grype db update", .Ask, "grype_db_update"},
+	{"syft alpine:3", .Allow, "syft_scan"},
+	{"syft login", .Ask, "syft_login"},
+	{"k3d cluster list", .Allow, "k3d_cluster_list"},
+	{"k3d cluster create", .Ask, "k3d_cluster_create"},
+	{"istioctl analyze", .Allow, "istioctl_analyze"},
+	{"istioctl install", .Ask, "istioctl_install"},
 	// cloud (readonly inspect vs mutate)
 	{"aws s3 ls", .Allow, "aws_s3_ls"},
 	{"aws s3 cp a b", .Ask, "aws_s3_cp"},

@@ -9,51 +9,29 @@ package core
 import "core:strings"
 
 // B84: k3d inspect (cluster list/get/version; not create/delete/start).
+K3D_ALLOW := [?]string{"version", "help"}
+K3D_DENY := [?]string{"create", "delete", "start", "stop", "import-images", "completion"}
+K3D_LIST_GET := [?]string{"list", "ls", "get"}
+K3D_EMPTY := [?]string{} // help/empty only
+K3D_KUBECONFIG := [?]string{"get"}
+K3D_NESTED := [?]Cli_Nested {
+	{sub = "cluster", allow = K3D_LIST_GET[:]},
+	{sub = "node", allow = K3D_LIST_GET[:]},
+	{sub = "registry", allow = K3D_LIST_GET[:]},
+	{sub = "image", allow = K3D_EMPTY[:]},
+	{sub = "kubeconfig", allow = K3D_KUBECONFIG[:]},
+	{sub = "config", allow = K3D_EMPTY[:]},
+}
+K3D_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = K3D_ALLOW[:],
+	deny_subs     = K3D_DENY[:],
+	nested        = K3D_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_k3d_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	// resource groups with nested inspect verbs
-	if sub == "cluster" || sub == "node" || sub == "registry" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "" ||
-			n == "list" ||
-			n == "ls" ||
-			n == "get" ||
-			n == "help" ||
-			n == "--help" ||
-			n == "-h"
-	}
-	if sub == "image" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		// import mutates; list none — fail closed for import
-		return n == "help" || n == "--help" || n == "-h"
-	}
-	if sub == "kubeconfig" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		// get prints; merge/write asks
-		return n == "get" || n == "help" || n == "--help" || n == "-h" || n == ""
-	}
-	if sub == "config" {
-		// config init may write
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		return n == "" || n == "help" || n == "--help" || n == "-h"
-	}
-	if bash_token_in(
-		sub,
-		[]string{"create", "delete", "start", "stop", "import-images", "completion"},
-	) {
-		return false
-	}
-	return bash_token_in(sub, []string{"version", "help"})
+	return bash_cli_is_readonly(args, K3D_READONLY_SPEC)
 }
 
 // B84: tilt inspect (version/describe/get/args; not up/down/ci/trigger).
@@ -230,36 +208,30 @@ bash_kubens_is_readonly :: proc(args: string) -> bool {
 }
 
 // B79: istioctl inspect (version/proxy-status/analyze/proxy-config; not install/apply).
+ISTIOCTL_VALUE_FLAGS := [?]string {
+	"--kubeconfig", "--context", "--namespace", "-n", "--istioNamespace", "-i",
+}
+ISTIOCTL_ALLOW := [?]string {
+	"version", "help", "proxy-status", "ps", "analyze", "validate",
+	"proxy-config", "pc", "ztunnel-config", "wait",
+}
+ISTIOCTL_DENY := [?]string {
+	"install", "uninstall", "upgrade", "apply", "delete", "create", "replace",
+	"experimental", "x", "dashboard", "kube-inject", "admin", "bug-report", "tag", "waypoint",
+}
+ISTIOCTL_REMOTE := [?]string{"list"}
+ISTIOCTL_NESTED := [?]Cli_Nested{{sub = "remote", allow = ISTIOCTL_REMOTE[:]}}
+ISTIOCTL_READONLY_SPEC := Cli_Readonly_Spec {
+	value_flags   = ISTIOCTL_VALUE_FLAGS[:],
+	allow_subs    = ISTIOCTL_ALLOW[:],
+	deny_subs     = ISTIOCTL_DENY[:],
+	nested        = ISTIOCTL_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_istioctl_is_readonly :: proc(args: string) -> bool {
-	value_flags := []string {
-		"--kubeconfig", "--context", "--namespace", "-n", "--istioNamespace", "-i",
-	}
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args, value_flags)
-	if !ok {
-		return true
-	}
-	if sub == "remote" {
-		return bash_nested_allow(rem, []string{"list"})
-	}
-	if bash_token_in(
-		sub,
-		[]string{
-			"install", "uninstall", "upgrade", "apply", "delete", "create", "replace",
-			"experimental", "x", "dashboard", "kube-inject", "admin", "bug-report", "tag", "waypoint",
-		},
-	) {
-		return false
-	}
-	return bash_token_in(
-		sub,
-		[]string{
-			"version", "help", "proxy-status", "ps", "analyze", "validate",
-			"proxy-config", "pc", "ztunnel-config", "wait",
-		},
-	)
+	return bash_cli_is_readonly(args, ISTIOCTL_READONLY_SPEC)
 }
 
 // B78: Flux CLI inspect (get/export/tree/logs; not create/delete/reconcile/bootstrap).
@@ -768,42 +740,23 @@ bash_ansible_config_is_readonly :: proc(args: string) -> bool {
 }
 
 // B72: ansible-galaxy list/search/info only (not install/remove).
+GALAXY_ALLOW := [?]string{"list", "search", "info", "help"}
+GALAXY_DENY := [?]string{"install", "remove", "delete", "init", "build", "publish", "import", "setup"}
+GALAXY_GROUP := [?]string{"list", "search", "info"}
+GALAXY_NESTED := [?]Cli_Nested {
+	{sub = "collection", allow = GALAXY_GROUP[:]},
+	{sub = "role", allow = GALAXY_GROUP[:]},
+}
+GALAXY_READONLY_SPEC := Cli_Readonly_Spec {
+	allow_subs    = GALAXY_ALLOW[:],
+	deny_subs     = GALAXY_DENY[:],
+	nested        = GALAXY_NESTED[:],
+	empty_args_ok = true,
+	peel_fail_ok  = true,
+}
+
 bash_ansible_galaxy_is_readonly :: proc(args: string) -> bool {
-	if bash_is_help_or_version(strings.trim_space(args)) {
-		return true
-	}
-	sub, rem, ok := bash_peel_to_sub(args)
-	if !ok {
-		return true
-	}
-	// collection / role groups
-	if sub == "collection" || sub == "role" {
-		next, _ := first_shell_token(rem)
-		n := strings.to_lower(next, context.temp_allocator)
-		if n == "install" ||
-		   n == "remove" ||
-		   n == "download" ||
-		   n == "init" ||
-		   n == "build" ||
-		   n == "publish" ||
-		   n == "verify" {
-			return false
-		}
-		return n == "" ||
-			n == "list" ||
-			n == "search" ||
-			n == "info" ||
-			n == "help" ||
-			n == "--help" ||
-			n == "-h"
-	}
-	if bash_token_in(
-		sub,
-		[]string{"install", "remove", "delete", "init", "build", "publish", "import", "setup"},
-	) {
-		return false
-	}
-	return bash_token_in(sub, []string{"list", "search", "info", "help"})
+	return bash_cli_is_readonly(args, GALAXY_READONLY_SPEC)
 }
 
 // B71: Pulumi inspect (stack ls/output, config get, about; not up/destroy/preview).

@@ -3,8 +3,9 @@
 //
 // Still custom (do not force into the table without parity tests):
 //   pacman short-flag clusters, rake inspect flags, brew, poetry export/config,
-//   terraform fmt/plan/state, python -m, make dry-run walk, curl/wget method,
-//   redis/psql/mysql, git porcelain, aws/gcloud/az, gh api, nix, ffmpeg.
+//   terraform fmt/plan/state, terragrunt/helmfile custom, python -m, make dry-run,
+//   curl/wget/httpie method, redis/psql/mysql, git porcelain, aws/gcloud/az,
+//   gh api, nix, ffmpeg, dive export walk, checkov/tfsec flag walks, ctr tree.
 
 // Copyright 2023-2026 SpaceXAI
 // SPDX-License-Identifier: Apache-2.0
