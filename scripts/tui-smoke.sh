@@ -26,6 +26,13 @@ export COLUMNS="${COLUMNS:-120}"
 export LINES="${LINES:-40}"
 export AETHER_NO_DESKTOP_NOTIFY=1
 export AETHER_NO_SKILLS="${AETHER_NO_SKILLS:-1}"
+# TUI requires credentials at startup. CI has no ~/.grok/auth.json — provide a
+# dummy key so chrome paints offline (no network calls in this smoke).
+if [[ -z "${XAI_API_KEY:-}" && -z "${GROK_CODE_XAI_API_KEY:-}" ]]; then
+  export XAI_API_KEY="tui-smoke-offline-dummy-key"
+fi
+# Isolate auth path so a broken/empty host auth.json cannot block CI smoke.
+export GROK_AUTH_PATH="${GROK_AUTH_PATH:-${TMPDIR:-/tmp}/aether-tui-smoke-no-auth-$$}"
 
 # Bound TUI lifetime so a missed Ctrl+Q cannot hang CI.
 TUI_CMD="timeout -k 1s 6s $BIN tui"
