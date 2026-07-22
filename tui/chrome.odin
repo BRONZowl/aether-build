@@ -226,13 +226,30 @@ truncate_runes :: proc(s: string, max_runes: int) -> string {
 	return fmt.tprintf("%s…", s[:end])
 }
 
+// composer_in_plan: any plan lifecycle state (Pending/Active/Exit_Pending).
+// Shift+Tab enters Pending until the first turn activates — must not show "ask".
+composer_in_plan :: proc() -> bool {
+	return agent.plan_mode_is_active() ||
+		agent.plan_mode_is_pending() ||
+		agent.plan_mode_is_exit_pending()
+}
+
 // format_composer_info: bottom rail caption — "model · [effort ·] mode [· multi]".
-// Effort is read live from agent.reasoning_effort_current() so /effort updates every paint.
+// Effort is live; mode uses plan chip label whenever plan is on (not only Active).
 format_composer_info :: proc(s: ^App_State) -> string {
-	mode := s.perm if s.perm != "" else "ask"
-	model := s.model if s.model != "" else "—"
+	mode := s.perm if s != nil && s.perm != "" else "ask"
+	if composer_in_plan() {
+		// "plan" / "plan…" / "plan↓" — same vocabulary as top-bar chip
+		chip := strings.trim_space(agent.plan_mode_chip())
+		if chip != "" {
+			mode = chip
+		} else {
+			mode = "plan"
+		}
+	}
+	model := s.model if s != nil && s.model != "" else "—"
 	eff := agent.reasoning_effort_current()
-	if s.multiline_mode {
+	if s != nil && s.multiline_mode {
 		if eff != "" {
 			return fmt.tprintf("%s · %s · %s · multi", model, eff, mode)
 		}
@@ -320,17 +337,14 @@ format_box_rail :: proc(
 	return strings.to_string(b)
 }
 
-// Grok Build (xai-grok-pager) mode chrome:
-//   - Border: plan → accent_plan (gold); else prompt_border_active / prompt_border
-//   - Chevron: plan → accent_plan; else accent_user (focused) / dim (unfocused)
-//   - Caption flags: plan=gold, auto=accent_system, always-approve=gray, read-only=dim
-// Permission modes do not recolor the box (only plan does) — matches agent_view/render.rs.
+// Mode chrome (Grok-aligned borders + distinct bottom-rail flags only):
+//   - Border / chevron: plan → gold; else neutral prompt_border* / user chevron
+//   - Bottom mode token: distinct color per mode (caption only — not the box)
 
-// composer_mode_accent: chevron tint — plan gold, else accent_user when focused.
-// Permission modes do not recolor the chevron (Grok: only plan / special input modes).
+// composer_mode_accent: chevron tint — plan gold, else accent_user.
 composer_mode_accent :: proc(s: ^App_State, th: Theme) -> string {
 	_ = s
-	if agent.plan_mode_is_active() {
+	if composer_in_plan() {
 		if th.accent_plan != "" {
 			return th.accent_plan
 		}
@@ -342,12 +356,10 @@ composer_mode_accent :: proc(s: ^App_State, th: Theme) -> string {
 	return "\x1b[37m"
 }
 
-// composer_border_ansi: Grok prompt chrome — plan gold, else neutral prompt_border*.
-// `accent` is unused for non-plan borders (kept for call-site compatibility).
+// composer_border_ansi: plan gold, else neutral prompt_border*.
 composer_border_ansi :: proc(focused: bool, th: Theme, accent: string = "") -> string {
 	_ = accent
-	// Plan mode tints the whole box gold (Grok border_color_override)
-	if agent.plan_mode_is_active() {
+	if composer_in_plan() {
 		if th.accent_plan != "" {
 			return th.accent_plan
 		}
@@ -371,9 +383,16 @@ composer_border_ansi :: proc(focused: bool, th: Theme, accent: string = "") -> s
 	return "\x1b[2m"
 }
 
-// composer_flag_ansi: color for the mode token on the bottom info rail (Grok PromptFlag).
+// composer_flag_ansi: color for the mode token on the bottom info rail only.
+// Each mode is visually distinct (user request); palette leans on Grok accents.
+//   plan            → accent_plan (gold)
+//   always-approve  → tool / warm yellow (warning)
+//   auto            → accent_system (blue)
+//   ask             → user accent
+//   read-only       → dim / muted
 composer_flag_ansi :: proc(s: ^App_State, th: Theme) -> string {
-	if agent.plan_mode_is_active() {
+	// Any plan lifecycle state (Pending/Active/Exit_Pending)
+	if composer_in_plan() {
 		if th.accent_plan != "" {
 			return th.accent_plan
 		}
@@ -384,22 +403,35 @@ composer_flag_ansi :: proc(s: ^App_State, th: Theme) -> string {
 		mode = s.perm
 	}
 	switch mode {
+	case "always-approve", "yolo":
+		// Warning-ish yellow so yolo stands out on the rail
+		if th.tool != "" {
+			return th.tool
+		}
+		return "\x1b[33m"
 	case "auto":
 		if th.accent_system != "" {
 			return th.accent_system
 		}
-		return "\x1b[94m"
-	case "always-approve", "yolo", "ask", "":
-		// Grok: always-approve has color=None (gray); ask is default gray
-		if th.dim != "" {
-			return th.dim
+		if th.user != "" {
+			return th.user
 		}
-		return "\x1b[2m"
+		return "\x1b[94m"
 	case "read-only":
 		if th.dim != "" {
 			return th.dim
 		}
 		return "\x1b[2m"
+	case "ask", "":
+		if th.user != "" {
+			return th.user
+		}
+		return "\x1b[36m"
+	case "plan", "plan…", "plan↓":
+		if th.accent_plan != "" {
+			return th.accent_plan
+		}
+		return "\x1b[33m"
 	}
 	if th.dim != "" {
 		return th.dim

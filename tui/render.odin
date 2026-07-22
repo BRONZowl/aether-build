@@ -1113,7 +1113,7 @@ split_composer_caption :: proc(caption: string) -> (head, flag_tok, multi_suffix
 		return rest[:sp], rest[sp + 3:], multi_suffix
 	}
 	switch rest {
-	case "ask", "auto", "always-approve", "yolo", "read-only", "plan":
+	case "ask", "auto", "always-approve", "yolo", "read-only", "plan", "plan…", "plan↓":
 		return "", rest, multi_suffix
 	}
 	return rest, "", multi_suffix

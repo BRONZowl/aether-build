@@ -50,21 +50,38 @@ test_composer_mode_accent_matches_grok :: proc(t: ^testing.T) {
 	b_idle := composer_border_ansi(false, th, ask)
 	testing.expect(t, b_idle == th.prompt_border || b_idle != "", b_idle)
 
-	// Flags: auto = accent_system; yolo/ask = dim gray
+	// Bottom-rail flags: each mode distinct
 	delete(st.perm)
 	st.perm = strings.clone("auto")
 	auto_f := composer_flag_ansi(&st, th)
-	if th.accent_system != "" {
-		testing.expect(t, auto_f == th.accent_system, auto_f)
-	}
 	delete(st.perm)
 	st.perm = strings.clone("always-approve")
 	yolo_f := composer_flag_ansi(&st, th)
-	if th.dim != "" {
-		testing.expect(t, yolo_f == th.dim, yolo_f)
+	delete(st.perm)
+	st.perm = strings.clone("ask")
+	ask_f := composer_flag_ansi(&st, th)
+	delete(st.perm)
+	st.perm = strings.clone("read-only")
+	ro_f := composer_flag_ansi(&st, th)
+	// yolo (tool/yellow) ≠ auto (system blue) ≠ ask (user) when theme has colors
+	if th.tool != "" && th.accent_system != "" && th.tool != th.accent_system {
+		testing.expect(t, yolo_f != auto_f, "yolo vs auto flags should differ")
 	}
+	if th.user != "" && th.dim != "" && th.user != th.dim {
+		testing.expect(t, ask_f != ro_f, "ask vs read-only flags should differ")
+	}
+	testing.expect(t, auto_f != "" && yolo_f != "" && ask_f != "" && ro_f != "")
 
-	// Plan: gold chevron + gold border
+	// Pending plan (Shift+Tab enter) must show plan, not ask
+	st.perm = strings.clone("ask")
+	_ = agent.user_enter_plan_mode(".", "", context.temp_allocator)
+	testing.expect(t, agent.plan_mode_is_pending() || agent.plan_mode_is_active())
+	info_pending := format_composer_info(&st)
+	testing.expect(t, strings.contains(info_pending, "plan"), info_pending)
+	testing.expect(t, !strings.has_suffix(info_pending, "ask"), info_pending)
+	agent.clear_plan_mode_for_new_session()
+
+	// Active plan: gold chevron + gold border + gold flag
 	agent.set_plan_mode_active(true)
 	defer agent.clear_plan_mode_for_new_session()
 	plan_ch := composer_mode_accent(&st, th)
@@ -75,6 +92,8 @@ test_composer_mode_accent_matches_grok :: proc(t: ^testing.T) {
 		testing.expect(t, plan_b == th.accent_plan, plan_b)
 		testing.expect(t, plan_f == th.accent_plan, plan_f)
 	}
+	info := format_composer_info(&st)
+	testing.expect(t, strings.contains(info, "plan"), info)
 }
 
 @(test)
