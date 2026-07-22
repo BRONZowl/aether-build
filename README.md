@@ -16,12 +16,12 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 
 ## Highlights
 
-- **Agent loop** — streaming chat (SSE), tools, multi-turn sessions  
-- **TUI + REPL** — fullscreen chat or line mode  
-- **Local tools** — shell, filesystem, search, web, LSP, media, memory  
-- **Extensions** — MCP, skills, hooks, subagents + personas  
-- **Safety** — permission modes, soft bash policy, optional OS sandbox  
-- **No product telemetry** — privacy preference is local and **opt-in**
+**Agent loop** — streaming chat (SSE), tools, multi-turn sessions  
+**TUI + REPL** — fullscreen chat or line mode  
+**Local tools** — shell, filesystem, search, web, LSP, media, memory  
+**Extensions** — MCP, skills, hooks, subagents + personas  
+**Safety** — permission modes, soft bash policy, optional OS sandbox  
+**No product telemetry** — privacy preference is local and **opt-in**
 
 </div>
 
