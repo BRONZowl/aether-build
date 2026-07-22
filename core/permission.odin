@@ -75,62 +75,113 @@ next_permission_mode :: proc(m: Permission_Mode) -> Permission_Mode {
 	return .Ask
 }
 
-// is_file_edit_tool: Auto mode auto-approves these (Grok acceptEdits).
-is_file_edit_tool :: proc(tool_name: string) -> bool {
-	return tool_name == "search_replace" ||
-		tool_name == "write" ||
-		tool_name == "delete_file"
+// Tool_Perm_Class: permission bucket for match_rule / mode policy (P2.3).
+// String form ("Read"/"Edit"/"Bash"/"Other") is what allow/deny rules use.
+Tool_Perm_Class :: enum {
+	Read,
+	Edit,
+	Bash,
+	Other,
 }
 
-// tool_class maps model tool names to permission classes.
-tool_class :: proc(tool_name: string) -> string {
-	switch tool_name {
-	case "read_file",
-	     "list_dir",
-	     "glob",
-	     "grep",
-	     "web_search",
-	     "web_fetch",
-	     "todo_write",
-	     "ask_user_question",
-	     "lsp",
-	     "update_goal",
-	     "memory_search",
-	     "memory_get",
-	     "list_mcp_resources",
-	     "read_mcp_resource",
-	     "list_mcp_prompts",
-	     "get_mcp_prompt",
-	     "search_tool",
-	     "scheduler_list",
-	     "get_task_output",
-	     "wait_tasks",
-	     "wait_commands_or_subagents":
+// TOOL_PERM_TABLE: SoT for named tool → class (keep in sync with tools.TOOL_REGISTRY.perm).
+// Unlisted tools (skill, spawn, kill_task, hashline_*, use_tool, …) → Other.
+TOOL_PERM_TABLE := [?]struct {
+	name:  string,
+	class: Tool_Perm_Class,
+} {
+	{"read_file", .Read},
+	{"list_dir", .Read},
+	{"glob", .Read},
+	{"grep", .Read},
+	{"web_search", .Read},
+	{"web_fetch", .Read},
+	{"todo_write", .Read},
+	{"ask_user_question", .Read},
+	{"lsp", .Read},
+	{"update_goal", .Read},
+	{"memory_search", .Read},
+	{"memory_get", .Read},
+	{"list_mcp_resources", .Read},
+	{"read_mcp_resource", .Read},
+	{"list_mcp_prompts", .Read},
+	{"get_mcp_prompt", .Read},
+	{"search_tool", .Read},
+	{"scheduler_list", .Read},
+	{"get_task_output", .Read},
+	{"wait_tasks", .Read},
+	{"wait_commands_or_subagents", .Read},
+	{"search_replace", .Edit},
+	{"write", .Edit},
+	{"delete_file", .Edit},
+	// write-like side effect (file/API); reuse Edit for ask mode
+	{"scheduler_create", .Edit},
+	{"scheduler_delete", .Edit},
+	{"image_gen", .Edit},
+	{"image_edit", .Edit},
+	{"image_to_video", .Edit},
+	{"reference_to_video", .Edit},
+	{"run_terminal_cmd", .Bash},
+	{"monitor", .Bash},
+}
+
+// FILE_EDIT_TOOLS: Auto mode auto-approves these (Grok acceptEdits). Subset of Edit.
+FILE_EDIT_TOOLS := [?]string{"search_replace", "write", "delete_file"}
+
+// WRITE_OR_SHELL_EXTRA: treated as write/shell beyond Edit/Bash classes (MCP dispatch).
+WRITE_OR_SHELL_EXTRA := [?]string{"use_tool"}
+
+tool_perm_class :: proc(tool_name: string) -> Tool_Perm_Class {
+	for e in TOOL_PERM_TABLE {
+		if e.name == tool_name {
+			return e.class
+		}
+	}
+	return .Other
+}
+
+tool_perm_class_string :: proc(c: Tool_Perm_Class) -> string {
+	switch c {
+	case .Read:
 		return "Read"
-	case "search_replace", "write", "delete_file":
+	case .Edit:
 		return "Edit"
-	case "run_terminal_cmd", "monitor":
+	case .Bash:
 		return "Bash"
-	case "scheduler_create", "scheduler_delete", "image_gen", "image_edit", "image_to_video", "reference_to_video":
-		return "Edit" // write-like side effect (file/API); reuse Edit class for ask mode
+	case .Other:
+		return "Other"
 	}
 	return "Other"
 }
 
+// is_file_edit_tool: Auto mode auto-approves these (Grok acceptEdits).
+is_file_edit_tool :: proc(tool_name: string) -> bool {
+	for n in FILE_EDIT_TOOLS {
+		if n == tool_name {
+			return true
+		}
+	}
+	return false
+}
+
+// tool_class maps model tool names to permission class strings (rules / UI).
+tool_class :: proc(tool_name: string) -> string {
+	return tool_perm_class_string(tool_perm_class(tool_name))
+}
+
 is_write_or_shell :: proc(tool_name: string) -> bool {
+	switch tool_perm_class(tool_name) {
+	case .Edit, .Bash:
+		return true
+	case .Read, .Other:
+	}
 	// use_tool = MCP dispatch (unknown side effects) — treat like shell for modes
-	return tool_name == "search_replace" ||
-		tool_name == "write" ||
-		tool_name == "delete_file" ||
-		tool_name == "run_terminal_cmd" ||
-		tool_name == "monitor" ||
-		tool_name == "scheduler_create" ||
-		tool_name == "scheduler_delete" ||
-		tool_name == "image_gen" ||
-		tool_name == "image_edit" ||
-		tool_name == "image_to_video" ||
-		tool_name == "reference_to_video" ||
-		tool_name == "use_tool"
+	for n in WRITE_OR_SHELL_EXTRA {
+		if n == tool_name {
+			return true
+		}
+	}
+	return false
 }
 
 // match_rule checks a single allow/deny rule against tool + optional command.
