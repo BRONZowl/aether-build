@@ -12,7 +12,8 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 | **Contributing** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | **Parity / history** | [PORTING.md](./PORTING.md) · [CHANGELOG.md](./CHANGELOG.md) |
 
-## Highlights
+<h2 align="center">Highlights</h2>
+
 
 - **Agent loop** — streaming chat (SSE), tools, multi-turn sessions  
 - **TUI + REPL** — fullscreen chat or line mode  
@@ -21,7 +22,8 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 - **Safety** — permission modes, soft bash policy, optional OS sandbox  
 - **No product telemetry** — privacy preference is local and **opt-in**
 
-## Install
+<h2 align="center">Install</h2>
+
 
 Primary command: **`aether-grok`**. Does not replace or install Rust `grok`.
 
@@ -73,7 +75,8 @@ System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
 3. **`aether-grok login`** / **`/login`** — in-process device-code sign-in  
 4. **`aether-grok whoami`** — identity only (never prints secrets)
 
-## Usage
+<h2 align="center">Usage</h2>
+
 
 ```bash
 aether-grok                         # TUI on a TTY; else line REPL
@@ -104,7 +107,8 @@ In-session help: **`/help`**, **`/keys`**, **`/settings`**, **`/doctor`**.
 
 Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.md` / `.grok/rules` (and optional Claude/Cursor roots); opt out with `AETHER_NO_PROJECT_RULES=1`.
 
-## Features (overview)
+<h2 align="center">Features</h2>
+
 
 | Area | Notes |
 |------|--------|
@@ -132,7 +136,8 @@ Full tool names and flags: in-product **`/tools`**, or the tool registry under `
 
 More bindings: **`/keys`**. Welcome art: opt out with `AETHER_NO_ASCII_ART=1`.
 
-## Development
+<h2 align="center">Development</h2>
+
 
 ```bash
 make bootstrap-odin
@@ -154,11 +159,13 @@ make dist                   # binary tarball + LICENSE/NOTICE
 
 Standalone source export: [STANDALONE.md](./STANDALONE.md). CI: `.github/workflows/aether.yml`.
 
-## Non-goals
+<h2 align="center">Non-goals</h2>
+
 
 Out of scope for this tree (see [PORTING.md](./PORTING.md)): ACP multi-client UI, remote marketplace, product analytics, voice, self-update, mermaid PNG/SVG, full MCP browser OAuth DCR, SQLite embeddings memory, and related enterprise surfaces.
 
-## License
+<h2 align="center">License</h2>
+
 
 First-party code is **Apache License 2.0** — [LICENSE](./LICENSE).  
 Copyright **2023–2026 SpaceXAI**. Attribution: [NOTICE](./NOTICE), [assets/logo/NOTICE](./assets/logo/NOTICE).
