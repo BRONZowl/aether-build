@@ -11,9 +11,42 @@ import "core:strings"
 import "core:unicode/utf8"
 import "aether:core"
 
+// md_sgr_bold / md_sgr_dim: theme-aware SGR (fallback to intensity attributes).
+// Soft paint only — never reverse video or bright-white.
+md_sgr_bold :: proc() -> string {
+	th := active_theme()
+	if th.bold != "" {
+		return th.bold
+	}
+	return "\x1b[1m"
+}
+
+md_sgr_dim :: proc() -> string {
+	th := active_theme()
+	if th.dim != "" {
+		return th.dim
+	}
+	return "\x1b[2m"
+}
+
+// md_restore_prose resets SGR then re-applies assistant base + open spans.
+// Needed because theme dim/code may be truecolor fg, not intensity bit 2.
+md_restore_prose :: proc(b: ^strings.Builder, th: Theme, in_bold, in_italic, heading: bool) {
+	strings.write_string(b, "\x1b[0m")
+	if th.assistant != "" {
+		strings.write_string(b, th.assistant)
+	}
+	if in_bold || heading {
+		strings.write_string(b, md_sgr_bold())
+	}
+	if in_italic {
+		strings.write_string(b, "\x1b[3m")
+	}
+}
+
 // write_md_inline paints one logical line with markdown markers into b.
 // Returns visible rune count (markers do not count). Caps at cols.
-// Supports: `code`, **bold** / __bold__, *italic*, # headers, list "- "/"* ".
+// Supports: `code`, **bold** / __bold__, *italic*, # headers, "- "/"* "/ "N. " lists.
 // Soft emphasis only: no reverse video, no bright-white bold. Monochrome
 // (NO_COLOR) strips markers with no SGR for readable plain text.
 write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
@@ -24,6 +57,10 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		return write_fit(b, plain, cols)
 	}
 
+	th := active_theme()
+	bold_on := md_sgr_bold()
+	dim_on := md_sgr_dim()
+
 	visible := 0
 	i := 0
 	in_code := false
@@ -31,15 +68,15 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 	in_italic := false
 	heading := false
 
-	// Line-prefix: headings / bullets
+	// Line-prefix: headings / bullets / ordered lists
 	if len(text) > 0 {
 		h := 0
 		for h < len(text) && h < 6 && text[h] == '#' {
 			h += 1
 		}
 		if h > 0 && h < len(text) && text[h] == ' ' {
-			// Quiet heading: light bold title only (no dim # hashes)
-			strings.write_string(b, "\x1b[1m")
+			// Quiet heading: bold title only (no dim # hashes)
+			strings.write_string(b, bold_on)
 			in_bold = true
 			heading = true
 			i = h + 1
@@ -47,11 +84,34 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		          (text[0] == '-' || text[0] == '*') &&
 		          text[1] == ' ' {
 			if visible + 2 <= cols {
-				// Dim bullet — no cyan flash
-				strings.write_string(b, "\x1b[2m•\x1b[22m ")
+				// Dim bullet — theme dim, no cyan flash
+				strings.write_string(b, dim_on)
+				strings.write_string(b, "•")
+				md_restore_prose(b, th, false, false, false)
+				strings.write_byte(b, ' ')
 				visible += 2
 			}
 			i = 2
+		} else {
+			// Ordered list: "1. " / "12. "
+			j := 0
+			for j < len(text) && text[j] >= '0' && text[j] <= '9' {
+				j += 1
+			}
+			if j > 0 &&
+			   j + 1 < len(text) &&
+			   text[j] == '.' &&
+			   text[j + 1] == ' ' {
+				// dim "N." + space (visible = digits + '.' + space)
+				if visible + j + 2 <= cols {
+					strings.write_string(b, dim_on)
+					strings.write_string(b, text[:j + 1]) // "12."
+					md_restore_prose(b, th, false, false, false)
+					strings.write_byte(b, ' ')
+					visible += j + 2
+				}
+				i = j + 2
+			}
 		}
 	}
 
@@ -63,11 +123,11 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 				(text[i] == '_' && text[i + 1] == '_')
 			if dbl {
 				if in_bold && !heading {
-					strings.write_string(b, "\x1b[22m")
 					in_bold = false
+					md_restore_prose(b, th, in_bold, in_italic, heading)
 				} else if !in_bold {
 					// Bold only — never bright-white \x1b[97m
-					strings.write_string(b, "\x1b[1m")
+					strings.write_string(b, bold_on)
 					in_bold = true
 				}
 				i += 2
@@ -77,8 +137,8 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		// *italic*
 		if !in_code && text[i] == '*' {
 			if in_italic {
-				strings.write_string(b, "\x1b[23m")
 				in_italic = false
+				md_restore_prose(b, th, in_bold, in_italic, heading)
 			} else {
 				strings.write_string(b, "\x1b[3m")
 				in_italic = true
@@ -86,13 +146,13 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 			i += 1
 			continue
 		}
-		// `inline code` — dim, not reverse video
+		// `inline code` — theme dim, not reverse video / bright fence code
 		if text[i] == '`' {
 			if in_code {
-				strings.write_string(b, "\x1b[22m")
 				in_code = false
+				md_restore_prose(b, th, in_bold, in_italic, heading)
 			} else {
-				strings.write_string(b, "\x1b[2m")
+				strings.write_string(b, dim_on)
 				in_code = true
 			}
 			i += 1
@@ -126,6 +186,17 @@ strip_md_markers :: proc(text: string, allocator := context.allocator) -> string
 	} else if len(text) >= 2 && (text[0] == '-' || text[0] == '*') && text[1] == ' ' {
 		strings.write_string(&b, "• ")
 		i = 2
+	} else {
+		j := 0
+		for j < len(text) && text[j] >= '0' && text[j] <= '9' {
+			j += 1
+		}
+		if j > 0 && j + 1 < len(text) && text[j] == '.' && text[j + 1] == ' ' {
+			// keep "N. " as plain (no extra bullet)
+			strings.write_string(&b, text[:j + 1])
+			strings.write_byte(&b, ' ')
+			i = j + 2
+		}
 	}
 	for i < len(text) {
 		if i + 1 < len(text) && text[i] == '*' && text[i + 1] == '*' {
@@ -187,10 +258,10 @@ is_mermaid_lang :: proc(lang: string) -> bool {
 	return false
 }
 
-// fence_header_line: "--- mermaid ---" / "--- rust ---" / "--- code ---"
+// fence_header_line: quiet chrome "── mermaid ──" / "── rust ──" / "── code ──"
 fence_header_line :: proc(lang: string, allocator := context.allocator) -> string {
 	if lang == "" {
-		return strings.clone("--- code ---", allocator)
+		return strings.clone("── code ──", allocator)
 	}
 	if is_mermaid_lang(lang) {
 		// normalize display label
@@ -198,12 +269,12 @@ fence_header_line :: proc(lang: string, allocator := context.allocator) -> strin
 		if lang != "mermaid" && lang != "mmd" {
 			label = fmt.tprintf("mermaid · %s", lang)
 		}
-		return fmt.aprintf("--- %s ---", label, allocator = allocator)
+		return fmt.aprintf("── %s ──", label, allocator = allocator)
 	}
-	return fmt.aprintf("--- %s ---", lang, allocator = allocator)
+	return fmt.aprintf("── %s ──", lang, allocator = allocator)
 }
 
-// fence_footer_line: matching dashes under header (rune width).
+// fence_footer_line: matching box-drawing rule under header (rune width).
 fence_footer_line :: proc(lang: string, allocator := context.allocator) -> string {
 	head := fence_header_line(lang, context.temp_allocator)
 	n := 0
@@ -215,7 +286,7 @@ fence_footer_line :: proc(lang: string, allocator := context.allocator) -> strin
 	}
 	b := strings.builder_make(allocator)
 	for i := 0; i < n; i += 1 {
-		strings.write_byte(&b, '-')
+		strings.write_string(&b, "─")
 	}
 	return strings.to_string(b)
 }
@@ -443,8 +514,27 @@ try_parse_table_at :: proc(
 	return j, formatted, true
 }
 
+// md_emit_blank_if_needed: one blank line before fences/tables when prior line is non-empty.
+md_emit_blank_if_needed :: proc(
+	out: ^[dynamic]string,
+	styles: ^[dynamic]Line_Style,
+	block_idxs: ^[dynamic]int,
+	bi: int,
+	allocator := context.allocator,
+) {
+	if len(out) == 0 {
+		return
+	}
+	last := out[len(out) - 1]
+	if strings.trim_space(last) == "" {
+		return
+	}
+	mark_line(out, styles, block_idxs, bi, "", .Normal, allocator)
+}
+
 // push_markdown_prose: line-aware assistant prose with GFM tables (C1.2).
 // Non-table lines go through wrap_push; tables are emitted as preformatted rows.
+// Table styles: header Bold, separator Dim, body Assistant (not full Code block).
 push_markdown_prose :: proc(
 	out: ^[dynamic]string,
 	styles: ^[dynamic]Line_Style,
@@ -468,8 +558,15 @@ push_markdown_prose :: proc(
 				wrap_push(out, styles, block_idxs, bi, p, .Assistant, width, allocator)
 				strings.builder_reset(&prose_b)
 			}
-			for fl in formatted {
-				mark_line(out, styles, block_idxs, bi, fl, .Code, allocator)
+			md_emit_blank_if_needed(out, styles, block_idxs, bi, allocator)
+			for ti in 0 ..< len(formatted) {
+				style: Line_Style = .Assistant
+				if ti == 0 {
+					style = .Bold
+				} else if ti == 1 {
+					style = .Dim
+				}
+				mark_line(out, styles, block_idxs, bi, formatted[ti], style, allocator)
 			}
 			for fl in formatted {
 				delete(fl, allocator)

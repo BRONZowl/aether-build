@@ -104,10 +104,11 @@ test_is_mermaid_lang :: proc(t: ^testing.T) {
 
 @(test)
 test_fence_header_line :: proc(t: ^testing.T) {
-	testing.expect(t, fence_header_line("", context.temp_allocator) == "--- code ---")
-	testing.expect(t, fence_header_line("rust", context.temp_allocator) == "--- rust ---")
+	testing.expect(t, fence_header_line("", context.temp_allocator) == "── code ──")
+	testing.expect(t, fence_header_line("rust", context.temp_allocator) == "── rust ──")
 	h := fence_header_line("mermaid", context.temp_allocator)
 	testing.expect(t, strings.contains(h, "mermaid"))
+	testing.expect(t, strings.contains(h, "──"))
 	h2 := fence_header_line("flowchart", context.temp_allocator)
 	testing.expect(t, strings.contains(h2, "mermaid"))
 	testing.expect(t, strings.contains(h2, "flowchart"))
@@ -204,18 +205,76 @@ test_push_markdown_prose_table :: proc(t: ^testing.T) {
 	push_markdown_prose(&out, &styles, &idxs, 0, text, 60, context.temp_allocator)
 	// expect intro prose + table rows + outro
 	testing.expect(t, len(out) >= 4)
-	// at least one Code-styled table line
-	has_code := false
+	// table: header Bold, sep Dim, body Assistant (not all Code)
+	has_bold := false
+	has_dim := false
+	has_asst := false
 	for s in styles {
-		if s == .Code {
-			has_code = true
-			break
+		if s == .Bold {
+			has_bold = true
+		}
+		if s == .Dim {
+			has_dim = true
+		}
+		if s == .Assistant {
+			has_asst = true
 		}
 	}
-	testing.expect(t, has_code)
+	testing.expect(t, has_bold)
+	testing.expect(t, has_dim)
+	testing.expect(t, has_asst)
 	// joined text has A and 1
 	joined := strings.join(out[:], "\n", context.temp_allocator)
 	testing.expect(t, strings.contains(joined, "Intro"))
 	testing.expect(t, strings.contains(joined, "Outro"))
 	testing.expect(t, strings.contains(joined, "│"))
+}
+
+@(test)
+test_write_md_inline_ordered_list :: proc(t: ^testing.T) {
+	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
+	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
+	_ = os.unset_env("NO_COLOR")
+	_ = os.unset_env("AETHER_NO_COLOR")
+	defer {
+		if prev_nc != "" {
+			_ = os.set_env("NO_COLOR", prev_nc)
+		}
+		if prev_ac != "" {
+			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
+		}
+	}
+	b: strings.Builder
+	strings.builder_init(&b, context.temp_allocator)
+	n := write_md_inline(&b, "1. first item", 80)
+	s := strings.to_string(b)
+	testing.expect(t, n >= 10)
+	testing.expect(t, strings.contains(s, "1."), s)
+	testing.expect(t, strings.contains(s, "first item"), s)
+	// markers consumed, content present
+	testing.expect(t, !strings.contains(s, "1. first") || strings.contains(s, "first"), s)
+}
+
+@(test)
+test_fence_header_dim_style_in_push :: proc(t: ^testing.T) {
+	out := make([dynamic]string, 0, 16, context.temp_allocator)
+	styles := make([dynamic]Line_Style, 0, 16, context.temp_allocator)
+	idxs := make([dynamic]int, 0, 16, context.temp_allocator)
+	text := "Prose before\n```rust\nfn main() {}\n```"
+	push_assistant(&out, &styles, &idxs, 0, text, 80, context.temp_allocator)
+	joined := strings.join(out[:], "\n", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "── rust ──") || strings.contains(joined, "rust"), joined)
+	// header/footer Dim; body Code
+	has_dim := false
+	has_code := false
+	for s in styles {
+		if s == .Dim {
+			has_dim = true
+		}
+		if s == .Code {
+			has_code = true
+		}
+	}
+	testing.expect(t, has_dim)
+	testing.expect(t, has_code)
 }

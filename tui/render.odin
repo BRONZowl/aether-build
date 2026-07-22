@@ -393,24 +393,28 @@ push_assistant :: proc(
 				}
 				art, aok := try_render_mermaid(body, width, context.temp_allocator)
 				if aok && len(art) > 0 {
+					md_emit_blank_if_needed(out, styles, block_idxs, bi, allocator)
 					for line in art {
 						mark_line(out, styles, block_idxs, bi, line, .Code, allocator)
 					}
 					continue
 				}
 			}
+			// Breathing room before fence when prior line is non-empty
+			md_emit_blank_if_needed(out, styles, block_idxs, bi, allocator)
 			head := fence_header_line(lang, context.temp_allocator)
 			// Open/trailing fence: no footer while incomplete
+			// Header/footer Dim chrome; body stays .Code (theme code color)
 			if closed_fence {
 				foot := fence_footer_line(lang, context.temp_allocator)
-				mark_line(out, styles, block_idxs, bi, head, .Code, allocator)
+				mark_line(out, styles, block_idxs, bi, head, .Dim, allocator)
 				if body_start < len(part) {
 					wrap_push(out, styles, block_idxs, bi, part[body_start:], .Code, width, allocator)
 				}
-				mark_line(out, styles, block_idxs, bi, foot, .Code, allocator)
+				mark_line(out, styles, block_idxs, bi, foot, .Dim, allocator)
 			} else {
 				// Streaming open fence — show header + raw body, no fake closer
-				mark_line(out, styles, block_idxs, bi, head, .Code, allocator)
+				mark_line(out, styles, block_idxs, bi, head, .Dim, allocator)
 				if body_start < len(part) {
 					wrap_push(out, styles, block_idxs, bi, part[body_start:], .Code, width, allocator)
 				}
