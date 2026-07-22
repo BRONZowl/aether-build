@@ -14,10 +14,16 @@ import "aether:core"
 // write_md_inline paints one logical line with markdown markers into b.
 // Returns visible rune count (markers do not count). Caps at cols.
 // Supports: `code`, **bold** / __bold__, *italic*, # headers, list "- "/"* ".
-// Always applies structural SGR (bold/dim/reverse) so markdown is visible even
-// when NO_COLOR=1 (chroma colors are optional).
+// Soft emphasis only: no reverse video, no bright-white bold. Monochrome
+// (NO_COLOR) strips markers with no SGR for readable plain text.
 write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 	color := !core.ui_color_disabled()
+	if !color {
+		// Plain: strip markers, no highlighting
+		plain := strip_md_markers(text, context.temp_allocator)
+		return write_fit(b, plain, cols)
+	}
+
 	visible := 0
 	i := 0
 	in_code := false
@@ -32,20 +38,8 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 			h += 1
 		}
 		if h > 0 && h < len(text) && text[h] == ' ' {
-			// Dim hashes stay so headings read as markdown structure
-			strings.write_string(b, "\x1b[2m")
-			for _ in 0 ..< h {
-				if visible >= cols {
-					break
-				}
-				strings.write_byte(b, '#')
-				visible += 1
-			}
-			if visible < cols {
-				strings.write_byte(b, ' ')
-				visible += 1
-			}
-			strings.write_string(b, "\x1b[22m\x1b[1m")
+			// Quiet heading: light bold title only (no dim # hashes)
+			strings.write_string(b, "\x1b[1m")
 			in_bold = true
 			heading = true
 			i = h + 1
@@ -53,11 +47,8 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 		          (text[0] == '-' || text[0] == '*') &&
 		          text[1] == ' ' {
 			if visible + 2 <= cols {
-				if color {
-					strings.write_string(b, "\x1b[36m•\x1b[0m ")
-				} else {
-					strings.write_string(b, "• ")
-				}
+				// Dim bullet — no cyan flash
+				strings.write_string(b, "\x1b[2m•\x1b[22m ")
 				visible += 2
 			}
 			i = 2
@@ -73,16 +64,10 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 			if dbl {
 				if in_bold && !heading {
 					strings.write_string(b, "\x1b[22m")
-					if color {
-						strings.write_string(b, "\x1b[39m")
-					}
 					in_bold = false
 				} else if !in_bold {
-					if color {
-						strings.write_string(b, "\x1b[1m\x1b[97m")
-					} else {
-						strings.write_string(b, "\x1b[1m")
-					}
+					// Bold only — never bright-white \x1b[97m
+					strings.write_string(b, "\x1b[1m")
 					in_bold = true
 				}
 				i += 2
@@ -101,16 +86,13 @@ write_md_inline :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
 			i += 1
 			continue
 		}
-		// `inline code`
+		// `inline code` — dim, not reverse video
 		if text[i] == '`' {
 			if in_code {
-				strings.write_string(b, "\x1b[27m")
-				if color {
-					strings.write_string(b, "\x1b[39m")
-				}
+				strings.write_string(b, "\x1b[22m")
 				in_code = false
 			} else {
-				strings.write_string(b, "\x1b[7m")
+				strings.write_string(b, "\x1b[2m")
 				in_code = true
 			}
 			i += 1

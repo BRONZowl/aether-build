@@ -24,6 +24,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 - Idle **`ready | Enter send · Ctrl+F…`** status row above the composer is **hidden**
 - Status row still appears while generating, in modals/ask, scrollback, multiline, and slash menu
 
+### Calmer assistant markdown
+
+- Softer emphasis: bold without bright-white; inline code uses dim (not reverse video)
+- Quieter headings/list bullets; monochrome/`NO_COLOR` paints plain text (markers stripped)
+
 ### Startup slash tips
 
 - Tips set `/about · /help · /keys · /quit` only on **empty-session welcome** and **REPL no-art** banner
@@ -95,7 +100,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
   - `/logout`, `/recap`, `/dashboard`, `/marketplace`, `/config-agents` (`/agents`), `/import-claude`, `/share`, `/voice`
   - Catalog order tracks Grok `builtin_commands()` for shared names
 - **Output cleanup (Grok-shaped):**
-  - **TUI:** blank gap between blocks; tool cards `│ Read path` / `│ $ cmd`; assistant markdown always styled (bold/code/headings) even with `NO_COLOR`
+  - **TUI:** blank gap between blocks; tool cards `│ Read path` / `│ $ cmd`; assistant markdown uses soft emphasis (no reverse code / bright bold); monochrome strips markers plain
   - **Headless `-p`:** print **final answer only** (no mid-tool chatter, no auth banner); `AETHER_STREAM_STDOUT=1` for live tokens
   - stderr quiet unless `--verbose` or real errors
 

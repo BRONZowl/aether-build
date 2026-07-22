@@ -38,7 +38,40 @@ test_write_md_inline_visible_styles :: proc(t: ^testing.T) {
 	testing.expect(t, n >= 10)
 	testing.expect(t, strings.contains(s, "bold"), s)
 	testing.expect(t, !strings.contains(s, "**"), s) // markers consumed when color on
-	testing.expect(t, strings.contains(s, "\x1b[1m") || strings.contains(s, "\x1b[7m"), s)
+	testing.expect(t, strings.contains(s, "\x1b[1m"), s) // soft bold
+	testing.expect(t, !strings.contains(s, "\x1b[97m"), s) // no bright-white
+	testing.expect(t, !strings.contains(s, "\x1b[7m"), s) // no reverse code
+	testing.expect(t, strings.contains(s, "code"), s)
+}
+
+@(test)
+test_write_md_inline_soft_no_harsh_sgr :: proc(t: ^testing.T) {
+	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
+	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
+	_ = os.unset_env("NO_COLOR")
+	_ = os.unset_env("AETHER_NO_COLOR")
+	defer {
+		if prev_nc != "" {
+			_ = os.set_env("NO_COLOR", prev_nc)
+		}
+		if prev_ac != "" {
+			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
+		}
+	}
+	b: strings.Builder
+	strings.builder_init(&b, context.temp_allocator)
+	_ = write_md_inline(&b, "`x` and **y**", 80)
+	s := strings.to_string(b)
+	testing.expect(t, !strings.contains(s, "\x1b[7m"), s)
+	testing.expect(t, !strings.contains(s, "\x1b[97m"), s)
+	// monochrome: plain strip, no SGR
+	_ = os.set_env("NO_COLOR", "1")
+	strings.builder_reset(&b)
+	_ = write_md_inline(&b, "**plain** `code`", 80)
+	s = strings.to_string(b)
+	testing.expect(t, !strings.contains(s, "\x1b["), s)
+	testing.expect(t, strings.contains(s, "plain"), s)
+	testing.expect(t, strings.contains(s, "code"), s)
 }
 
 @(test)
