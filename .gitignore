@@ -3,3 +3,10 @@
 out/
 *.o
 .DS_Store
+
+# Accidental cwd binary (use out/aether or make install)
+/aether
+
+# Machine-local LSP config (product reads ~/.grok/lsp.json and .grok/lsp.json)
+/lsp.json
+.grok/lsp.json
