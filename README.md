@@ -1,4 +1,5 @@
-# Aether
+<h1 align="center">Aether</h1>
+
 
 **Aether** is a high-performance coding agent written in **Odin**: headless one-shots, multi-turn REPL, and a fullscreen terminal UI.
 
