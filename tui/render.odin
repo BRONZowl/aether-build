@@ -433,8 +433,9 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	block_h := frame_top + input_h + frame_bot // full composer block (box + text)
 	// Live slash suggestion menu (between body and status); capped to fit terminal
 	menu_h := slash_menu_height(s, rows, block_h)
-	// header + status + composer block [+ slash menu]
-	fixed := chrome_fixed_rows(s) // header + hints status
+	// header [+ optional status] + composer block [+ slash menu]
+	show_status := status_row_visible(s)
+	fixed := chrome_fixed_rows(s)
 	body_h := rows - fixed - block_h - menu_h
 	if body_h < 1 {
 		body_h = 1
@@ -543,103 +544,99 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		write_slash_menu(&b, s, cols, menu_h)
 	}
 
-	// status — hints match Grok Build prompt bindings
-	st := s.status if s.status != "" else "ready"
-	// Braille spinner while generating (hide during ask / modal steal).
-	if s.streaming && !s.ask_active && !modal_open {
-		st = spinner_status_text(true, false, s.spinner_tick, st)
-	}
-	compact := core.compact_mode_enabled()
-	scroll_info := ""
-	if max_scroll > 0 && !modal_open {
-		scroll_info = fmt.tprintf("  [%d/%d]", total - s.scroll, total)
-	}
-	status: string
-	if s.ask_active {
-		// Question freeform / multi / single select vs tool approve (y/n/a/d)
-		if strings.contains(s.ask_summary, "Other>") {
-			status = fmt.tprintf(" %s  | type · Enter submit · Esc = Other", st)
-		} else if strings.contains(s.ask_summary, "digit toggle") {
-			status = fmt.tprintf(" %s  | digit toggle · Enter submit · Esc cancel", st)
-		} else if strings.contains(s.ask_summary, "1-9 select") {
-			status = fmt.tprintf(" %s  | digit select · Esc cancel", st)
-		} else {
-			status = fmt.tprintf(" %s  | y allow · n deny · a always · d never", st)
+	// Status row (optional): spinner while generating, modal/ask hints, etc.
+	// Idle "ready | Enter send · …" is hidden so the composer sits under the body.
+	if show_status {
+		st := s.status if s.status != "" else "ready"
+		// Braille spinner while generating (hide during ask / modal steal).
+		if s.streaming && !s.ask_active && !modal_open {
+			st = spinner_status_text(true, false, s.spinner_tick, st)
 		}
-	} else if s.picker.active {
-		status = fmt.tprintf(
-			" %s  | Enter load · Esc close · type filter · ↑↓",
-			st,
-		)
-	} else if s.model_picker.active {
-		status = fmt.tprintf(
-			" %s  | Enter apply · Esc close · type filter · ↑↓",
-			st,
-		)
-	} else if s.rewind_picker.active {
-		status = fmt.tprintf(" %s  | Enter rewind · Esc close · ↑↓", st)
-	} else if s.settings_modal.active {
-		status = fmt.tprintf(" %s  | Enter toggle · Esc close · ↑↓", st)
-	} else if s.queue_pane_active {
-		status = fmt.tprintf(" %s  | d drop · c clear · Esc close · ↑↓", st)
-	} else if s.extensions_hub.active {
-		status = fmt.tprintf(
-			" %s  | r reload · ←/→ tab · Esc",
-			st,
-		)
-	} else if s.dashboard.active {
-		status = fmt.tprintf(" %s  | Enter load · k kill · r refresh · Esc", st)
-	} else if s.command_palette.active {
-		status = fmt.tprintf(" %s  | Enter insert · type filter · Esc", st)
-	} else if s.docs_picker.active {
-		status = fmt.tprintf(" %s  | Enter open · Esc", st)
-	} else if s.personas_modal.active {
-		status = fmt.tprintf(" %s  | Enter open · n new · Esc", st)
-	} else if s.fork_modal.active {
-		status = fmt.tprintf(" %s  | 1 worktree · 2 same · Esc", st)
-	} else if s.search.active {
-		// status already set by search_set_status
-		status = fmt.tprintf(" %s  | n/N next · Esc close", st)
-	} else if s.focus == .Scrollback {
-		status = fmt.tprintf(
-			" %s%s  | ↑↓ select · y copy · Ctrl+F find · Tab",
-			st,
-			scroll_info,
-		)
-	} else if s.multiline_mode {
-		if compact {
-			status = fmt.tprintf(" %s%s | S-Enter · Tab · Q", st, scroll_info)
-		} else {
+		compact := core.compact_mode_enabled()
+		scroll_info := ""
+		if max_scroll > 0 && !modal_open {
+			scroll_info = fmt.tprintf("  [%d/%d]", total - s.scroll, total)
+		}
+		status: string
+		if s.ask_active {
+			// Question freeform / multi / single select vs tool approve (y/n/a/d)
+			if strings.contains(s.ask_summary, "Other>") {
+				status = fmt.tprintf(" %s  | type · Enter submit · Esc = Other", st)
+			} else if strings.contains(s.ask_summary, "digit toggle") {
+				status = fmt.tprintf(" %s  | digit toggle · Enter submit · Esc cancel", st)
+			} else if strings.contains(s.ask_summary, "1-9 select") {
+				status = fmt.tprintf(" %s  | digit select · Esc cancel", st)
+			} else {
+				status = fmt.tprintf(" %s  | y allow · n deny · a always · d never", st)
+			}
+		} else if s.picker.active {
 			status = fmt.tprintf(
-				" %s%s  | S-Enter send · Ctrl+F find · Tab · Ctrl+Q",
+				" %s  | Enter load · Esc close · type filter · ↑↓",
+				st,
+			)
+		} else if s.model_picker.active {
+			status = fmt.tprintf(
+				" %s  | Enter apply · Esc close · type filter · ↑↓",
+				st,
+			)
+		} else if s.rewind_picker.active {
+			status = fmt.tprintf(" %s  | Enter rewind · Esc close · ↑↓", st)
+		} else if s.settings_modal.active {
+			status = fmt.tprintf(" %s  | Enter toggle · Esc close · ↑↓", st)
+		} else if s.queue_pane_active {
+			status = fmt.tprintf(" %s  | d drop · c clear · Esc close · ↑↓", st)
+		} else if s.extensions_hub.active {
+			status = fmt.tprintf(
+				" %s  | r reload · ←/→ tab · Esc",
+				st,
+			)
+		} else if s.dashboard.active {
+			status = fmt.tprintf(" %s  | Enter load · k kill · r refresh · Esc", st)
+		} else if s.command_palette.active {
+			status = fmt.tprintf(" %s  | Enter insert · type filter · Esc", st)
+		} else if s.docs_picker.active {
+			status = fmt.tprintf(" %s  | Enter open · Esc", st)
+		} else if s.personas_modal.active {
+			status = fmt.tprintf(" %s  | Enter open · n new · Esc", st)
+		} else if s.fork_modal.active {
+			status = fmt.tprintf(" %s  | 1 worktree · 2 same · Esc", st)
+		} else if s.search.active {
+			// status already set by search_set_status
+			status = fmt.tprintf(" %s  | n/N next · Esc close", st)
+		} else if s.focus == .Scrollback {
+			status = fmt.tprintf(
+				" %s%s  | ↑↓ select · y copy · Ctrl+F find · Tab",
 				st,
 				scroll_info,
 			)
-		}
-	} else if menu_h > 0 {
-		ms := make([dynamic]string, 0, 16, context.temp_allocator)
-		_ = slash_menu_matches(s, &ms)
-		if compact {
-			status = fmt.tprintf(" %s | %d cmds · ↑↓ · Tab", st, len(ms))
+		} else if s.multiline_mode {
+			if compact {
+				status = fmt.tprintf(" %s%s | S-Enter · Tab · Q", st, scroll_info)
+			} else {
+				status = fmt.tprintf(
+					" %s%s  | S-Enter send · Ctrl+F find · Tab · Ctrl+Q",
+					st,
+					scroll_info,
+				)
+			}
+		} else if menu_h > 0 {
+			ms := make([dynamic]string, 0, 16, context.temp_allocator)
+			_ = slash_menu_matches(s, &ms)
+			if compact {
+				status = fmt.tprintf(" %s | %d cmds · ↑↓ · Tab", st, len(ms))
+			} else {
+				status = fmt.tprintf(
+					" %s  | %d slash matches · ↑↓ select · Tab accept · Esc clear",
+					st,
+					len(ms),
+				)
+			}
 		} else {
-			status = fmt.tprintf(
-				" %s  | %d slash matches · ↑↓ select · Tab accept · Esc clear",
-				st,
-				len(ms),
-			)
+			// Non-ready status without keybinding suffix (idle ready is not painted).
+			status = fmt.tprintf(" %s%s", st, scroll_info)
 		}
-	} else {
-		if compact {
-			status = fmt.tprintf(" %s%s | Enter · Tab · Q", st, scroll_info)
-		} else {
-			status = fmt.tprintf(
-				" %s%s  | Enter send · Ctrl+F find · Tab · Ctrl+Q",
-				st,
-				scroll_info,
-			)
-		}
+		write_row(&b, status, cols, .Bar_Dim, true)
 	}
-	write_row(&b, status, cols, .Bar_Dim, true)
 
 	// composer block (optional box + text + bottom caption) + cursor
 	write_input(&b, s, cols, input_h, frame_top, frame_bot, rows)

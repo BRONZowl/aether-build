@@ -19,6 +19,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 - Body placeholder **`Waiting for response…`** until the first streamed tokens
 - Frames advance from mid-turn poll/status (~80ms); hidden during ask modals
 
+### TUI chrome cleanup
+
+- Idle **`ready | Enter send · Ctrl+F…`** status row above the composer is **hidden**
+- Status row still appears while generating, in modals/ask, scrollback, multiline, and slash menu
+
 ### Startup slash tips
 
 - Tips set `/about · /help · /keys · /quit` only on **empty-session welcome** and **REPL no-art** banner

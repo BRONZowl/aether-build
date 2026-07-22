@@ -9,7 +9,7 @@ import "core:testing"
 
 @(test)
 test_hit_test_click_zone_layout :: proc(t: ^testing.T) {
-	// rows=10, body_h=5, input_h=3 → header=1, body=2..6, status=7, input=8..10
+	// rows=10, body_h=5, input_h=3, status → header=1, body=2..6, status=7, input=8..10
 	rows, body_h, input_h := 10, 5, 3
 	testing.expect(t, hit_test_click_zone(1, rows, body_h, input_h) == .Header)
 	testing.expect(t, hit_test_click_zone(2, rows, body_h, input_h) == .Body)
@@ -19,6 +19,9 @@ test_hit_test_click_zone_layout :: proc(t: ^testing.T) {
 	testing.expect(t, hit_test_click_zone(10, rows, body_h, input_h) == .Input)
 	testing.expect(t, hit_test_click_zone(0, rows, body_h, input_h) == .Outside)
 	testing.expect(t, hit_test_click_zone(11, rows, body_h, input_h) == .Outside)
+	// Idle: no status row — input begins at former status row
+	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, 0, 0) == .Input)
+	testing.expect(t, hit_test_click_zone(6, rows, body_h, input_h, 0, 0) == .Body)
 }
 
 @(test)
@@ -31,6 +34,24 @@ test_hit_test_with_slash_menu :: proc(t: ^testing.T) {
 	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, menu_h) == .Slash_Menu)
 	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, menu_h) == .Status)
 	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h, menu_h) == .Input)
+}
+
+@(test)
+test_status_row_hidden_when_idle_ready :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	st.status = "ready"
+	st.focus = .Prompt
+	st.streaming = false
+	testing.expect(t, !status_row_visible(&st))
+	testing.expect(t, chrome_fixed_rows(&st) == 1)
+	st.streaming = true
+	testing.expect(t, status_row_visible(&st))
+	testing.expect(t, chrome_fixed_rows(&st) == 2)
+	st.streaming = false
+	st.status = "sampling…"
+	testing.expect(t, status_row_visible(&st))
 }
 
 @(test)

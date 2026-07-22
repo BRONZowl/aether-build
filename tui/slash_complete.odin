@@ -229,9 +229,16 @@ slash_menu_height :: proc(s: ^App_State, term_rows: int = 0, input_h: int = 1) -
 	// +1 top border; +1 bottom border when enough space (Grok panel chrome)
 	want := n + 2
 	if term_rows > 0 {
-		// chrome: header(1) + min body(1) + status(1) + input_h
+		// chrome: header(1) + min body(1) + optional status + input_h
 		ih := input_h if input_h > 0 else 1
-		budget := term_rows - 1 - 1 - 1 - ih // remaining for menu
+		// Slash menu open → status row usually visible (match counts); budget conservatively.
+		status_rows := 1 if status_row_visible(s) else 0
+		// When deciding menu height before status_row_visible sees matches, reserve 1 for status
+		// once we know we have matches (this proc only runs with matches).
+		if status_rows == 0 {
+			status_rows = 1
+		}
+		budget := term_rows - 1 - 1 - status_rows - ih // remaining for menu
 		if budget < 2 {
 			// still show at least top rule + 1 match if possible
 			budget = max(0, term_rows - 1 - 1 - ih)

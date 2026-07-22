@@ -421,9 +421,15 @@ Click_Zone :: enum {
 }
 
 // hit_test_click_zone maps screen row y (1-based) to chrome region.
-// Layout matches render: 1 header + body_h body + menu_h slash menu + 1 status + input_h input.
+// Layout matches render: 1 header + body_h body + menu_h slash menu [+ status] + input.
 // menu_h is the live slash suggestion popup (0 when closed).
-hit_test_click_zone :: proc(y, rows, body_h, input_h: int, menu_h: int = 0) -> Click_Zone {
+// status_h is 0 or 1 (idle prompt hides the ready/hints row).
+hit_test_click_zone :: proc(
+	y, rows, body_h, input_h: int,
+	menu_h: int = 0,
+	status_h: int = 1,
+) -> Click_Zone {
+	_ = input_h
 	if y < 1 || y > rows {
 		return .Outside
 	}
@@ -434,19 +440,27 @@ hit_test_click_zone :: proc(y, rows, body_h, input_h: int, menu_h: int = 0) -> C
 	if body_h > 0 && y >= 2 && y <= 1 + body_h {
 		return .Body
 	}
-	// slash menu sits between body and status
+	// slash menu sits between body and status (or input when no status)
 	menu_start := 2 + body_h
 	menu_end := menu_start + menu_h - 1
 	if menu_h > 0 && y >= menu_start && y <= menu_end {
 		return .Slash_Menu
 	}
-	status_row := 2 + body_h + menu_h
-	if y == status_row {
-		return .Status
-	}
-	// input: remaining rows
-	if y > status_row {
-		return .Input
+	sh := status_h if status_h > 0 else 0
+	if sh > 0 {
+		status_row := 2 + body_h + menu_h
+		if y == status_row {
+			return .Status
+		}
+		if y > status_row {
+			return .Input
+		}
+	} else {
+		// no status row — input begins immediately after menu/body
+		input_start := 2 + body_h + menu_h
+		if y >= input_start {
+			return .Input
+		}
 	}
 	return .Outside
 }

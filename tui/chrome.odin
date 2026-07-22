@@ -43,10 +43,41 @@ composer_info_rows :: proc(s: ^App_State) -> int {
 	return bottom
 }
 
-// chrome_fixed_rows: header + status only (composer frame is part of input block).
+// status_row_visible: paint the line above the composer?
+// Hidden when idle at prompt with status "ready" (no Enter/Tab/Q hint bar).
+// Shown for streaming spinner, ask/modals, scrollback, multiline, slash menu, errors.
+status_row_visible :: proc(s: ^App_State) -> bool {
+	if s == nil {
+		return false
+	}
+	if s.ask_active || s.streaming || s.multiline_mode {
+		return true
+	}
+	if s.focus == .Scrollback || s.search.active || s.queue_pane_active {
+		return true
+	}
+	if overlay_is_open(s) {
+		return true
+	}
+	st := s.status if s.status != "" else "ready"
+	if st != "ready" {
+		return true
+	}
+	// Live slash suggestions (menu open) keep the status row for match counts.
+	ms := make([dynamic]string, 0, 4, context.temp_allocator)
+	if slash_menu_matches(s, &ms) {
+		return true
+	}
+	return false
+}
+
+// chrome_fixed_rows: header [+ optional status]; composer frame is separate.
 chrome_fixed_rows :: proc(s: ^App_State) -> int {
-	_ = s
-	return 2 // header + hints status
+	n := 1 // top bar
+	if status_row_visible(s) {
+		n += 1
+	}
+	return n
 }
 
 // composer_block_height: text lines + optional box/info chrome.

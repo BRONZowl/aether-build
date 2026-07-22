@@ -15,6 +15,7 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 	block_h := composer_block_height(st, cols)
 	menu_h := slash_menu_height(st, rows, block_h)
 	fixed := chrome_fixed_rows(st)
+	status_h := 1 if status_row_visible(st) else 0
 	body_h := rows - fixed - block_h - menu_h
 	if body_h < 1 {
 		body_h = 1
@@ -23,7 +24,7 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 		menu_h -= 1
 	}
 	// hit_test treats "input" as the full composer block (box + text)
-	zone := hit_test_click_zone(my, rows, body_h, block_h, menu_h)
+	zone := hit_test_click_zone(my, rows, body_h, block_h, menu_h, status_h)
 	switch zone {
 	case .Input:
 		if st.focus != .Prompt {
