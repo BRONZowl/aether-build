@@ -313,8 +313,5 @@ format_rfc3339_utc :: proc(t: time.Time, allocator := context.allocator) -> stri
 }
 
 truncate :: proc(s: string, n: int) -> string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n]
+	return core.utf8_safe_prefix(s, n)
 }

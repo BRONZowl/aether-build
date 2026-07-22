@@ -115,7 +115,7 @@ collect_compact_transcript :: proc(
 			content = strings.to_string(tb)
 		}
 		if len(content) > 6000 {
-			content = content[:6000]
+			content = core.utf8_safe_prefix(content, 6000)
 		}
 		block := fmt.tprintf("### %s\n%s\n\n", role, content)
 		if strings.builder_len(b) + len(block) > max_chars {
@@ -149,7 +149,7 @@ compact_heuristic_summary :: proc(
 				continue
 			}
 			if len(c) > 1500 {
-				c = c[:1500]
+				c = core.utf8_safe_prefix(c, 1500)
 			}
 			// prepend by building reverse... collect later
 			n_user += 1
@@ -179,7 +179,7 @@ compact_heuristic_summary :: proc(
 			continue
 		}
 		if len(c) > 1200 {
-			c = c[:1200]
+			c = core.utf8_safe_prefix(c, 1200)
 		}
 		label := "User" if m.role == .User else "Assistant"
 		strings.write_string(&b, fmt.tprintf("**%s:** %s\n\n", label, c))
@@ -380,7 +380,9 @@ truncate_preview :: proc(s: string, max: int, allocator := context.allocator) ->
 	if len(t) <= max {
 		return strings.clone(t, allocator)
 	}
-	return fmt.aprintf("%s…", t[:max], allocator = allocator)
+	// Leave room for ellipsis rune (3 bytes) so the result stays valid UTF-8.
+	prefix := core.utf8_safe_prefix(t, max)
+	return fmt.aprintf("%s…", prefix, allocator = allocator)
 }
 
 // auto_compact_enabled: not AETHER_NO_AUTO_COMPACT, config auto_compact, and threshold > 0.

@@ -4,6 +4,12 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Fix: HTTP 400 “failed to parse as JSON” after tool results
+
+- Memory snippets (and other truncations) no longer cut mid–UTF-8 multi-byte character
+- `json_string_escape` replaces invalid UTF-8 with U+FFFD so chat request bodies stay valid JSON
+- Root cause: `memory_search` capped snippets at 1200 **bytes**, splitting e.g. `—` (`e2 80 94`) and poisoning the next API request / session file
+
 ### Docs
 
 - README streamlined: install-first, shorter feature/TUI sections; deep detail → `/help` and packaging docs
@@ -39,6 +45,11 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 - Softer emphasis: bold without bright-white; inline code uses dim (not reverse video)
 - Quieter headings/list bullets; monochrome/`NO_COLOR` paints plain text (markers stripped)
+- Theme-aware bold/dim for inline spans; restore prose fg after truecolor dim
+- Ordered lists (`1. `) paint with dim markers; unordered still dim `•`
+- Code fence chrome quieted (`── lang ──`); header/footer **Dim**, body **Code**
+- GFM tables: header Bold, separator Dim, body Assistant (not a full code block)
+- Blank line before fences/tables when the previous line is non-empty
 
 ### Startup slash tips
 

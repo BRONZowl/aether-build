@@ -637,10 +637,10 @@ score_file_chunks :: proc(
 			if score > 1.0 {
 				score = 1.0
 			}
-			// Cap snippet length for output
+			// Cap snippet length for output (UTF-8 safe — mid-sequence cuts break API JSON)
 			snippet := chunk
 			if len(snippet) > 1200 {
-				snippet = snippet[:1200]
+				snippet = core.utf8_safe_prefix(snippet, 1200)
 			}
 			append(
 				&hits,
