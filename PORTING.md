@@ -194,7 +194,7 @@ make -C aether build vet test smoke-tui
 | Config | `xai-grok-config*` | `core` + `aether.toml` | Full | Product keys merge (A5.1); marketplace/remote/managed **N/A** |
 | Tools runtime | `xai-grok-tools*` | `tools/`, `agent/*` | Full | See tool matrix (all Full or N/A) |
 | Shell / session actor | `xai-grok-shell*` | `agent/session`, `slash`, `repl` | Full | B2.1–2 lifecycle + soft rewind; multi-client ACP **N/A** |
-| Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; **M8** Unicode mermaid layout (flowchart + sequence); PNG/SVG residual N/A |
+| Pager / TUI | `xai-grok-pager*` | `tui/` | Full | C1–C2 chrome; turn-status braille spinner + pre-token body wait; **M8** Unicode mermaid layout (flowchart + sequence); PNG/SVG residual N/A |
 | Markdown render | `xai-grok-markdown*` | `tui/markdown`, `tui/mermaid` | Full | bold/italic/code/headers/lists; fences + lang; GFM tables; **M8** mermaid Unicode art |
 | MCP | `xai-grok-mcp` | `mcp/` | Full | stdio/HTTP + credentials + reconnect + doctor; **M3** enroll/set-token auto-reconnect; full browser OAuth DCR still host-assisted N/A |
 | Skills | tools skills + shell | `skills/` | Full | Discovery + invoke + reload; **M10** `/create-skill`; remote marketplace **N/A** |

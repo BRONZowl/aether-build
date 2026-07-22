@@ -4,6 +4,26 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Maintainability (P0–P5)
+
+- Shared env/feature helpers (`core/env_flag`); kill-switches route through `feature_killed` / `feature_enabled`
+- Tool schema registry (`tools/registry.odin`) single SoT; `Tool_Spec.perm` aligned with `core.TOOL_PERM_TABLE` (P2.3)
+- Slash table dispatch (`agent/slash_table.odin`) for emit-only commands; catalog coverage test
+- Soft-bash: `Cli_Readonly_Spec` walker + data-driven allow/deny/value tables across tools/pkg/cloud/container
+- Soft-bash golden matrix expanded (aws/gcloud/az, curl/wget, redis, pacman, poetry, just, …)
+- Media path helpers + `Turn_Options` field groups (nested structs deferred)
+
+### TUI loading spinner
+
+- Braille spinner (`⠋⠙⠹…`) on the **status bar** for the whole agent turn
+- Body placeholder **`Waiting for response…`** until the first streamed tokens
+- Frames advance from mid-turn poll/status (~80ms); hidden during ask modals
+
+### Startup slash tips
+
+- Tips set `/about · /help · /keys · /quit` only on **empty-session welcome** and **REPL no-art** banner
+- No longer injected as a transcript notice when resuming a session
+
 ### Hang hardening (force-quit freezes)
 
 - FG shell (`run_terminal_cmd`) honors **Ctrl+C cancel** and kills the process
@@ -80,7 +100,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 - Single catalog `core/slash_catalog.odin` drives `/help`, `/aliases`, and the bare-`/` menu
 - Primaries aligned with Grok Build where implemented: **`/quit`**, **`/settings`**, **`/mcps`**, **`/context`**, plus the rest of the Grok shared set (old names remain aliases)
 - Bare `/` menu lists primaries only; typing an alias prefix still completes (e.g. `/ex` → `/exit`)
-- **Startup banners** share `BRAND_STARTUP_SLASH_TIPS` (`/about · /help · /keys · /quit`): welcome tip, REPL no-art line, resume notice, CLI help uses `/quit`
+- **Startup banners** share `BRAND_STARTUP_SLASH_TIPS` (`/about · /help · /keys · /quit`): empty-session welcome tip + REPL no-art line only (not resume transcript notices)
 - **Slash dropdown** matches Grok Build layout: top rule + count, `❯ /name` + description column, bottom rule; Grok-facing descriptions for shared commands
 - **Bare-`/` menu order** follows Grok `builtin_commands()` for shared cmds (`/quit`, `/help`, `/docs`, `/home`, `/new`, …); Aether-only cmds after
 
