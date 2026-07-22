@@ -84,7 +84,8 @@ run :: proc(opts: agent.Headless_Options) -> int {
 	dirty := true
 
 	for !st.quit {
-		// Keep top-bar location in sync (session /cd, /new, load).
+		// Keep top-bar location + context bar session pointer in sync.
+		set_live_session(&st, &sess)
 		state_set_cwd(&st, cwd)
 		if st.model != model {
 			delete(st.model)

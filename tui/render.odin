@@ -10,26 +10,21 @@ import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
 
-// format_context_chip: estimated context window usage for header (B26).
+// format_context_chip: Grok-style used/window for top bar (B26).
 // msgs = session history; live = in-flight assistant draft (streaming).
-// Returns " ctx:N%" or " N%" (compact); empty if nothing to show.
+// Returns "12K / 131K" (or compact "12K/131K"); always shows window once known.
 format_context_chip :: proc(
 	msgs: []agent.Chat_Message,
 	live: string,
 	compact: bool,
 ) -> string {
-	chars := agent.estimate_message_chars(msgs)
-	chars += len(live)
-	if chars <= 0 && len(msgs) == 0 {
-		return ""
-	}
-	toks := agent.estimate_tokens(chars)
-	win := agent.default_context_window()
-	pct := agent.context_usage_pct(toks, win)
+	used, window, _, _ := agent.estimate_context_usage(msgs, live)
+	u := agent.format_tokens_compact(used, context.temp_allocator)
+	w := agent.format_tokens_compact(window, context.temp_allocator)
 	if compact {
-		return fmt.tprintf(" %d%%", pct)
+		return fmt.tprintf("%s/%s", u, w)
 	}
-	return fmt.tprintf(" ctx:%d%%", pct)
+	return fmt.tprintf("%s / %s", u, w)
 }
 
 // flatten_blocks → display rows for current width (temp allocator strings).

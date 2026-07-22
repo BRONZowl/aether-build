@@ -320,6 +320,18 @@ handle_slash :: proc(
 		stream_notice_slash(msg)
 	}
 
+	// /clear|/new replace the session — cancel mid-turn UI first so we don't
+	// leave streaming=true over an empty transcript (breaks welcome + input).
+	is_session_reset :=
+		line == "/clear" ||
+		line == "/new" ||
+		strings.has_prefix(line, "/new ") ||
+		line == "/home" ||
+		line == "/welcome"
+	if is_session_reset && st.streaming {
+		tui_abort_turn_ui(st)
+	}
+
 	action := agent.run_slash(sess, line, opts, model, cwd, perm, slash_out)
 	input_clear(st)
 	st.history_idx = -1
@@ -337,9 +349,15 @@ handle_slash :: proc(
 		st.model = strings.clone(model^)
 		state_set_cwd(st, cwd^)
 		state_set_session_meta(st, sess.id, sess.title)
+		set_live_session(st, sess)
+		// Always drop turn chrome after session replace (even if not streaming
+		// when slash ran — avoids sticky spinner/live draft).
+		tui_abort_turn_ui(st)
 		rebuild_blocks(st, sess.msgs[:])
 		seed_prompt_history(st, sess.msgs[:])
 		stream_pin_bottom(st)
+		clamp_selected_block(st)
+		focus_prompt(st)
 		// After /fork with directive, fill composer once
 		if strings.has_prefix(line, "/fork") {
 			if dir := agent.take_fork_pending_composer(); dir != "" {
@@ -349,11 +367,7 @@ handle_slash :: proc(
 			}
 		}
 		// B56: /clear, /new, /home drop ephemeral notice spam
-		if line == "/clear" ||
-		   line == "/new" ||
-		   strings.has_prefix(line, "/new ") ||
-		   line == "/home" ||
-		   line == "/welcome" {
+		if is_session_reset {
 			state_clear_notices(st)
 		}
 		state_set_status(st, "ready")

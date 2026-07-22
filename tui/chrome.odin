@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #+build linux, darwin, freebsd, openbsd, netbsd
-// TUI chrome: Grok-shaped top bar (branch · cwd · mode · context chips).
+// TUI chrome: Grok-shaped top bar (branch · cwd · context used/window) + composer rails.
 package tui
 
 import "core:fmt"
@@ -87,7 +87,8 @@ composer_block_height :: proc(s: ^App_State, cols: int) -> int {
 }
 
 // format_top_bar builds the Grok-shaped top chrome line for width cols.
-// left: branch + cwd; right: plan/goal/todos/ctx/mode/model. Truncates left first.
+// left: branch + cwd; right: plan/goal/todos + context used/window (not mode/model).
+// Truncates left first. Mode/model live on the composer bottom rail.
 format_top_bar :: proc(s: ^App_State, cols: int) -> string {
 	cwd := s.cwd if s.cwd != "" else "."
 	compact := core.compact_mode_enabled()
@@ -105,7 +106,7 @@ format_top_bar :: proc(s: ^App_State, cols: int) -> string {
 	strings.write_string(&left_b, cwd_disp)
 	left := strings.to_string(left_b)
 
-	// --- right: chips ---
+	// --- right: chips (no permission/model — those are on the composer caption) ---
 	right_b := strings.builder_make(context.temp_allocator)
 	first := true
 	write_chip :: proc(b: ^strings.Builder, first: ^bool, chip: string) {
@@ -131,38 +132,21 @@ format_top_bar :: proc(s: ^App_State, cols: int) -> string {
 	if n := tools.todo_open_count(); n > 0 {
 		write_chip(&right_b, &first, fmt.tprintf("todos:%d", n))
 	}
-	ctx := ""
-	if stream_sess() != nil {
-		live := ""
-		if s.streaming {
-			live = strings.to_string(s.live_assist)
-		}
-		ctx = strings.trim_space(format_context_chip(stream_sess().msgs[:], live, compact))
+	// Context used/window (Grok context_bar style). Prefer live_sess (always set by
+	// TUI loop); fall back to mid-turn stream_sess when bound.
+	live := ""
+	if s.streaming {
+		live = strings.to_string(s.live_assist)
 	}
+	msgs: []agent.Chat_Message
+	if sess := live_session(s); sess != nil {
+		msgs = sess.msgs[:]
+	} else if stream_sess() != nil {
+		msgs = stream_sess().msgs[:]
+	}
+	ctx := strings.trim_space(format_context_chip(msgs, live, compact))
 	if ctx != "" {
 		write_chip(&right_b, &first, ctx)
-	}
-	// permission mode
-	mode := s.perm if s.perm != "" else "ask"
-	if compact {
-		// short labels
-		switch mode {
-		case "always-approve":
-			mode = "yolo"
-		case "read-only":
-			mode = "ro"
-		}
-	}
-	write_chip(&right_b, &first, mode)
-	// model (short)
-	model := s.model if s.model != "" else ""
-	if model != "" {
-		if compact && len(model) > 16 {
-			model = fmt.tprintf("%s…", model[:15])
-		} else if !compact && len(model) > 28 {
-			model = fmt.tprintf("%s…", model[:27])
-		}
-		write_chip(&right_b, &first, model)
 	}
 	right := strings.to_string(right_b)
 
@@ -234,12 +218,20 @@ truncate_runes :: proc(s: string, max_runes: int) -> string {
 	return fmt.tprintf("%s…", s[:end])
 }
 
-// format_composer_info: caption text for bottom rail / dim line — "model · mode [· multi]"
+// format_composer_info: bottom rail caption — "model · [effort ·] mode [· multi]".
+// Effort is read live from agent.reasoning_effort_current() so /effort updates every paint.
 format_composer_info :: proc(s: ^App_State) -> string {
 	mode := s.perm if s.perm != "" else "ask"
 	model := s.model if s.model != "" else "—"
+	eff := agent.reasoning_effort_current()
 	if s.multiline_mode {
+		if eff != "" {
+			return fmt.tprintf("%s · %s · %s · multi", model, eff, mode)
+		}
 		return fmt.tprintf("%s · %s · multi", model, mode)
+	}
+	if eff != "" {
+		return fmt.tprintf("%s · %s · %s", model, eff, mode)
 	}
 	return fmt.tprintf("%s · %s", model, mode)
 }

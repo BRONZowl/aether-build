@@ -4,6 +4,13 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### TUI chrome (context + effort)
+
+- Top bar: drop permission/model chips; show Grok-style context **`used / window`** (e.g. `12K / 131K`)
+- Composer bottom rail: **`model · [effort] · mode`** so `/effort` updates live on the input frame
+- Compact token formatting helper shared with context estimates
+- **Fix `/clear`/`/new`:** abort sticky mid-turn streaming chrome, re-focus prompt, clamp selection, keep live session pointer for context bar
+
 ### Fix: HTTP 400 “failed to parse as JSON” after tool results
 
 - Memory snippets (and other truncations) no longer cut mid–UTF-8 multi-byte character

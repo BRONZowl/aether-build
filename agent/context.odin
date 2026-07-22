@@ -58,6 +58,54 @@ context_usage_pct :: proc(used, window: int) -> int {
 	return pct
 }
 
+// format_tokens_compact: Grok-style short token counts (≤4–5 chars).
+// 0–999 → "999"; 1K–9.9K → "1.2K"; 10K–999K → "12K"; 1M+ similarly.
+format_tokens_compact :: proc(n: int, allocator := context.allocator) -> string {
+	v := n
+	if v < 0 {
+		v = 0
+	}
+	if v < 1_000 {
+		return fmt.aprintf("%d", v, allocator = allocator)
+	}
+	if v < 10_000 {
+		// one decimal: 1200 → 1.2K
+		tenths := (v + 50) / 100 // round to 0.1K
+		whole := tenths / 10
+		frac := tenths % 10
+		return fmt.aprintf("%d.%dK", whole, frac, allocator = allocator)
+	}
+	if v < 1_000_000 {
+		return fmt.aprintf("%dK", (v + 500) / 1_000, allocator = allocator)
+	}
+	if v < 10_000_000 {
+		tenths := (v + 50_000) / 100_000
+		whole := tenths / 10
+		frac := tenths % 10
+		return fmt.aprintf("%d.%dM", whole, frac, allocator = allocator)
+	}
+	return fmt.aprintf("%dM", (v + 500_000) / 1_000_000, allocator = allocator)
+}
+
+// estimate_context_usage: used tokens, window, remaining, pct from msgs + live draft chars.
+estimate_context_usage :: proc(
+	msgs: []Chat_Message,
+	live: string,
+) -> (
+	used, window, remaining, pct: int,
+) {
+	chars := estimate_message_chars(msgs)
+	chars += len(live)
+	used = estimate_tokens(chars)
+	window = default_context_window()
+	remaining = window - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	pct = context_usage_pct(used, window)
+	return
+}
+
 // usage_bar renders a fixed-width ASCII bar (width 24).
 usage_bar :: proc(pct: int, allocator := context.allocator) -> string {
 	w := 24

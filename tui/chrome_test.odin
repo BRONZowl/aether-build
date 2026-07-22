@@ -7,14 +7,15 @@ package tui
 import "core:strings"
 import "core:testing"
 import "core:unicode/utf8"
+import "aether:agent"
 import "aether:core"
 
 @(test)
 test_layout_left_right_keeps_right :: proc(t: ^testing.T) {
 	// narrow width: right chips preserved, left truncated
-	out := layout_left_right("⎇ main ~/very/long/path/here", "ask · ctx:10%", 28)
-	testing.expect(t, strings.contains(out, "ask"), out)
-	testing.expect(t, strings.contains(out, "ctx:10%"), out)
+	out := layout_left_right("⎇ main ~/very/long/path/here", "12K / 131K", 28)
+	testing.expect(t, strings.contains(out, "12K"), out)
+	testing.expect(t, strings.contains(out, "131K"), out)
 	testing.expect(t, utf8.rune_count(out) <= 28, out)
 }
 
@@ -33,12 +34,21 @@ test_format_composer_info :: proc(t: ^testing.T) {
 	defer state_destroy(&st)
 	st.model = strings.clone("grok-test")
 	st.perm = strings.clone("ask")
+	_ = agent.set_reasoning_effort("off")
 	info := format_composer_info(&st)
 	testing.expect(t, strings.contains(info, "grok-test"), info)
 	testing.expect(t, strings.contains(info, "ask"), info)
+	testing.expect(t, !strings.contains(info, "high"), info)
+	// effort appears when set
+	_ = agent.set_reasoning_effort("high")
+	defer _ = agent.set_reasoning_effort("off")
+	info_e := format_composer_info(&st)
+	testing.expect(t, strings.contains(info_e, "high"), info_e)
+	testing.expect(t, strings.contains(info_e, "grok-test"), info_e)
 	st.multiline_mode = true
 	info2 := format_composer_info(&st)
 	testing.expect(t, strings.contains(info2, "multi"), info2)
+	testing.expect(t, strings.contains(info2, "high"), info2)
 }
 
 @(test)

@@ -102,6 +102,9 @@ App_State :: struct {
 	history_idx:     int,
 	// ephemeral notice lines from slash commands (owned)
 	notices:         [dynamic]string,
+	// Non-owning pointer to the live agent.Session (set by TUI loop / session load).
+	// Used for top-bar context usage outside stream_bind turns.
+	live_sess:       rawptr, // ^agent.Session — typed via stream/chrome helpers
 	// Ctrl+S session picker (Grok)
 	picker:          Session_Picker,
 	// Ctrl+M model picker when scrollback focused

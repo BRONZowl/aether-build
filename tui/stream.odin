@@ -107,8 +107,40 @@ stream_is_cancel :: proc() -> bool {
 }
 
 // stream_sess / stream_st / stream_term accessors for modals & mode.
+// Prefer App_State.live_sess for idle chrome; g_rt.sess is only set mid-turn.
 stream_sess :: proc() -> ^agent.Session {
 	return g_rt.sess
+}
+
+// live_session returns the TUI's idle session pointer (App_State.live_sess), or nil.
+live_session :: proc(s: ^App_State) -> ^agent.Session {
+	if s == nil || s.live_sess == nil {
+		return nil
+	}
+	return cast(^agent.Session)s.live_sess
+}
+
+// set_live_session stores a non-owning session pointer for chrome (context bar).
+set_live_session :: proc(s: ^App_State, sess: ^agent.Session) {
+	if s == nil {
+		return
+	}
+	s.live_sess = sess
+}
+
+// tui_abort_turn_ui: after /clear|/new (or cancel), drop mid-turn chrome so the
+// empty session can show welcome and accept input again.
+tui_abort_turn_ui :: proc(s: ^App_State) {
+	if s == nil {
+		return
+	}
+	if s.streaming {
+		stream_set_cancel()
+	}
+	s.streaming = false
+	strings.builder_reset(&s.live_assist)
+	s.spinner_tick = 0
+	s.last_spinner_ns = 0
 }
 
 stream_st :: proc() -> ^App_State {

@@ -9,9 +9,10 @@ import "aether:agent"
 
 @(test)
 test_format_context_chip_empty :: proc(t: ^testing.T) {
-	// empty session → empty chip
+	// empty session still shows used/window (Grok-style, always visible)
 	c := format_context_chip(nil, "", false)
-	testing.expect(t, c == "")
+	testing.expect(t, strings.contains(c, "/"), c)
+	testing.expect(t, strings.contains(c, "0"), c)
 }
 
 @(test)
@@ -26,13 +27,13 @@ test_format_context_chip_with_msgs :: proc(t: ^testing.T) {
 		content = "response text here",
 	}
 	c := format_context_chip(msgs, "", false)
-	testing.expect(t, strings.has_prefix(c, " ctx:"))
-	testing.expect(t, strings.has_suffix(c, "%"))
+	testing.expect(t, strings.contains(c, " / "), c) // "12 / 131K" style
 	cc := format_context_chip(msgs, "", true)
-	testing.expect(t, strings.has_suffix(cc, "%"))
-	// live draft should still produce a chip
+	testing.expect(t, strings.contains(cc, "/"), cc)
+	testing.expect(t, !strings.contains(cc, " / ") || strings.contains(cc, "/"), cc)
+	// live draft should still produce a chip with slash
 	live := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 	c2 := format_context_chip(msgs, live, false)
 	testing.expect(t, c2 != "")
-	testing.expect(t, strings.has_suffix(c2, "%"))
+	testing.expect(t, strings.contains(c2, "/"), c2)
 }

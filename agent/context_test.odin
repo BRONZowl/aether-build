@@ -24,6 +24,18 @@ test_estimate_tokens_and_pct :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_format_tokens_compact :: proc(t: ^testing.T) {
+	testing.expect(t, format_tokens_compact(0, context.temp_allocator) == "0")
+	testing.expect(t, format_tokens_compact(999, context.temp_allocator) == "999")
+	s := format_tokens_compact(1_200, context.temp_allocator)
+	testing.expect(t, strings.contains(s, "K"), s)
+	s2 := format_tokens_compact(131_072, context.temp_allocator)
+	testing.expect(t, strings.contains(s2, "K"), s2)
+	s3 := format_tokens_compact(1_500_000, context.temp_allocator)
+	testing.expect(t, strings.contains(s3, "M"), s3)
+}
+
+@(test)
 test_format_context_status :: proc(t: ^testing.T) {
 	dir := fmt.aprintf("/tmp/aether-ctx-%d", os.get_pid())
 	defer delete(dir)

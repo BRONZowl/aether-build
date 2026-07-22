@@ -27,6 +27,9 @@ tui_new_session :: proc(
 	}
 	// perm is by-value here; use stack pointer for slash mutability
 	perm_mut := perm
+	if st.streaming {
+		tui_abort_turn_ui(st)
+	}
 	action := agent.run_slash(sess, "/new", opts, model, cwd, &perm_mut, slash_out)
 	if action != .Session_Changed && action != .Continue {
 		return false
@@ -34,6 +37,8 @@ tui_new_session :: proc(
 	delete(st.model)
 	st.model = strings.clone(model^)
 	state_set_session_meta(st, sess.id, sess.title)
+	set_live_session(st, sess)
+	tui_abort_turn_ui(st)
 	rebuild_blocks(st, sess.msgs[:])
 	seed_prompt_history(st, sess.msgs[:])
 	stream_pin_bottom(st)
@@ -76,6 +81,8 @@ tui_load_session_path :: proc(
 	delete(st.model)
 	st.model = strings.clone(model^)
 	state_set_session_meta(st, sess.id, sess.title)
+	set_live_session(st, sess)
+	tui_abort_turn_ui(st)
 	rebuild_blocks(st, sess.msgs[:])
 	seed_prompt_history(st, sess.msgs[:])
 	stream_pin_bottom(st)
