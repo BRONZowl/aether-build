@@ -1,0 +1,67 @@
+# Maintainer: BRONZowl (https://github.com/BRONZowl)
+# Aether (Odin coding agent) — git package for Arch Linux AUR.
+#
+# Local test (from repo root):
+#   cd packaging/aur/aether-grok-git
+#   makepkg -si
+#
+# Or with an AUR helper after publishing:
+#   yay -S aether-grok-git
+#   paru -S aether-grok-git
+
+pkgname=aether-grok-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc='High-performance coding agent (Odin) — peer to xAI Grok Build CLI'
+arch=('x86_64' 'aarch64')
+url='https://github.com/BRONZowl/aether-build'
+license=('Apache-2.0')
+depends=('curl' 'mbedtls' 'ripgrep')
+makedepends=('git' 'clang' 'llvm' 'make')
+provides=('aether-grok')
+conflicts=('aether-grok')
+# Do not provide/conflict short name `aether` (Arch theme package collision).
+options=('!lto') # Odin/LLVM link; LTO optional later
+source=("git+${url}.git#branch=master")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd aether-build
+  # Prefer git describe if tags exist; else 0.1.0.rN.gHASH
+  local d
+  d="$(git describe --long --tags 2>/dev/null || true)"
+  if [[ -n "$d" ]]; then
+    # v0.1.0-40-gabc -> 0.1.0.r40.gabc
+    printf '%s' "${d#v}" | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
+  else
+    printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+  fi
+}
+
+prepare() {
+  cd aether-build
+  # Ensure clean package build tree
+  rm -rf out .tools 2>/dev/null || true
+}
+
+build() {
+  cd aether-build
+  export AETHER_NO_DESKTOP_NOTIFY=1
+  # Bootstrap Odin into .tools (same as CI); then release build.
+  make bootstrap-odin
+  make build
+}
+
+check() {
+  cd aether-build
+  export AETHER_NO_DESKTOP_NOTIFY=1
+  # Full test suite can be long; smoke version is required.
+  ./out/aether --version
+  # Optional: make test (uncomment for stricter AUR builds)
+  # make test
+}
+
+package() {
+  cd aether-build
+  make DESTDIR="${pkgdir}" PREFIX=/usr install-prefix
+}

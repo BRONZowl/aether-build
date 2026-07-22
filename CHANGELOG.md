@@ -4,6 +4,13 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Package-manager install (AUR + Homebrew)
+
+- `make install-prefix` / `scripts/install-prefix.sh` — FHS install of `aether-grok` (+ odin name symlinks)
+- AUR skeleton: `packaging/aur/aether-grok-git/` (`makepkg -si` or publish for `yay -S aether-grok-git`)
+- Homebrew skeleton: `packaging/homebrew/aether-grok.rb` (`brew install --build-from-source ./…`)
+- Docs: `packaging/README.md` + README quick-start table
+
 ### Maintainability (P0–P5)
 
 - Shared env/feature helpers (`core/env_flag`); kill-switches route through `feature_killed` / `feature_enabled`

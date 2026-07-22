@@ -40,8 +40,8 @@ OUT_DIR := $(dir $(OUT))
 FLAGS := -collection:aether=. -out:$(OUT)
 
 .PHONY: all build debug vet test run clean smoke smoke-tui help install \
-	bootstrap-odin dist inventory-rust r5-dry-run extract export-standalone \
-	check-license
+	install-prefix bootstrap-odin dist inventory-rust r5-dry-run extract \
+	export-standalone check-license
 
 all: build
 
@@ -62,6 +62,7 @@ help:
 	@echo "  make smoke          live -p check (skips without auth)"
 	@echo "  make smoke-tui      scripted TUI smoke (no network)"
 	@echo "  make install        symlink aether-grok (+ odin names) into ~/.local/bin"
+	@echo "  make install-prefix DESTDIR= PREFIX=/usr  # package-manager install"
 	@echo "  make bootstrap-odin Odin toolchain -> .tools/"
 	@echo "  make dist           binary tarball under out/dist/"
 	@echo "  make extract        S4 standalone source export (EXTRACT_ARGS=...)"
@@ -110,6 +111,15 @@ smoke-tui: build
 install:
 	@if [[ ! -x "$(OUT)" ]]; then $(MAKE) build; fi
 	@bash scripts/install-local.sh
+
+# System/package install: copy real binary + names under $(DESTDIR)$(PREFIX).
+# Used by AUR / Homebrew packaging. Does not install short name `aether`
+# (conflicts with Arch desktop theme package).
+# Example: make DESTDIR=/tmp/pkg PREFIX=/usr install-prefix
+PREFIX ?= /usr
+DESTDIR ?=
+install-prefix: build
+	@bash scripts/install-prefix.sh
 
 bootstrap-odin:
 	@bash scripts/bootstrap-odin.sh

@@ -1,0 +1,22 @@
+pkgbase = aether-grok-git
+	pkgdesc = High-performance coding agent (Odin) — peer to xAI Grok Build CLI
+	pkgver = 0.1.0.r0.g0000000
+	pkgrel = 1
+	url = https://github.com/BRONZowl/aether-build
+	arch = x86_64
+	arch = aarch64
+	license = Apache-2.0
+	makedepends = git
+	makedepends = clang
+	makedepends = llvm
+	makedepends = make
+	depends = curl
+	depends = mbedtls
+	depends = ripgrep
+	provides = aether-grok
+	conflicts = aether-grok
+	options = !lto
+	source = git+https://github.com/BRONZowl/aether-build.git#branch=master
+	sha256sums = SKIP
+
+pkgname = aether-grok-git

@@ -32,6 +32,15 @@ Porting ledger and intentional non-goals live in **PORTING.md** (not repeated as
 <h2 align="center">Quick start</h2>
 
 
+### Package managers (easy install)
+
+| Manager | Install |
+|---------|---------|
+| **Arch (AUR)** | `cd packaging/aur/aether-grok-git && makepkg -si` — or after AUR publish: `yay -S aether-grok-git` |
+| **Homebrew** | `brew install --build-from-source ./packaging/homebrew/aether-grok.rb` — future: `brew tap BRONZowl/aether && brew install aether-grok` |
+
+Primary command after install: **`aether-grok`**. Details: [packaging/README.md](./packaging/README.md).
+
 ### Dependencies
 
 | Kind | Packages |
