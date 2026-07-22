@@ -9,7 +9,6 @@ package agent
 import "base:runtime"
 import "core:encoding/json"
 import "core:fmt"
-import "core:os"
 import "core:strconv"
 import "core:strings"
 import "core:sync"

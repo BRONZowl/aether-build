@@ -7,7 +7,6 @@ package core
 import "core:fmt"
 import "core:os"
 import "core:path/filepath"
-import "core:strings"
 import "core:time"
 
 hang_log_enabled :: proc() -> bool {

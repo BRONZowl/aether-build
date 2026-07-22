@@ -9,7 +9,6 @@
 
 package core
 
-import "core:os"
 import "core:strings"
 
 // Process override for soft bash (B48). Env kill-switch still wins when set.

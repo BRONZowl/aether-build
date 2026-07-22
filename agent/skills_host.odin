@@ -4,7 +4,6 @@
 package agent
 
 import "core:fmt"
-import "core:os"
 import "core:strings"
 import "aether:skills"
 import "aether:core"

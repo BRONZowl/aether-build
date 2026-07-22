@@ -5,7 +5,6 @@ package agent
 
 import "core:encoding/json"
 import "core:fmt"
-import "core:os"
 import "core:strings"
 import "core:time"
 import "aether:core"

@@ -5,7 +5,6 @@ package core
 
 import "base:runtime"
 import "core:fmt"
-import "core:os"
 import "core:strings"
 import "core:sync"
 
