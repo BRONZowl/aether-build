@@ -9,31 +9,33 @@ import "core:testing"
 
 @(test)
 test_hit_test_click_zone_layout :: proc(t: ^testing.T) {
-	// rows=10, body_h=5, input_h=3, status → header=1, body=2..6, status=7, input=8..10
-	rows, body_h, input_h := 10, 5, 3
+	// With TOP_BAR_GAP=1: header=1, gap=2, body=3..7 (body_h=5), status=8, input=9..10
+	// Use rows=11 so input has room: body5 + top2 + status1 + input3 = 11
+	rows, body_h, input_h := 11, 5, 3
 	testing.expect(t, hit_test_click_zone(1, rows, body_h, input_h) == .Header)
-	testing.expect(t, hit_test_click_zone(2, rows, body_h, input_h) == .Body)
-	testing.expect(t, hit_test_click_zone(6, rows, body_h, input_h) == .Body)
-	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h) == .Status)
-	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h) == .Input)
-	testing.expect(t, hit_test_click_zone(10, rows, body_h, input_h) == .Input)
+	testing.expect(t, hit_test_click_zone(2, rows, body_h, input_h) == .Header) // gap
+	testing.expect(t, hit_test_click_zone(3, rows, body_h, input_h) == .Body)
+	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h) == .Body)
+	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h) == .Status)
+	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h) == .Input)
+	testing.expect(t, hit_test_click_zone(11, rows, body_h, input_h) == .Input)
 	testing.expect(t, hit_test_click_zone(0, rows, body_h, input_h) == .Outside)
-	testing.expect(t, hit_test_click_zone(11, rows, body_h, input_h) == .Outside)
-	// Idle: no status row — input begins at former status row
-	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, 0, 0) == .Input)
-	testing.expect(t, hit_test_click_zone(6, rows, body_h, input_h, 0, 0) == .Body)
+	testing.expect(t, hit_test_click_zone(12, rows, body_h, input_h) == .Outside)
+	// Idle: no status row — input begins after body
+	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, 0, 0) == .Input)
+	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, 0, 0) == .Body)
 }
 
 @(test)
 test_hit_test_with_slash_menu :: proc(t: ^testing.T) {
-	// header=1, body=2..4 (body_h=3), menu=5..7 (menu_h=3), status=8, input=9..10
-	rows, body_h, input_h, menu_h := 10, 3, 2, 3
+	// top=2, body=3..5 (body_h=3), menu=6..8 (menu_h=3), status=9, input=10..
+	rows, body_h, input_h, menu_h := 11, 3, 2, 3
 	testing.expect(t, hit_test_click_zone(1, rows, body_h, input_h, menu_h) == .Header)
-	testing.expect(t, hit_test_click_zone(4, rows, body_h, input_h, menu_h) == .Body)
-	testing.expect(t, hit_test_click_zone(5, rows, body_h, input_h, menu_h) == .Slash_Menu)
-	testing.expect(t, hit_test_click_zone(7, rows, body_h, input_h, menu_h) == .Slash_Menu)
-	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, menu_h) == .Status)
-	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h, menu_h) == .Input)
+	testing.expect(t, hit_test_click_zone(5, rows, body_h, input_h, menu_h) == .Body)
+	testing.expect(t, hit_test_click_zone(6, rows, body_h, input_h, menu_h) == .Slash_Menu)
+	testing.expect(t, hit_test_click_zone(8, rows, body_h, input_h, menu_h) == .Slash_Menu)
+	testing.expect(t, hit_test_click_zone(9, rows, body_h, input_h, menu_h) == .Status)
+	testing.expect(t, hit_test_click_zone(10, rows, body_h, input_h, menu_h) == .Input)
 }
 
 @(test)
@@ -45,10 +47,11 @@ test_status_row_hidden_when_idle_ready :: proc(t: ^testing.T) {
 	st.focus = .Prompt
 	st.streaming = false
 	testing.expect(t, !status_row_visible(&st))
-	testing.expect(t, chrome_fixed_rows(&st) == 1)
+	// top bar + gap
+	testing.expect(t, chrome_fixed_rows(&st) == top_chrome_rows())
 	st.streaming = true
 	testing.expect(t, status_row_visible(&st))
-	testing.expect(t, chrome_fixed_rows(&st) == 2)
+	testing.expect(t, chrome_fixed_rows(&st) == top_chrome_rows() + 1)
 	st.streaming = false
 	st.status = "sampling…"
 	testing.expect(t, status_row_visible(&st))
@@ -62,10 +65,10 @@ test_slash_menu_click_accepts_row :: proc(t: ^testing.T) {
 	st.focus = .Prompt
 	input_set_text(&st, "/")
 	st.cursor = 1
-	// body_h=3, menu_h=5 → menu rows 5..9; row 5=header, 6=first match
+	// body_h=3, menu_h=5; first match at menu_start+1 = top_chrome+1+body_h+1
 	body_h, menu_h := 3, 5
-	// click first match row (y = 2+body_h+1 = 6)
-	testing.expect(t, slash_menu_click(&st, 6, body_h, menu_h))
+	y := top_chrome_rows() + 1 + body_h + 1
+	testing.expect(t, slash_menu_click(&st, y, body_h, menu_h))
 	got := input_text(&st)
 	testing.expect(t, strings.has_prefix(got, "/"))
 	testing.expect(t, len(got) > 1)
@@ -89,12 +92,14 @@ test_slash_menu_height_caps_to_terminal :: proc(t: ^testing.T) {
 
 @(test)
 test_body_line_index :: proc(t: ^testing.T) {
-	// start=10, body_h=5 → y=2 → line 10, y=6 → line 14
-	testing.expect(t, body_line_index(2, 5, 10, 20) == 10)
-	testing.expect(t, body_line_index(6, 5, 10, 20) == 14)
+	// body_first = top_chrome_rows()+1 (=3 with TOP_BAR_GAP=1)
+	// start=10, body_h=5 → y=3 → line 10, y=7 → line 14
+	bf := top_chrome_rows() + 1
+	testing.expect(t, body_line_index(bf, 5, 10, 20) == 10)
+	testing.expect(t, body_line_index(bf + 4, 5, 10, 20) == 14)
 	testing.expect(t, body_line_index(1, 5, 10, 20) == -1)
-	testing.expect(t, body_line_index(7, 5, 10, 20) == -1)
-	testing.expect(t, body_line_index(6, 5, 10, 12) == -1) // past total
+	testing.expect(t, body_line_index(bf + 5, 5, 10, 20) == -1)
+	testing.expect(t, body_line_index(bf + 4, 5, 10, 12) == -1) // past total
 }
 
 @(test)

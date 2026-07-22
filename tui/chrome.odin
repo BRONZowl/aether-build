@@ -15,6 +15,14 @@ import "aether:tools"
 // BRANCH_ICON matches Grok non-nerd fallback (⎇); ASCII fallback for safety in tests.
 BRANCH_ICON :: "⎇"
 
+// TOP_BAR_GAP: blank rows between the top bar and the transcript/output body.
+TOP_BAR_GAP :: 1
+
+// top_chrome_rows: header (1) + gap before body.
+top_chrome_rows :: proc() -> int {
+	return 1 + TOP_BAR_GAP
+}
+
 // composer_use_box: Grok-shaped rounded frame around the prompt (non-compact, wide enough).
 composer_use_box :: proc(cols: int) -> bool {
 	return !core.compact_mode_enabled() && cols >= 28
@@ -71,9 +79,9 @@ status_row_visible :: proc(s: ^App_State) -> bool {
 	return false
 }
 
-// chrome_fixed_rows: header [+ optional status]; composer frame is separate.
+// chrome_fixed_rows: top bar + gap [+ optional status]; composer frame is separate.
 chrome_fixed_rows :: proc(s: ^App_State) -> int {
-	n := 1 // top bar
+	n := top_chrome_rows() // top bar + blank gap before body
 	if status_row_visible(s) {
 		n += 1
 	}

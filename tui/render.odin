@@ -469,9 +469,13 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	// full clear + home once per frame (reliable; alt screen)
 	strings.write_string(&b, "\x1b[H\x1b[J")
 
-	// row 1 — Grok-shaped top bar: branch · cwd | chips (mode · context · model)
+	// row 1 — Grok-shaped top bar: branch · cwd | context chips
 	header := format_top_bar(s, cols)
 	write_row(&b, header, cols, .Bar_Dim, true)
+	// Blank gap between top bar and transcript/output (TOP_BAR_GAP)
+	for _ in 0 ..< TOP_BAR_GAP {
+		write_row(&b, "", cols, .Normal, true)
+	}
 
 	// body rows (or modal overlays / Grok-parity welcome)
 	if s.ask_active {

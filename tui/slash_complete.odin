@@ -300,7 +300,7 @@ slash_menu_click :: proc(s: ^App_State, y, body_h, menu_h: int) -> bool {
 	if !slash_menu_matches(s, &ms) {
 		return false
 	}
-	menu_start := 2 + body_h // first row of menu (header)
+	menu_start := top_chrome_rows() + 1 + body_h // first row of menu (after top chrome + body)
 	// row 0 of menu = header; rows 1.. are matches (windowed like write_slash_menu)
 	rel := y - menu_start
 	if rel <= 0 {

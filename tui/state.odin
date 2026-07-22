@@ -424,7 +424,7 @@ Click_Zone :: enum {
 }
 
 // hit_test_click_zone maps screen row y (1-based) to chrome region.
-// Layout matches render: 1 header + body_h body + menu_h slash menu [+ status] + input.
+// Layout matches render: header + TOP_BAR_GAP + body + menu [+ status] + input.
 // menu_h is the live slash suggestion popup (0 when closed).
 // status_h is 0 or 1 (idle prompt hides the ready/hints row).
 hit_test_click_zone :: proc(
@@ -436,22 +436,28 @@ hit_test_click_zone :: proc(
 	if y < 1 || y > rows {
 		return .Outside
 	}
+	top := top_chrome_rows() // header + blank gap
 	if y == 1 {
 		return .Header
 	}
-	// body: rows 2 .. 1+body_h
-	if body_h > 0 && y >= 2 && y <= 1 + body_h {
+	if y <= top {
+		// gap under top bar — non-interactive, treat as header
+		return .Header
+	}
+	// body: rows (top+1) .. (top+body_h)
+	body_first := top + 1
+	if body_h > 0 && y >= body_first && y <= top + body_h {
 		return .Body
 	}
 	// slash menu sits between body and status (or input when no status)
-	menu_start := 2 + body_h
+	menu_start := body_first + body_h
 	menu_end := menu_start + menu_h - 1
 	if menu_h > 0 && y >= menu_start && y <= menu_end {
 		return .Slash_Menu
 	}
 	sh := status_h if status_h > 0 else 0
 	if sh > 0 {
-		status_row := 2 + body_h + menu_h
+		status_row := menu_start + menu_h
 		if y == status_row {
 			return .Status
 		}
@@ -460,7 +466,7 @@ hit_test_click_zone :: proc(
 		}
 	} else {
 		// no status row — input begins immediately after menu/body
-		input_start := 2 + body_h + menu_h
+		input_start := menu_start + menu_h
 		if y >= input_start {
 			return .Input
 		}
@@ -470,12 +476,14 @@ hit_test_click_zone :: proc(
 
 // body_line_index: 0-based index into flattened lines for body click.
 // y is 1-based; start is first visible flattened line index.
+// Body starts after top chrome (header + TOP_BAR_GAP).
 body_line_index :: proc(y, body_h, start, total: int) -> int {
-	if body_h <= 0 || y < 2 || y > 1 + body_h {
+	body_first := top_chrome_rows() + 1
+	if body_h <= 0 || y < body_first || y > body_first + body_h - 1 {
 		return -1
 	}
 	// body_row 0..body_h-1
-	body_row := y - 2
+	body_row := y - body_first
 	line_i := start + body_row
 	if line_i < 0 || line_i >= total {
 		return -1
