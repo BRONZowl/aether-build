@@ -44,6 +44,8 @@ tui_run_auto_wake :: proc(
 	state_add_notice(st, "background task completed — waking agent")
 	strings.builder_reset(&st.live_assist)
 	st.streaming = true
+	st.spinner_tick = 0
+	st.last_spinner_ns = 0
 	stream_pin_bottom(st)
 	ask_turn_allow := false
 	stream_bind(st, term, sess, perm, perm_before)
@@ -175,6 +177,8 @@ run_user_prompt_turn :: proc(
 	state_set_status(st, "sampling…")
 	strings.builder_reset(&st.live_assist)
 	st.streaming = true
+	st.spinner_tick = 0
+	st.last_spinner_ns = 0
 	stream_pin_bottom(st)
 	ask_turn_allow := false
 	stream_bind(st, term, sess, perm, perm_before)

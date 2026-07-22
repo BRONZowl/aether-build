@@ -85,6 +85,9 @@ App_State :: struct {
 	perm:            string,
 	live_assist:     strings.Builder,
 	streaming:       bool,
+	// Loading spinner while streaming (status bar + pre-token body placeholder).
+	spinner_tick:    int,
+	last_spinner_ns: i64,
 	// Grok Build: multiline mode (Enter inserts newline; Shift/Alt+Enter sends)
 	multiline_mode:  bool,
 	quit:            bool,
@@ -142,6 +145,8 @@ state_init :: proc(s: ^App_State) {
 	s.stream_follow = true
 	s.live_assist = strings.builder_make()
 	s.status = "ready"
+	s.spinner_tick = 0
+	s.last_spinner_ns = 0
 	s.multiline_mode = false
 	s.last_cols = 0
 	s.esc_first_ns = 0

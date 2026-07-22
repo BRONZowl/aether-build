@@ -161,6 +161,20 @@ flatten_blocks :: proc(
 				mark_line(out, styles, block_idxs, -1, "", .Normal, allocator)
 			}
 			push_assistant(out, styles, block_idxs, -1, live, w, allocator)
+		} else if !s.ask_active {
+			// Pre-token / tool-gap: body spinner until live draft appears
+			if !first_block && !compact {
+				mark_line(out, styles, block_idxs, -1, "", .Normal, allocator)
+			}
+			mark_line(
+				out,
+				styles,
+				block_idxs,
+				-1,
+				spinner_body_line(s.spinner_tick, allocator),
+				.Dim,
+				allocator,
+			)
 		}
 	}
 }
@@ -531,6 +545,10 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 
 	// status — hints match Grok Build prompt bindings
 	st := s.status if s.status != "" else "ready"
+	// Braille spinner while generating (hide during ask / modal steal).
+	if s.streaming && !s.ask_active && !modal_open {
+		st = spinner_status_text(true, false, s.spinner_tick, st)
+	}
 	compact := core.compact_mode_enabled()
 	scroll_info := ""
 	if max_scroll > 0 && !modal_open {

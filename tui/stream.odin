@@ -138,9 +138,26 @@ stream_status_cb :: proc(text: string) {
 		strings.builder_reset(&g_rt.status_st.live_assist)
 	}
 	state_set_status(g_rt.status_st, text)
+	_ = stream_spinner_tick(g_rt.status_st, true)
 	if g_rt.status_term != nil {
 		render(g_rt.status_term, g_rt.status_st)
 	}
+}
+
+// stream_spinner_tick advances the braille frame while streaming (not during ask).
+// force=true always bumps the frame (status/tool transitions).
+// Returns true if the frame advanced (caller may re-render).
+stream_spinner_tick :: proc(st: ^App_State, force := false) -> bool {
+	if st == nil || !st.streaming || st.ask_active {
+		return false
+	}
+	now := time.now()._nsec
+	if !force && st.last_spinner_ns != 0 && (now - st.last_spinner_ns) < SPINNER_NS {
+		return false
+	}
+	st.spinner_tick += 1
+	st.last_spinner_ns = now
+	return true
 }
 
 // stream_tool_done_cb: Turn_Options.on_history — rebuild blocks after tool finish.
@@ -179,12 +196,25 @@ peek_turn_keys_impl :: proc(force: bool) {
 	}
 	now := time.now()._nsec
 	if !force && g_rt.last_poll_ns != 0 && (now - g_rt.last_poll_ns) < STREAM_POLL_NS {
+		// Still advance spinner on throttled polls when due (HTTP wait with no keys).
+		if g_rt.st != nil && stream_spinner_tick(g_rt.st, false) && g_rt.term != nil {
+			stream_safe_render()
+		}
 		return
 	}
 	g_rt.last_poll_ns = now
 
+	// Spinner tick even when stdin has no data (pre-token wait / tool gaps).
+	spun := false
+	if g_rt.st != nil {
+		spun = stream_spinner_tick(g_rt.st, false)
+	}
+
 	old: posix.termios
 	if posix.tcgetattr(posix.FD(posix.STDIN_FILENO), &old) != .OK {
+		if spun && g_rt.term != nil {
+			stream_safe_render()
+		}
 		return
 	}
 	raw := old
@@ -202,6 +232,9 @@ peek_turn_keys_impl :: proc(force: bool) {
 		return
 	}
 	if n <= 0 {
+		if spun && g_rt.term != nil {
+			stream_safe_render()
+		}
 		return
 	}
 	// Scan for cancel first (any position) — 0x03 when ISIG is off
