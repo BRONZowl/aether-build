@@ -981,14 +981,18 @@ write_input :: proc(
 		cur_col = prefix_cols
 	}
 
-	// Theme accents — stronger border when prompt focused
+	// Theme accents — border/prefix track permission + plan mode when focused
 	th := active_theme()
 	focus_on := s.focus == .Prompt
-	prefix_ansi := th.user if th.user != "" else th.bold
+	mode_acc := composer_mode_accent(s, th)
+	prefix_ansi := mode_acc
+	if prefix_ansi == "" {
+		prefix_ansi = th.user if th.user != "" else th.bold
+	}
 	if prefix_ansi == "" {
 		prefix_ansi = "\x1b[1m"
 	}
-	border_ansi := composer_border_ansi(focus_on, th)
+	border_ansi := composer_border_ansi(focus_on, th, mode_acc)
 
 	// --- vertical pad + top border (frame_top: 2 = blank + rail, 1 = rail only) ---
 	if frame_top > 0 {
@@ -1031,7 +1035,7 @@ write_input :: proc(
 		// paint: bold/dim content; keep border dim/accent already in string for box via re-style
 		if use_box {
 			// rewrite with styled borders: paint row_s with border on │ and content styled
-			write_composer_content_row(b, line, cols, show_placeholder, focus_on, th, border_ansi)
+			write_composer_content_row(b, line, cols, show_placeholder, focus_on, th, border_ansi, mode_acc)
 		} else {
 			if show_placeholder {
 				strings.write_string(b, "\x1b[2m")
@@ -1065,22 +1069,14 @@ write_input :: proc(
 		}
 	}
 
-	// --- bottom border / dim info ---
+	// --- bottom border / dim info (mode flag tinted like Grok PromptFlag) ---
 	if frame_bot > 0 {
 		cap := format_composer_info(s)
 		if use_box {
-			bot := format_composer_bottom_border(cols, cap)
-			strings.write_string(b, border_ansi)
-			n := write_fit(b, bot, cols)
-			strings.write_string(b, "\x1b[0m")
-			for i := n; i < cols; i += 1 {
-				strings.write_byte(b, ' ')
-			}
-			// last screen row — no NL
+			write_composer_bottom_rail(b, cols, cap, s, th, border_ansi)
 		} else {
-			// plain dim info line
-			info := fmt.tprintf(" %s", cap)
-			write_row(b, info, cols, .Bar_Dim, false)
+			// plain: paint caption with flag color on mode token
+			write_composer_plain_info(b, cols, cap, s, th)
 		}
 	}
 
@@ -1102,7 +1098,172 @@ write_input :: proc(
 	strings.write_string(b, fmt.tprintf("\x1b[%d;%dH\x1b[?25h", abs_row, abs_col))
 }
 
+// split_composer_caption: head · flag · multi for Grok PromptFlag tinting.
+split_composer_caption :: proc(caption: string) -> (head, flag_tok, multi_suffix: string) {
+	cap := strings.trim_space(caption)
+	if cap == "" {
+		return "", "", ""
+	}
+	rest := cap
+	if strings.has_suffix(rest, " · multi") {
+		multi_suffix = " · multi"
+		rest = rest[:len(rest) - len(" · multi")]
+	}
+	if sp := strings.last_index(rest, " · "); sp >= 0 {
+		return rest[:sp], rest[sp + 3:], multi_suffix
+	}
+	switch rest {
+	case "ask", "auto", "always-approve", "yolo", "read-only", "plan":
+		return "", rest, multi_suffix
+	}
+	return rest, "", multi_suffix
+}
+
+// write_composer_bottom_rail paints ╰──── caption ─╯ at exactly `cols` cells.
+// Flag tint is applied by walking the pre-sized rail string once — never call
+// write_fit with the full width on each segment (that overflowed and wrapped,
+// pushing the cursor off the input row).
+write_composer_bottom_rail :: proc(
+	b: ^strings.Builder,
+	cols: int,
+	caption: string,
+	s: ^App_State,
+	th: Theme,
+	border_ansi: string,
+) {
+	w := max(4, cols)
+	bot := format_composer_bottom_border(w, caption)
+	// Ensure bot is exactly w runes (format_box_rail already does; safety pad/trunc)
+	bot_n := utf8.rune_count(bot)
+	if bot_n < w {
+		// pad shouldn't happen; keep as-is
+	}
+	flag_sgr := composer_flag_ansi(s, th)
+	_, flag_tok, _ := split_composer_caption(caption)
+	// Locate flag token inside bot (byte index)
+	flag_at := -1
+	flag_end := -1
+	if flag_tok != "" && !core.ui_color_disabled() && flag_sgr != "" {
+		// Prefer " · flag" form so we don't match model name substrings
+		needle := fmt.tprintf(" · %s", flag_tok)
+		if i := strings.index(bot, needle); i >= 0 {
+			flag_at = i + len(" · ")
+			flag_end = flag_at + len(flag_tok)
+		} else if i := strings.index(bot, flag_tok); i >= 0 {
+			flag_at = i
+			flag_end = i + len(flag_tok)
+		}
+	}
+	cap_style := th.dim if th.dim != "" else "\x1b[2m"
+	// Caption body sits between the spaces of " label " — dim that region lightly
+	label := fmt.tprintf(" %s ", strings.trim_space(caption))
+	label_at := strings.index(bot, label)
+	label_end := -1
+	if label_at >= 0 {
+		label_end = label_at + len(label)
+	}
+
+	// Paint bot byte-wise with style regions; track visible cells ≤ w
+	vis := 0
+	i := 0
+	style := 0 // 0 border, 1 caption dim, 2 flag
+	emit_style :: proc(b: ^strings.Builder, style: int, border, cap, flag: string) {
+		strings.write_string(b, "\x1b[0m")
+		switch style {
+		case 0:
+			if border != "" {
+				strings.write_string(b, border)
+			}
+		case 1:
+			if cap != "" {
+				strings.write_string(b, cap)
+			}
+		case 2:
+			if flag != "" {
+				strings.write_string(b, flag)
+			}
+		}
+	}
+	emit_style(b, 0, border_ansi, cap_style, flag_sgr)
+	for i < len(bot) && vis < w {
+		// style transitions at byte boundaries
+		next_style := 0
+		if label_at >= 0 && i >= label_at && i < label_end {
+			next_style = 1
+		}
+		if flag_at >= 0 && i >= flag_at && i < flag_end {
+			next_style = 2
+		}
+		if next_style != style {
+			style = next_style
+			emit_style(b, style, border_ansi, cap_style, flag_sgr)
+		}
+		_, sz := utf8.decode_rune(bot[i:])
+		if sz <= 0 {
+			break
+		}
+		strings.write_string(b, bot[i:i + sz])
+		vis += 1
+		i += sz
+	}
+	strings.write_string(b, "\x1b[0m")
+	for vis < w {
+		strings.write_byte(b, ' ')
+		vis += 1
+	}
+}
+
+write_composer_plain_info :: proc(
+	b: ^strings.Builder,
+	cols: int,
+	caption: string,
+	s: ^App_State,
+	th: Theme,
+) {
+	head, flag_tok, multi := split_composer_caption(caption)
+	flag_sgr := composer_flag_ansi(s, th)
+	cap_style := th.dim if th.dim != "" else "\x1b[2m"
+	vis := 0
+	// remaining-width write helper
+	put :: proc(b: ^strings.Builder, text: string, vis: ^int, cols: int) {
+		for r in text {
+			if vis^ >= cols {
+				return
+			}
+			strings.write_string(b, fmt.tprintf("%c", r))
+			vis^ += 1
+		}
+	}
+	strings.write_string(b, cap_style)
+	if vis < cols {
+		strings.write_byte(b, ' ')
+		vis += 1
+	}
+	put(b, head, &vis, cols)
+	if flag_tok != "" {
+		put(b, " · ", &vis, cols)
+		strings.write_string(b, "\x1b[0m")
+		if flag_sgr != "" {
+			strings.write_string(b, flag_sgr)
+		}
+		put(b, flag_tok, &vis, cols)
+		strings.write_string(b, "\x1b[0m")
+		if multi != "" {
+			strings.write_string(b, cap_style)
+		}
+	}
+	if multi != "" {
+		put(b, multi, &vis, cols)
+	}
+	strings.write_string(b, "\x1b[0m")
+	for vis < cols {
+		strings.write_byte(b, ' ')
+		vis += 1
+	}
+}
+
 // write_composer_content_row paints one boxed line: │  content… │
+// mode_accent colors the ❯ chevron (plan gold / user accent).
 write_composer_content_row :: proc(
 	b: ^strings.Builder,
 	content: string,
@@ -1111,6 +1272,7 @@ write_composer_content_row :: proc(
 	focused: bool,
 	th: Theme,
 	border_ansi: string,
+	mode_accent: string = "",
 ) {
 	w := max(4, cols)
 	inner := w - 2
@@ -1124,8 +1286,11 @@ write_composer_content_row :: proc(
 	if placeholder {
 		strings.write_string(b, "\x1b[2m")
 	} else if strings.has_prefix(content, INPUT_PREFIX) {
-		// accent chevron (2 display columns)
-		acc := th.user if th.user != "" else "\x1b[1m"
+		// accent chevron (2 display columns) — same mode color as border
+		acc := mode_accent
+		if acc == "" {
+			acc = th.user if th.user != "" else "\x1b[1m"
+		}
 		strings.write_string(b, acc)
 		strings.write_string(b, INPUT_PREFIX)
 		strings.write_string(b, "\x1b[0m\x1b[1m")

@@ -320,16 +320,87 @@ format_box_rail :: proc(
 	return strings.to_string(b)
 }
 
-// composer_border_ansi: stronger when prompt focused, dim when scrollback-focused.
-composer_border_ansi :: proc(focused: bool, th: Theme) -> string {
-	if focused {
-		// bold + user accent when available
-		if th.user != "" {
-			return strings.concatenate({th.bold if th.bold != "" else "\x1b[1m", th.user}, context.temp_allocator)
+// Grok Build (xai-grok-pager) mode chrome:
+//   - Border: plan → accent_plan (gold); else prompt_border_active / prompt_border
+//   - Chevron: plan → accent_plan; else accent_user (focused) / dim (unfocused)
+//   - Caption flags: plan=gold, auto=accent_system, always-approve=gray, read-only=dim
+// Permission modes do not recolor the box (only plan does) — matches agent_view/render.rs.
+
+// composer_mode_accent: chevron tint — plan gold, else accent_user when focused.
+// Permission modes do not recolor the chevron (Grok: only plan / special input modes).
+composer_mode_accent :: proc(s: ^App_State, th: Theme) -> string {
+	_ = s
+	if agent.plan_mode_is_active() {
+		if th.accent_plan != "" {
+			return th.accent_plan
 		}
-		return th.bold if th.bold != "" else "\x1b[1m"
+		return "\x1b[33m"
 	}
-	// unfocused: muted
+	if th.user != "" {
+		return th.user
+	}
+	return "\x1b[37m"
+}
+
+// composer_border_ansi: Grok prompt chrome — plan gold, else neutral prompt_border*.
+// `accent` is unused for non-plan borders (kept for call-site compatibility).
+composer_border_ansi :: proc(focused: bool, th: Theme, accent: string = "") -> string {
+	_ = accent
+	// Plan mode tints the whole box gold (Grok border_color_override)
+	if agent.plan_mode_is_active() {
+		if th.accent_plan != "" {
+			return th.accent_plan
+		}
+		return "\x1b[33m"
+	}
+	if focused {
+		if th.prompt_border_active != "" {
+			return th.prompt_border_active
+		}
+		if th.user != "" {
+			return th.user
+		}
+		return "\x1b[90m"
+	}
+	if th.prompt_border != "" {
+		return th.prompt_border
+	}
+	if th.dim != "" {
+		return th.dim
+	}
+	return "\x1b[2m"
+}
+
+// composer_flag_ansi: color for the mode token on the bottom info rail (Grok PromptFlag).
+composer_flag_ansi :: proc(s: ^App_State, th: Theme) -> string {
+	if agent.plan_mode_is_active() {
+		if th.accent_plan != "" {
+			return th.accent_plan
+		}
+		return "\x1b[33m"
+	}
+	mode := ""
+	if s != nil && s.perm != "" {
+		mode = s.perm
+	}
+	switch mode {
+	case "auto":
+		if th.accent_system != "" {
+			return th.accent_system
+		}
+		return "\x1b[94m"
+	case "always-approve", "yolo", "ask", "":
+		// Grok: always-approve has color=None (gray); ask is default gray
+		if th.dim != "" {
+			return th.dim
+		}
+		return "\x1b[2m"
+	case "read-only":
+		if th.dim != "" {
+			return th.dim
+		}
+		return "\x1b[2m"
+	}
 	if th.dim != "" {
 		return th.dim
 	}

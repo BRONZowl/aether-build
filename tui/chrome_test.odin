@@ -28,6 +28,56 @@ test_truncate_runes :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_composer_mode_accent_matches_grok :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	th := active_theme()
+	agent.clear_plan_mode_for_new_session()
+
+	// Chevron: ask/user — not permission-tinted (Grok)
+	st.perm = strings.clone("ask")
+	ask := composer_mode_accent(&st, th)
+	delete(st.perm)
+	st.perm = strings.clone("always-approve")
+	yolo_ch := composer_mode_accent(&st, th)
+	// same chevron for ask and yolo when not plan
+	testing.expect(t, ask == yolo_ch, "chevron ignores yolo; only plan tints it")
+
+	// Border: neutral prompt_border* when not plan
+	b_ask := composer_border_ansi(true, th, ask)
+	testing.expect(t, b_ask == th.prompt_border_active || b_ask != "", b_ask)
+	b_idle := composer_border_ansi(false, th, ask)
+	testing.expect(t, b_idle == th.prompt_border || b_idle != "", b_idle)
+
+	// Flags: auto = accent_system; yolo/ask = dim gray
+	delete(st.perm)
+	st.perm = strings.clone("auto")
+	auto_f := composer_flag_ansi(&st, th)
+	if th.accent_system != "" {
+		testing.expect(t, auto_f == th.accent_system, auto_f)
+	}
+	delete(st.perm)
+	st.perm = strings.clone("always-approve")
+	yolo_f := composer_flag_ansi(&st, th)
+	if th.dim != "" {
+		testing.expect(t, yolo_f == th.dim, yolo_f)
+	}
+
+	// Plan: gold chevron + gold border
+	agent.set_plan_mode_active(true)
+	defer agent.clear_plan_mode_for_new_session()
+	plan_ch := composer_mode_accent(&st, th)
+	plan_b := composer_border_ansi(true, th, plan_ch)
+	plan_f := composer_flag_ansi(&st, th)
+	if th.accent_plan != "" {
+		testing.expect(t, plan_ch == th.accent_plan, plan_ch)
+		testing.expect(t, plan_b == th.accent_plan, plan_b)
+		testing.expect(t, plan_f == th.accent_plan, plan_f)
+	}
+}
+
+@(test)
 test_format_composer_info :: proc(t: ^testing.T) {
 	st: App_State
 	state_init(&st)
