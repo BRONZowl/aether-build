@@ -91,6 +91,9 @@ SLASH_N_EFFORT := [?]string{"/effort"}
 SLASH_N_WHOAMI := [?]string{"/whoami"}
 SLASH_N_PERSONAS := [?]string{"/personas", "/persona"}
 SLASH_N_COMPACT := [?]string{"/compact"}
+SLASH_N_THEME := [?]string{"/theme", "/t"}
+SLASH_N_HISTORY := [?]string{"/history"}
+SLASH_N_COPY := [?]string{"/copy"}
 
 // SLASH_ROUTES: emit-only commands (primary + aliases).
 // Session lifecycle (/quit, /new, /resume, /model, …) stays in run_slash switch.
@@ -154,6 +157,9 @@ SLASH_ROUTES := [?]Slash_Route {
 	{SLASH_N_WHOAMI[:], slash_h_whoami},
 	{SLASH_N_PERSONAS[:], slash_h_personas},
 	{SLASH_N_COMPACT[:], slash_h_compact},
+	{SLASH_N_THEME[:], slash_h_theme},
+	{SLASH_N_HISTORY[:], slash_h_history},
+	{SLASH_N_COPY[:], slash_h_copy},
 }
 
 // slash_table_has reports whether cmd is table-dispatched.
@@ -635,4 +641,102 @@ slash_h_compact :: proc(ctx: Slash_Ctx) -> Slash_Action {
 	}
 	// History replaced — UI should rebuild
 	return .Session_Changed
+}
+
+slash_h_theme :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// C2.1 — name stored in core; TUI re-reads each paint; B9 persists [ui] theme
+	a := strings.trim_space(ctx.arg)
+	al := strings.to_lower(a, context.temp_allocator)
+	if a == "" {
+		next := core.cycle_ui_theme_name()
+		if pe := core.persist_ui_string("theme", next); pe != "" {
+			emit_line(ctx.out, fmt.tprintf("aether: theme → %s (persist: %s)", next, pe))
+		} else {
+			emit_line(ctx.out, fmt.tprintf("aether: theme → %s", next))
+		}
+		return .Continue
+	}
+	if al == "list" || al == "ls" || al == "help" || al == "?" {
+		emit_lines(ctx.out, core.list_ui_theme_names(context.temp_allocator))
+		return .Continue
+	}
+	if al == "status" || al == "show" {
+		emit_line(ctx.out, fmt.tprintf("aether: theme = %s", core.get_ui_theme_name()))
+		return .Continue
+	}
+	if core.set_ui_theme_name(a) {
+		name := core.get_ui_theme_name()
+		if pe := core.persist_ui_string("theme", name); pe != "" {
+			emit_line(ctx.out, fmt.tprintf("aether: theme → %s (persist: %s)", name, pe))
+		} else {
+			emit_line(ctx.out, fmt.tprintf("aether: theme → %s", name))
+		}
+	} else {
+		emit_line(ctx.out, fmt.tprintf("aether: unknown theme %q — try /theme list", a))
+	}
+	return .Continue
+}
+
+slash_h_history :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// List / filter / show session user prompts (newest first)
+	if ctx.sess == nil {
+		emit_line(ctx.out, "aether: no session")
+		return .Continue
+	}
+	all := collect_user_prompts(ctx.sess.msgs[:], context.temp_allocator)
+	a := strings.trim_space(ctx.arg)
+	if a == "" || a == "list" || a == "?" {
+		filtered := filter_prompts(all, "", context.temp_allocator)
+		emit_line(ctx.out, format_history_list(filtered, 20, 100, context.temp_allocator))
+		return .Continue
+	}
+	if idx, ok := parse_history_index(a); ok {
+		if idx > len(all) {
+			emit_line(ctx.out, fmt.tprintf("aether: history #%d not found (%d prompts)", idx, len(all)))
+			return .Continue
+		}
+		emit_line(ctx.out, fmt.tprintf("aether: history #%d:\n%s", idx, all[idx - 1]))
+		return .Continue
+	}
+	filtered := filter_prompts(all, a, context.temp_allocator)
+	if len(filtered) == 0 {
+		emit_line(ctx.out, fmt.tprintf("aether: no prompts matching %q", a))
+		return .Continue
+	}
+	emit_line(ctx.out, format_history_list(filtered, 20, 100, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_copy :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// /copy [N] — Nth latest non-empty assistant message (1 = most recent)
+	n := 1
+	if strings.trim_space(ctx.arg) != "" {
+		v, ok := parse_rewind_count(ctx.arg)
+		if !ok {
+			emit_line(ctx.out, "aether: usage: /copy [N]  (Nth latest assistant reply)")
+			return .Continue
+		}
+		n = v
+	}
+	found := 0
+	body := ""
+	if ctx.sess != nil {
+		for i := len(ctx.sess.msgs) - 1; i >= 0; i -= 1 {
+			if ctx.sess.msgs[i].role == .Assistant &&
+			   strings.trim_space(ctx.sess.msgs[i].content) != "" {
+				found += 1
+				if found == n {
+					body = ctx.sess.msgs[i].content
+					break
+				}
+			}
+		}
+	}
+	if body == "" {
+		emit_line(ctx.out, fmt.tprintf("aether: no assistant reply #%d to copy", n))
+		return .Continue
+	}
+	st := copy_text_to_clipboard(body)
+	emit_line(ctx.out, fmt.tprintf("aether: %s (%d chars)", st, len(body)))
+	return .Continue
 }

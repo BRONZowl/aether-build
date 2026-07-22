@@ -18,6 +18,10 @@ test_slash_table_dispatches_docs_and_aliases :: proc(t: ^testing.T) {
 	testing.expect(t, slash_table_has("/compact"))
 	testing.expect(t, slash_table_has("/vim-mode"))
 	testing.expect(t, slash_table_has("/todos"))
+	testing.expect(t, slash_table_has("/theme"))
+	testing.expect(t, slash_table_has("/t"))
+	testing.expect(t, slash_table_has("/history"))
+	testing.expect(t, slash_table_has("/copy"))
 	// Session lifecycle stays out of the table
 	testing.expect(t, !slash_table_has("/quit"))
 	testing.expect(t, !slash_table_has("/new"))
@@ -54,9 +58,6 @@ SLASH_LIFECYCLE_SPECIALS := [?]string {
 	"/new", "/clear", "/home", "/welcome",
 	"/always-approve", "/yolo", "/auto",
 	"/model", "/m",
-	"/copy",
-	"/history",
-	"/theme", "/t",
 	"/plan",
 	"/login",
 	"/cd",
