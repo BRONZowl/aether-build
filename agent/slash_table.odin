@@ -8,7 +8,10 @@
 
 package agent
 
+import "core:fmt"
+import "core:strings"
 import "aether:core"
+import "aether:tools"
 
 // Slash_Ctx is the shared context for table-registered slash handlers.
 Slash_Ctx :: struct {
@@ -75,9 +78,24 @@ SLASH_N_PLUGINS := [?]string{"/plugins", "/plugin"}
 SLASH_N_STATUS := [?]string{"/status"}
 SLASH_N_SETTINGS := [?]string{"/settings", "/config", "/preferences", "/prefs"}
 SLASH_N_DOCTOR := [?]string{"/doctor"}
+SLASH_N_HELP := [?]string{"/help", "/?"}
+SLASH_N_FLUSH := [?]string{"/flush"}
+SLASH_N_MEMORY := [?]string{"/memory"}
+SLASH_N_DREAM := [?]string{"/dream"}
+SLASH_N_REMEMBER := [?]string{"/remember"}
+SLASH_N_VIM := [?]string{"/vim-mode", "/vim"}
+SLASH_N_TIMESTAMPS := [?]string{"/timestamps", "/timestamp"}
+SLASH_N_COMPACT_MODE := [?]string{"/compact-mode", "/cm"}
+SLASH_N_TODOS := [?]string{"/todos", "/todo"}
+SLASH_N_EFFORT := [?]string{"/effort"}
+SLASH_N_WHOAMI := [?]string{"/whoami"}
+SLASH_N_PERSONAS := [?]string{"/personas", "/persona"}
+SLASH_N_COMPACT := [?]string{"/compact"}
 
 // SLASH_ROUTES: emit-only commands (primary + aliases).
+// Session lifecycle (/quit, /new, /resume, /model, …) stays in run_slash switch.
 SLASH_ROUTES := [?]Slash_Route {
+	{SLASH_N_HELP[:], slash_h_help},
 	{SLASH_N_DOCS[:], slash_h_docs},
 	{SLASH_N_ALIASES[:], slash_h_aliases},
 	{SLASH_N_ABOUT[:], slash_h_about},
@@ -124,6 +142,18 @@ SLASH_ROUTES := [?]Slash_Route {
 	{SLASH_N_STATUS[:], slash_h_status},
 	{SLASH_N_SETTINGS[:], slash_h_settings},
 	{SLASH_N_DOCTOR[:], slash_h_doctor},
+	{SLASH_N_FLUSH[:], slash_h_flush},
+	{SLASH_N_MEMORY[:], slash_h_memory},
+	{SLASH_N_DREAM[:], slash_h_dream},
+	{SLASH_N_REMEMBER[:], slash_h_remember},
+	{SLASH_N_VIM[:], slash_h_vim_mode},
+	{SLASH_N_TIMESTAMPS[:], slash_h_timestamps},
+	{SLASH_N_COMPACT_MODE[:], slash_h_compact_mode},
+	{SLASH_N_TODOS[:], slash_h_todos},
+	{SLASH_N_EFFORT[:], slash_h_effort},
+	{SLASH_N_WHOAMI[:], slash_h_whoami},
+	{SLASH_N_PERSONAS[:], slash_h_personas},
+	{SLASH_N_COMPACT[:], slash_h_compact},
 }
 
 // slash_table_has reports whether cmd is table-dispatched.
@@ -430,4 +460,179 @@ slash_h_settings :: proc(ctx: Slash_Ctx) -> Slash_Action {
 slash_h_doctor :: proc(ctx: Slash_Ctx) -> Slash_Action {
 	emit_lines(ctx.out, handle_doctor_slash(ctx.sess, slash_ctx_cwd(ctx), context.temp_allocator))
 	return .Continue
+}
+
+slash_h_help :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// B65: sectioned help (+ optional filter)
+	emit_lines(ctx.out, handle_help_slash(ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_flush :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	flush_out := handle_flush_slash(ctx.sess, slash_ctx_model(ctx), ctx.arg, context.temp_allocator)
+	emit_lines(ctx.out, flush_out)
+	if len(flush_out) == 0 {
+		emit_line(ctx.out, "aether: flush produced no output")
+	}
+	return .Continue
+}
+
+slash_h_memory :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	emit_lines(
+		ctx.out,
+		handle_memory_slash(ctx.arg, slash_ctx_cwd(ctx), context.temp_allocator, ctx.sess),
+	)
+	return .Continue
+}
+
+slash_h_dream :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	dream_out := handle_dream_slash(ctx.sess, slash_ctx_model(ctx), ctx.arg, context.temp_allocator)
+	emit_lines(ctx.out, dream_out)
+	if len(dream_out) == 0 {
+		emit_line(ctx.out, "aether: dream produced no output")
+	}
+	return .Continue
+}
+
+slash_h_remember :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// B32: save a user note to today's memory session log
+	emit_lines(ctx.out, handle_remember_slash(slash_ctx_cwd(ctx), ctx.arg, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_vim_mode :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// C2.2 — opt-in scrollback j/k navigation; B9 persists [ui] vim_mode
+	slash_ui_bool(
+		ctx.arg,
+		"vim-mode",
+		"vim_mode",
+		core.vim_mode_enabled,
+		core.set_vim_mode,
+		core.toggle_vim_mode,
+		"scrollback: j/k g/G H/L J/K i; Shift+←/→ user turns; config [ui] vim_mode",
+		ctx.out,
+	)
+	return .Continue
+}
+
+slash_h_timestamps :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// B37 — HH:MM prefixes on TUI transcript; persists [ui] timestamps
+	slash_ui_bool(
+		ctx.arg,
+		"timestamps",
+		"timestamps",
+		core.timestamps_enabled,
+		core.set_timestamps,
+		core.toggle_timestamps,
+		"HH:MM on transcript blocks; config [ui] timestamps",
+		ctx.out,
+	)
+	return .Continue
+}
+
+slash_h_compact_mode :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// B8 — denser TUI chrome; B9 persists [ui] compact_mode
+	slash_ui_bool(
+		ctx.arg,
+		"compact-mode",
+		"compact_mode",
+		core.compact_mode_enabled,
+		core.set_compact_mode,
+		core.toggle_compact_mode,
+		"denser header/status/tool chrome; config [ui] compact_mode",
+		ctx.out,
+	)
+	return .Continue
+}
+
+slash_h_todos :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	arg_l := strings.to_lower(ctx.arg, context.temp_allocator)
+	if arg_l == "clear" || arg_l == "reset" || arg_l == "empty" {
+		tools.todo_clear()
+		emit_line(ctx.out, "aether: todos cleared")
+		return .Continue
+	}
+	if arg_l != "" && arg_l != "list" && arg_l != "show" && arg_l != "status" {
+		emit_line(ctx.out, "aether: usage: /todos [clear]")
+		return .Continue
+	}
+	sum := tools.summarize_todo_state(context.temp_allocator)
+	if sum == "" || !strings.contains(sum, "\n") {
+		emit_line(ctx.out, sum if sum != "" else "No tasks currently tracked.")
+		return .Continue
+	}
+	emit_lines(ctx.out, sum)
+	return .Continue
+}
+
+slash_h_effort :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	a := strings.trim_space(ctx.arg)
+	if a == "" || a == "status" || a == "?" {
+		cur := reasoning_effort_current()
+		emit_line(
+			ctx.out,
+			fmt.tprintf(
+				"aether: reasoning_effort = %s",
+				cur if cur != "" else "(default/off)",
+			),
+		)
+		emit_line(ctx.out, "aether: usage: /effort low|medium|high|xhigh|off")
+		return .Continue
+	}
+	if !set_reasoning_effort(a) {
+		emit_line(ctx.out, "aether: usage: /effort low|medium|high|xhigh|off")
+		return .Continue
+	}
+	cur := reasoning_effort_current()
+	_ = core.persist_reasoning_effort(cur if cur != "" else "off")
+	emit_line(
+		ctx.out,
+		fmt.tprintf(
+			"aether: reasoning_effort = %s",
+			cur if cur != "" else "(default/off)",
+		),
+	)
+	return .Continue
+}
+
+slash_h_whoami :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	// whoami prints its own stderr path; also summarize for sink
+	code := run_whoami(ctx.opts.verbose)
+	if code != 0 {
+		emit_line(ctx.out, "whoami failed (not signed in?)")
+	} else if ctx.out != nil {
+		emit_line(ctx.out, "whoami: see identity above / auth ok")
+	}
+	return .Continue
+}
+
+slash_h_personas :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	ws := slash_ctx_cwd(ctx)
+	if strings.trim_space(ctx.arg) == "help" || strings.trim_space(ctx.arg) == "?" {
+		emit_line(
+			ctx.out,
+			"Usage: /personas — list personas for spawn_subagent persona=\n" +
+			"Files: ~/.grok/personas/<name>.md or <cwd>/.grok/personas/<name>.md\n" +
+			"Optional frontmatter: name, description. Body = instructions (M9).",
+		)
+		return .Continue
+	}
+	emit_line(ctx.out, format_personas_list(ws, context.temp_allocator))
+	return .Continue
+}
+
+slash_h_compact :: proc(ctx: Slash_Ctx) -> Slash_Action {
+	cmp_out := handle_compact_slash(
+		ctx.sess,
+		slash_ctx_model(ctx),
+		ctx.arg,
+		slash_ctx_perm(ctx),
+		context.temp_allocator,
+	)
+	emit_lines(ctx.out, cmp_out)
+	if len(cmp_out) == 0 {
+		emit_line(ctx.out, "aether: compact produced no output")
+	}
+	// History replaced — UI should rebuild
+	return .Session_Changed
 }

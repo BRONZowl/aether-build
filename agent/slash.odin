@@ -103,11 +103,6 @@ run_slash :: proc(
 			emit_lines(out, note)
 		}
 		return .Exit
-	case "/help", "/?":
-		// B65: sectioned help (+ optional filter)
-		help_out := handle_help_slash(arg, context.temp_allocator)
-		emit_lines(out, help_out)
-		return .Continue
 	case "/always-approve", "/yolo":
 		// /yolo always turns on
 		a := strings.to_lower(strings.trim_space(arg), context.temp_allocator)
@@ -237,34 +232,6 @@ run_slash :: proc(
 			emit_line(out, fmt.tprintf("aether: model set to %s", a))
 		}
 		return .Continue
-	case "/effort":
-		a := strings.trim_space(arg)
-		if a == "" || a == "status" || a == "?" {
-			cur := reasoning_effort_current()
-			emit_line(
-				out,
-				fmt.tprintf(
-					"aether: reasoning_effort = %s",
-					cur if cur != "" else "(default/off)",
-				),
-			)
-			emit_line(out, "aether: usage: /effort low|medium|high|xhigh|off")
-			return .Continue
-		}
-		if !set_reasoning_effort(a) {
-			emit_line(out, "aether: usage: /effort low|medium|high|xhigh|off")
-			return .Continue
-		}
-		cur := reasoning_effort_current()
-		_ = core.persist_reasoning_effort(cur if cur != "" else "off")
-		emit_line(
-			out,
-			fmt.tprintf(
-				"aether: reasoning_effort = %s",
-				cur if cur != "" else "(default/off)",
-			),
-		)
-		return .Continue
 	case "/copy":
 		// /copy [N] — Nth latest non-empty assistant message (1 = most recent)
 		n := 1
@@ -325,43 +292,6 @@ run_slash :: proc(
 		}
 		emit_line(out, format_history_list(filtered, 20, 100, context.temp_allocator))
 		return .Continue
-	case "/compact":
-		cmp_out := handle_compact_slash(sess, model^, arg, perm_mode(perm), context.temp_allocator)
-		emit_lines(out, cmp_out)
-		if len(cmp_out) == 0 {
-			emit_line(out, "aether: compact produced no output")
-		}
-		// History replaced — UI should rebuild
-		return .Session_Changed
-	case "/flush":
-		flush_out := handle_flush_slash(sess, model^, arg, context.temp_allocator)
-		emit_lines(out, flush_out)
-		if len(flush_out) == 0 {
-			emit_line(out, "aether: flush produced no output")
-		}
-		return .Continue
-	case "/memory":
-		mem_out := handle_memory_slash(
-			arg,
-			sess.cwd if sess.cwd != "" else cwd^,
-			context.temp_allocator,
-			sess,
-		)
-		emit_lines(out, mem_out)
-		return .Continue
-	case "/dream":
-		dream_out := handle_dream_slash(sess, model^, arg, context.temp_allocator)
-		emit_lines(out, dream_out)
-		if len(dream_out) == 0 {
-			emit_line(out, "aether: dream produced no output")
-		}
-		return .Continue
-	case "/remember":
-		// B32: save a user note to today's memory session log
-		rcwd := sess.cwd if sess.cwd != "" else cwd^
-		rem_out := handle_remember_slash(rcwd, arg, context.temp_allocator)
-		emit_lines(out, rem_out)
-		return .Continue
 	case "/theme", "/t":
 		// C2.1 — name stored in core; TUI re-reads each paint; B9 persists [ui] theme
 		a := strings.trim_space(arg)
@@ -395,65 +325,6 @@ run_slash :: proc(
 		} else {
 			emit_line(out, fmt.tprintf("aether: unknown theme %q — try /theme list", a))
 		}
-		return .Continue
-	case "/vim-mode", "/vim":
-		// C2.2 — opt-in scrollback j/k navigation; B9 persists [ui] vim_mode
-		slash_ui_bool(
-			arg,
-			"vim-mode",
-			"vim_mode",
-			core.vim_mode_enabled,
-			core.set_vim_mode,
-			core.toggle_vim_mode,
-			"scrollback: j/k g/G H/L J/K i; Shift+←/→ user turns; config [ui] vim_mode",
-			out,
-		)
-		return .Continue
-	case "/timestamps", "/timestamp":
-		// B37 — HH:MM prefixes on TUI transcript; persists [ui] timestamps
-		slash_ui_bool(
-			arg,
-			"timestamps",
-			"timestamps",
-			core.timestamps_enabled,
-			core.set_timestamps,
-			core.toggle_timestamps,
-			"HH:MM on transcript blocks; config [ui] timestamps",
-			out,
-		)
-		return .Continue
-	case "/compact-mode", "/cm":
-		// B8 — denser TUI chrome; B9 persists [ui] compact_mode
-		slash_ui_bool(
-			arg,
-			"compact-mode",
-			"compact_mode",
-			core.compact_mode_enabled,
-			core.set_compact_mode,
-			core.toggle_compact_mode,
-			"denser header/status/tool chrome; config [ui] compact_mode",
-			out,
-		)
-		return .Continue
-	case "/todos", "/todo":
-		arg_l := strings.to_lower(arg, context.temp_allocator)
-		if arg_l == "clear" || arg_l == "reset" || arg_l == "empty" {
-			tools.todo_clear()
-			emit_line(out, "aether: todos cleared")
-			return .Continue
-		}
-		if arg_l != "" && arg_l != "list" && arg_l != "show" && arg_l != "status" {
-			emit_line(out, "aether: usage: /todos [clear]")
-			return .Continue
-		}
-		sum := tools.summarize_todo_state(context.temp_allocator)
-		// Emit one line at a time for TUI notice sink
-		if sum == "" || !strings.contains(sum, "\n") {
-			emit_line(out, sum if sum != "" else "No tasks currently tracked.")
-			return .Continue
-		}
-		// split on newlines; skip trailing empty
-		emit_lines(out, sum)
 		return .Continue
 	case "/plan":
 		arg_l := strings.to_lower(arg, context.temp_allocator)
@@ -494,15 +365,6 @@ run_slash :: proc(
 		sess.plan_mode =
 			plan_mode_is_active() || plan_mode_is_pending() || plan_mode_is_exit_pending()
 		return .Continue
-	case "/whoami":
-		// whoami prints its own stderr path; also summarize for sink
-		code := run_whoami(opts.verbose)
-		if code != 0 {
-			emit_line(out, "whoami failed (not signed in?)")
-		} else if out != nil {
-			emit_line(out, "whoami: see identity above / auth ok")
-		}
-		return .Continue
 	case "/login":
 		// Host bridge — blocks until grok login returns (TTY/browser).
 		extra: []string
@@ -540,19 +402,6 @@ run_slash :: proc(
 			}
 			delete(new_path)
 		}
-		return .Continue
-	case "/personas", "/persona":
-		ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
-		if strings.trim_space(arg) == "help" || strings.trim_space(arg) == "?" {
-			emit_line(
-				out,
-				"Usage: /personas — list personas for spawn_subagent persona=\n" +
-				"Files: ~/.grok/personas/<name>.md or <cwd>/.grok/personas/<name>.md\n" +
-				"Optional frontmatter: name, description. Body = instructions (M9).",
-			)
-			return .Continue
-		}
-		emit_line(out, format_personas_list(ws, context.temp_allocator))
 		return .Continue
 	case "/skills":
 		arg_l := strings.to_lower(strings.trim_space(arg), context.temp_allocator)

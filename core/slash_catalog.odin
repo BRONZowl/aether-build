@@ -1,6 +1,12 @@
 // Package core — single source of truth for displayed slash commands.
 // Drives /help, /aliases, and TUI slash menu primaries (Grok-facing names).
 //
+// New slash command checklist:
+//   1. Add Slash_Entry here (primary + aliases + help text)
+//   2. Prefer agent/slash_table.odin for emit-only handlers
+//   3. Session lifecycle / permission mutators stay in agent/slash.odin switch
+//   4. agent.test_slash_catalog_names_covered enforces coverage
+//
 // Copyright 2023-2026 SpaceXAI
 // SPDX-License-Identifier: Apache-2.0
 package core
@@ -8,7 +14,7 @@ package core
 import "core:strings"
 
 // Slash_Entry is one product slash command for display surfaces.
-// Dispatch still lives in agent/slash.odin; this table is display + completion only.
+// Emit-only dispatch is agent/slash_table.odin; lifecycle specials stay in run_slash.
 Slash_Entry :: struct {
 	primary:    string,   // menu + canonical name, e.g. "/quit"
 	aliases:    []string, // e.g. {"/exit", "/q"}
