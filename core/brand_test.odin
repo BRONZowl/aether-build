@@ -111,11 +111,6 @@ test_brand_startup_slash_tips_consistent :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(welcome, set), welcome)
 	testing.expect(t, strings.has_prefix(welcome, "type a message"), welcome)
 
-	resume := brand_resume_tips_notice(context.allocator)
-	defer delete(resume)
-	testing.expect(t, strings.contains(resume, set), resume)
-	testing.expect(t, strings.has_prefix(resume, "tips:"), resume)
-
 	repl := brand_repl_no_art_banner(context.allocator)
 	defer delete(repl)
 	testing.expect(t, strings.contains(repl, set), repl)

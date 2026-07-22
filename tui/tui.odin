@@ -76,11 +76,8 @@ run :: proc(opts: agent.Headless_Options) -> int {
 	state_set_session_meta(&st, sess.id, sess.title)
 	st.perm = strings.clone(core.permission_mode_string(perm))
 	state_set_status(&st, "ready")
-	// B55: discover notice only when transcript already has content.
-	// Empty sessions get tips under brand art in flatten_blocks (V1).
-	if len(sess.msgs) > 0 {
-		state_add_notice(&st, core.brand_resume_tips_notice(context.temp_allocator))
-	}
+	// Startup slash tips live only on the empty-session welcome (write_welcome_body)
+	// and REPL no-art banner — not as a transcript notice on resume.
 	rebuild_blocks(&st, sess.msgs[:])
 	seed_prompt_history(&st, sess.msgs[:])
 
