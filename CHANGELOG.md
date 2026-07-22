@@ -4,6 +4,10 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Docs
+
+- README streamlined: install-first, shorter feature/TUI sections; deep detail → `/help` and packaging docs
+
 ### Package-manager install (AUR + Homebrew)
 
 - `make install-prefix` / `scripts/install-prefix.sh` — FHS install of `aether-grok` (+ odin name symlinks)
