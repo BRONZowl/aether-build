@@ -5,8 +5,6 @@
 
 It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same problem space and optional `~/.grok` interop, but a **separate codebase and binary**. Neither product requires the other.
 
-<div align="center">
-
 | | |
 |--|--|
 | **License** | [Apache-2.0](./LICENSE) · [NOTICE](./NOTICE) |
@@ -14,10 +12,9 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 | **Contributing** | [CONTRIBUTING.md](./CONTRIBUTING.md) |
 | **Parity / history** | [PORTING.md](./PORTING.md) · [CHANGELOG.md](./CHANGELOG.md) |
 
-</div>
+<div align="center">
 
-<h2 align="center">Highlights</h2>
-
+## Highlights
 
 - **Agent loop** — streaming chat (SSE), tools, multi-turn sessions  
 - **TUI + REPL** — fullscreen chat or line mode  
@@ -26,21 +23,19 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 - **Safety** — permission modes, soft bash policy, optional OS sandbox  
 - **No product telemetry** — privacy preference is local and **opt-in**
 
-<h2 align="center">Install</h2>
+</div>
+
+## Install
 
 
 Primary command: **`aether-grok`**. Does not replace or install Rust `grok`.
 
 ### Package managers
 
-<div align="center">
-
 | Manager | Command |
 |---------|---------|
 | **Arch (local AUR recipe)** | `cd packaging/aur/aether-grok-git && makepkg -si` |
 | **Homebrew (from tree)** | `brew install --build-from-source ./packaging/homebrew/aether-grok.rb` |
-
-</div>
 
 After AUR/tap publish: `yay -S aether-grok-git` or `brew tap … && brew install aether-grok`.  
 Details: [packaging/README.md](./packaging/README.md).
@@ -49,16 +44,12 @@ Details: [packaging/README.md](./packaging/README.md).
 
 **Dependencies**
 
-<div align="center">
-
 | Kind | Packages |
 |------|----------|
 | **Build** | Odin (LLVM 17–22), `clang`/`c++`, `make` |
 | **Runtime** | **libcurl**, **mbedTLS**, **ripgrep** (`rg`) |
 | **Optional** | `pdftotext`, `unzip`, ImageMagick |
 | **Auth** | **`XAI_API_KEY`** (recommended), or `~/.grok/auth.json` |
-
-</div>
 
 Debian/Ubuntu: `libcurl4-openssl-dev`, `libmbedtls-dev`, `ripgrep`, `build-essential`, `clang`, `llvm`.
 
@@ -71,15 +62,11 @@ aether-grok --version
 
 Local wrappers without install: `./bin/aether` (same binary as `out/aether`).
 
-<div align="center">
-
 | Name | Notes |
 |------|--------|
 | **`aether-grok`** | Day-to-day name (always installed) |
 | `aether-grok-odin` / `grok-odin` | Explicit dual-product names |
 | `aether` | Only if free (skipped when it would hide Arch’s unrelated theme app) |
-
-</div>
 
 Override install dir: `AETHER_INSTALL_BIN=… make install`.  
 System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
@@ -91,8 +78,7 @@ System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
 3. **`aether-grok login`** / **`/login`** — in-process device-code sign-in  
 4. **`aether-grok whoami`** — identity only (never prints secrets)
 
-<h2 align="center">Usage</h2>
-
+## Usage
 
 ```bash
 aether-grok                         # TUI on a TTY; else line REPL
@@ -101,8 +87,6 @@ aether-grok chat                    # multi-turn line REPL
 aether-grok -p "say hi in three words"
 aether-grok -m grok-4.5 --cwd .
 ```
-
-<div align="center">
 
 | Flag / command | Meaning |
 |----------------|---------|
@@ -117,8 +101,6 @@ aether-grok -m grok-4.5 --cwd .
 | `login` / `whoami` | Auth helpers |
 | `--help` / `--version` | Meta |
 
-</div>
-
 **Exit codes:** `0` ok · `1` usage/auth · `2` max turns · `3` model/HTTP · `4` cancelled  
 
 Config merges: defaults → `~/.grok/config.toml` → project `aether.toml` → CLI.  
@@ -127,10 +109,7 @@ In-session help: **`/help`**, **`/keys`**, **`/settings`**, **`/doctor`**.
 
 Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.md` / `.grok/rules` (and optional Claude/Cursor roots); opt out with `AETHER_NO_PROJECT_RULES=1`.
 
-<h2 align="center">Features</h2>
-
-
-<div align="center">
+## Features
 
 | Area | Notes |
 |------|--------|
@@ -141,13 +120,9 @@ Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.
 | **Memory** | File-backed under `~/.grok/memory/`; `/flush`, `/dream`, `/remember` |
 | **Safety** | Soft bash inspect auto-allow + hard-deny; optional `AETHER_OS_SANDBOX` |
 
-</div>
-
 Full tool names and flags: in-product **`/tools`**, or the tool registry under `tools/`.
 
 ### TUI (quick)
-
-<div align="center">
 
 | Key | Action |
 |-----|--------|
@@ -160,12 +135,9 @@ Full tool names and flags: in-product **`/tools`**, or the tool registry under `
 | Ctrl+F | Find in transcript |
 | Ctrl+Q (×2) | Quit |
 
-</div>
-
 More bindings: **`/keys`**. Welcome art: opt out with `AETHER_NO_ASCII_ART=1`.
 
-<h2 align="center">Development</h2>
-
+## Development
 
 ```bash
 make bootstrap-odin
@@ -174,8 +146,6 @@ make smoke                  # live -p (needs auth)
 make check-license          # Apache-2.0 / SPDX (CI)
 make dist                   # binary tarball + LICENSE/NOTICE
 ```
-
-<div align="center">
 
 | Path | Role |
 |------|------|
@@ -187,16 +157,13 @@ make dist                   # binary tarball + LICENSE/NOTICE
 | `tui/` | Fullscreen UI |
 | `scripts/` · `packaging/` | Bootstrap, install, AUR/Homebrew |
 
-</div>
-
 Standalone source export: [STANDALONE.md](./STANDALONE.md). CI: `.github/workflows/aether.yml`.
 
-<h2 align="center">Non-goals</h2>
-
+## Non-goals
 
 Out of scope for this tree (see [PORTING.md](./PORTING.md)): ACP multi-client UI, remote marketplace, product analytics, voice, self-update, mermaid PNG/SVG, full MCP browser OAuth DCR, SQLite embeddings memory, and related enterprise surfaces.
 
-<h2 align="center">License</h2>
+## License
 
 
 First-party code is **Apache License 2.0** — [LICENSE](./LICENSE).  
