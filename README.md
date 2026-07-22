@@ -16,9 +16,9 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 
 </div>
 
-<div align="center">
+<h2 align="center">Highlights</h2>
 
-## Highlights
+<div align="center">
 
 **Agent loop** — streaming chat (SSE), tools, multi-turn sessions  
 **TUI + REPL** — fullscreen chat or line mode  
@@ -29,12 +29,11 @@ It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same 
 
 </div>
 
-## Install
-
+<h2 align="center">Install</h2>
 
 Primary command: **`aether-grok`**. Does not replace or install Rust `grok`.
 
-### Package managers
+<h3 align="center">Package managers</h3>
 
 <div align="center">
 
@@ -48,7 +47,7 @@ Primary command: **`aether-grok`**. Does not replace or install Rust `grok`.
 After AUR/tap publish: `yay -S aether-grok-git` or `brew tap … && brew install aether-grok`.  
 Details: [packaging/README.md](./packaging/README.md).
 
-### From source
+<h3 align="center">From source</h3>
 
 **Dependencies**
 
@@ -87,14 +86,14 @@ Local wrappers without install: `./bin/aether` (same binary as `out/aether`).
 Override install dir: `AETHER_INSTALL_BIN=… make install`.  
 System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
 
-### Authentication
+<h3 align="center">Authentication</h3>
 
 1. **`export XAI_API_KEY=…`** (recommended)  
 2. Or existing **`~/.grok/auth.json`** session  
 3. **`aether-grok login`** / **`/login`** — in-process device-code sign-in  
 4. **`aether-grok whoami`** — identity only (never prints secrets)
 
-## Usage
+<h2 align="center">Usage</h2>
 
 ```bash
 aether-grok                         # TUI on a TTY; else line REPL
@@ -129,7 +128,7 @@ In-session help: **`/help`**, **`/keys`**, **`/settings`**, **`/doctor`**.
 
 Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.md` / `.grok/rules` (and optional Claude/Cursor roots); opt out with `AETHER_NO_PROJECT_RULES=1`.
 
-## Features
+<h2 align="center">Features</h2>
 
 <div align="center">
 
@@ -146,7 +145,7 @@ Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.
 
 Full tool names and flags: in-product **`/tools`**, or the tool registry under `tools/`.
 
-### TUI (quick)
+<h3 align="center">TUI (quick)</h3>
 
 <div align="center">
 
@@ -165,7 +164,7 @@ Full tool names and flags: in-product **`/tools`**, or the tool registry under `
 
 More bindings: **`/keys`**. Welcome art: opt out with `AETHER_NO_ASCII_ART=1`.
 
-## Development
+<h2 align="center">Development</h2>
 
 ```bash
 make bootstrap-odin
@@ -191,11 +190,11 @@ make dist                   # binary tarball + LICENSE/NOTICE
 
 Standalone source export: [STANDALONE.md](./STANDALONE.md). CI: `.github/workflows/aether.yml`.
 
-## Non-goals
+<h2 align="center">Non-goals</h2>
 
 Out of scope for this tree (see [PORTING.md](./PORTING.md)): ACP multi-client UI, remote marketplace, product analytics, voice, self-update, mermaid PNG/SVG, full MCP browser OAuth DCR, SQLite embeddings memory, and related enterprise surfaces.
 
-## License
+<h2 align="center">License</h2>
 
 
 First-party code is **Apache License 2.0** — [LICENSE](./LICENSE).  
