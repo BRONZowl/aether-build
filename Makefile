@@ -45,7 +45,7 @@ FLAGS := -collection:aether=. -out:$(OUT)
 
 all: build
 
-AETHER_VERSION ?= 0.1.0-dev
+AETHER_VERSION ?= 0.1.1
 DIST_DIR := $(AETHER_DIR)/out/dist
 DIST_NAME := aether-$(AETHER_VERSION)-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m)
 WRAPPER := $(AETHER_DIR)/bin/aether

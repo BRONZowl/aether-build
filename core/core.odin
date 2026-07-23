@@ -8,7 +8,7 @@ package core
 
 import "core:fmt"
 
-VERSION :: "0.1.0-dev"
+VERSION :: "0.1.1"
 // Semver advertised to cli-chat-proxy (must be >= their minimum, currently 0.1.202).
 // Bump when aligning with a known-good Rust Grok CLI release.
 PROXY_CLIENT_VERSION :: "0.2.101"

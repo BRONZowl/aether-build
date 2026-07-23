@@ -14,7 +14,8 @@ The TUI main thread runs **entire agent turns** synchronously. Mid-turn keys onl
 - **Mid-output paint**: stream redraw ~80ms; mermaid skipped on live/open fences; mid-stream only last 12 history blocks + live tail; reentrancy guard
 - **Ctrl+C mid-turn (hard)**:
   - HTTP uses **curl multi_poll** (≤50ms wake) + stdin watch — cancel is not stuck waiting for xferinfo
-  - Mid-turn **ISIG + SIGINT handler** sets cancel asynchronously even if a tool/render is busy
+  - Session-long **SIGINT handler** (`sigaction` + `SA_RESTART`); never SIG_DFL while TUI is up
+  - Mid-turn **ISIG on** (classic SIGINT) + peek detects `0x03` and **Kitty CSI-u Ctrl+C** (`ESC [ 99;5 u`)
   - xferinfo + write_cb still poll; cancel stops buffering and paints `cancelling…`
 - **FG shell trees**: `setsid` process group + `killpg` on cancel/timeout (kills hyperfine→grok→chromium, not only `sh`)
 - **Shell heartbeat**: status bar updates every ~5s while a FG shell runs
@@ -42,6 +43,7 @@ If the agent runs the **host `grok` CLI** (e.g. via hyperfine/benchmark), that c
 |-------------|--------------|
 | Mid-turn, Ctrl+C → cancelling, still stuck | Tool not killing (report tool name) |
 | Mid-turn, Ctrl+C does nothing | Not polling (HTTP/tool) |
+| Mid-turn, Ctrl+C exits Aether | Fixed: SIGINT no longer SIG_DFL mid-session; rebuild if still happens |
 | Tokens stop mid-output, UI dead, then ~2min timeout | SSE stall (should surface timed out) |
 | Tokens still arrive but UI frozen / laggy | Paint path (report session size / mermaid) |
 | After /transcript | Pager child |

@@ -43,6 +43,9 @@ term_enter :: proc(t: ^Term_State) -> bool {
 	// Bracketed paste (2004): multi-line paste as one event (C2.6 / M1).
 	fmt.print("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h")
 	term_install_resize_handler()
+	// Ctrl+C must never kill the process while the TUI is up (Grok: cancel turn).
+	// Handler lives for the whole session; ISIG stays off so keys arrive as 0x03.
+	stream_install_sigint()
 	term_update_size(t)
 	return true
 }
@@ -51,6 +54,7 @@ term_leave :: proc(t: ^Term_State) {
 	if !t.active {
 		return
 	}
+	stream_uninstall_sigint()
 	term_uninstall_resize_handler()
 	// disable bracketed paste, mouse, pop keyboard mode, show cursor, leave alt screen
 	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
@@ -78,8 +82,9 @@ term_toggle_mouse :: proc(t: ^Term_State) -> bool {
 	return t.mouse_enabled
 }
 
-// term_set_isig: mid-turn Ctrl+C → SIGINT (async cancel) while keeping raw mode.
-// Idle TUI keeps ISIG off so Ctrl+C is a normal key event.
+// term_set_isig: toggle ISIG (VINTR/0x03 → SIGINT to foreground process group).
+// Mid-turn: enable so classic terminals deliver Ctrl+C as SIGINT (handler sets cancel).
+// Idle: leave off so main loop gets 0x03 as a Key. Session-long SIGINT handler never exits.
 term_set_isig :: proc(t: ^Term_State, enable: bool) {
 	if t == nil || !t.active {
 		return

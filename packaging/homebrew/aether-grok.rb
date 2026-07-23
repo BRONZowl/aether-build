@@ -15,7 +15,7 @@ class AetherGrok < Formula
   homepage "https://github.com/BRONZowl/aether-build"
   # Pin to a release tag when cutting stable versions; master is fine for the skeleton.
   url "https://github.com/BRONZowl/aether-build.git", branch: "master"
-  version "0.1.0-dev"
+  version "0.1.1"
   license "Apache-2.0"
 
   depends_on "curl"

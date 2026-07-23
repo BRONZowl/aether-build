@@ -33,16 +33,55 @@ Stream_Ctx :: struct {
 @(private)
 g_rt: Stream_Ctx
 
-// Async SIGINT cancel while a turn is bound (ISIG re-enabled). Only writes a bool.
+// Async SIGINT cancel while a turn is bound. Only writes a bool (async-signal-safe).
+// Handler is installed for the whole TUI session (see stream_install_sigint);
+// never restore SIG_DFL mid-session — that made Ctrl+C exit the process.
 @(private)
 g_sigint_cancel: ^bool
 
 @(private)
+g_sigint_installed: bool
+
+@(private)
 stream_sigint_handler :: proc "c" (sig: posix.Signal) {
 	_ = sig
+	// Mid-turn only: set cooperative cancel. Idle: ignore (never exit).
 	if g_sigint_cancel != nil {
 		g_sigint_cancel^ = true
 	}
+}
+
+// stream_install_sigint: session-long SIGINT → cancel flag (sigaction + SA_RESTART).
+// Call from term_enter. Safe if called more than once.
+stream_install_sigint :: proc() {
+	if g_sigint_installed {
+		return
+	}
+	act: posix.sigaction_t
+	act.sa_handler = stream_sigint_handler
+	act.sa_flags = {.RESTART} // do not SA_RESETHAND — handler must stay for whole session
+	_ = posix.sigemptyset(&act.sa_mask)
+	if posix.sigaction(.SIGINT, &act, nil) == .OK {
+		g_sigint_installed = true
+	} else {
+		// Fallback: classic signal() still better than default terminate mid-turn
+		_ = posix.signal(.SIGINT, stream_sigint_handler)
+		g_sigint_installed = true
+	}
+}
+
+// stream_uninstall_sigint: restore default only when leaving the TUI.
+stream_uninstall_sigint :: proc() {
+	if !g_sigint_installed {
+		return
+	}
+	g_sigint_cancel = nil
+	act: posix.sigaction_t
+	act.sa_handler = auto_cast posix.SIG_DFL
+	act.sa_flags = {}
+	_ = posix.sigemptyset(&act.sa_mask)
+	_ = posix.sigaction(.SIGINT, &act, nil)
+	g_sigint_installed = false
 }
 
 // stream_bind wires UI + permission pointers for an agent turn / slash status.
@@ -63,22 +102,27 @@ stream_bind :: proc(
 	g_rt.cancel = false
 	g_rt.last_poll_ns = 0
 	g_rt.render_depth = 0
-	// Mid-turn: Ctrl+C → SIGINT sets cancel even if stdin is not being read
-	// (e.g. stuck in a long tool/render). multi_poll also wakes ≤50ms.
+	// Mid-turn cancel target for the session-long SIGINT handler.
+	// Dual path:
+	//   1) ISIG on → kernel maps VINTR (0x03) → SIGINT → handler sets cancel
+	//      (classic terminals; works even when not reading stdin yet)
+	//   2) peek_turn_keys also scans 0x03 + Kitty CSI-u Ctrl+C (ESC [ 99;5 u)
+	// SIGINT disposition is session-long (never SIG_DFL mid-TUI) so this cannot exit.
 	g_sigint_cancel = &g_rt.cancel
-	_ = posix.signal(.SIGINT, stream_sigint_handler)
+	stream_install_sigint()
 	if term != nil {
 		term_set_isig(term, true)
 	}
 }
 
 // stream_clear drops all turn pointers (safe after turn ends).
+// Does **not** restore SIGINT to SIG_DFL — that caused Ctrl+C to exit Aether.
 stream_clear :: proc() {
 	if g_rt.term != nil {
+		// Belt-and-suspenders: never leave ISIG on after a turn
 		term_set_isig(g_rt.term, false)
 	}
 	g_sigint_cancel = nil
-	_ = posix.signal(.SIGINT, auto_cast posix.SIG_DFL)
 	g_rt = {}
 }
 
@@ -269,18 +313,16 @@ peek_turn_keys_impl :: proc(force: bool) {
 		}
 		return
 	}
-	// Scan for cancel first (any position) — 0x03 when ISIG is off
-	for i in 0 ..< n {
-		if buf[i] == 0x03 {
-			g_rt.cancel = true
-			if g_rt.st != nil {
-				state_set_status(g_rt.st, "cancelling…")
-			}
-			if g_rt.term != nil && g_rt.st != nil {
-				stream_safe_render()
-			}
-			return
+	// Cancel first: 0x03, Kitty CSI-u Ctrl+C, or modifyOtherKeys Ctrl+C
+	if peek_buf_has_ctrl_c(buf[:n]) {
+		g_rt.cancel = true
+		if g_rt.st != nil {
+			state_set_status(g_rt.st, "cancelling…")
 		}
+		if g_rt.term != nil && g_rt.st != nil {
+			stream_safe_render()
+		}
+		return
 	}
 	if g_rt.st == nil {
 		return

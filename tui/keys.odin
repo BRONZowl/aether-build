@@ -5,6 +5,7 @@
 package tui
 
 import "core:os"
+import "core:strings"
 import "core:sys/posix"
 
 // Key bindings match Grok Build (see ~/.grok/docs/user-guide/03-keyboard-shortcuts.md).
@@ -716,6 +717,97 @@ split_semi :: proc(s: string) -> [dynamic]int {
 		}
 	}
 	return out
+}
+
+// peek_buf_has_ctrl_c: mid-turn cancel detection for raw stdin peeks.
+// Classic: byte 0x03 (when ISIG is off).
+// Kitty progressive enhancement (term_enter pushes \x1b[=1u) often sends
+// CSI-u for Ctrl+C: ESC [ 99 ; 5 u  (code 'c', mods=ctrl) instead of 0x03.
+// xterm modifyOtherKeys: ESC [ 27 ; 5 ; 99 ~
+peek_buf_has_ctrl_c :: proc(buf: []u8) -> bool {
+	if len(buf) == 0 {
+		return false
+	}
+	for i in 0 ..< len(buf) {
+		if buf[i] == 0x03 {
+			return true
+		}
+	}
+	i := 0
+	for i < len(buf) {
+		if buf[i] != 0x1b {
+			i += 1
+			continue
+		}
+		if i + 1 >= len(buf) || buf[i + 1] != '[' {
+			i += 1
+			continue
+		}
+		j := i + 2
+		for j < len(buf) {
+			fb := buf[j]
+			if fb >= 0x40 && fb <= 0x7e {
+				ps := string(buf[i + 2:j])
+				if fb == 'u' && csi_params_is_ctrl_c_u(ps) {
+					return true
+				}
+				if fb == '~' && csi_params_is_ctrl_c_modother(ps) {
+					return true
+				}
+				i = j + 1
+				break
+			}
+			j += 1
+		}
+		if j >= len(buf) {
+			break
+		}
+	}
+	return false
+}
+
+// csi_params_is_ctrl_c_u: "99;5" or "99;5:1" (event types) → Ctrl+C
+csi_params_is_ctrl_c_u :: proc(ps: string) -> bool {
+	code, mods := parse_two_params_loose(ps)
+	// mods: 1=none, 5=ctrl (bit 2 set in mods-1)
+	ctrl := (mods > 0) && ((mods - 1) & 4) != 0
+	return ctrl && (code == 99 || code == 67) // 'c' / 'C'
+}
+
+// csi_params_is_ctrl_c_modother: "27;5;99"
+csi_params_is_ctrl_c_modother :: proc(ps: string) -> bool {
+	parts := split_semi(ps)
+	if len(parts) < 3 {
+		return false
+	}
+	if parts[0] != 27 {
+		return false
+	}
+	mods := parts[1]
+	code := parts[2]
+	ctrl := (mods > 0) && ((mods - 1) & 4) != 0
+	return ctrl && (code == 99 || code == 67)
+}
+
+// parse_two_params_loose: like parse_two_params but ignores ":event" suffixes on mods
+// (Kitty event-type form "99;5:1").
+parse_two_params_loose :: proc(s: string) -> (code, mods: int) {
+	// strip event-type after ':'
+	cut := s
+	if col := strings.index_byte(s, ':'); col >= 0 {
+		// may be in second field "99;5:1" — keep only before first ':'
+		// but code field shouldn't have ':'; if second field has it, parse_two_params still
+		// works if we truncate at ':'
+		cut = s[:col]
+		// if colon was in first field only, still OK
+	}
+	// Prefer full string with colon stripped from end of mods: "99;5:1" → need "99;5"
+	// Re-find: take params before any ':'
+	if col := strings.index_byte(s, ':'); col >= 0 {
+		// find last ';' before colon or start
+		cut = s[:col]
+	}
+	return parse_two_params(cut)
 }
 
 // peek_is_shift_tab recognizes common Shift+Tab CSI sequences in a raw buffer.

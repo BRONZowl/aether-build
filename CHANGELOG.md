@@ -1,8 +1,28 @@
 # Changelog
 
-All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev` until an explicit tag.
+All notable product milestones for **Aether** (Odin).
 
 ## Unreleased
+
+## [0.1.1] - 2026-07-23
+
+Second public release: TUI parity with Grok Build, safer cancel, and packaging.
+
+### Highlights
+
+- **Ctrl+C mid-turn cancels** the agent turn (does not exit the TUI); quit is still **Ctrl+Q twice**
+- **Context window 500K** by default for `grok-build` (was 131K), with per-model catalog + `AETHER_CONTEXT_WINDOW`
+- **Plan mode UI**: Grok-shaped approval (`a`/`s`/`q`), Shift+Tab ring, gold chrome, scrollable `/view-plan`
+- **Permission prompts**: numbered radio options (`1-9` / `j`/`k` / Enter) instead of `y/n/a/d`
+- **Transcript scroll**: wheel / PgUp / Ctrl+U·D; mid-stream history expands when you scroll up
+- **Composer chrome**: context remainder on top bar, effort on bottom rail, mode flag colors
+- **Packaging**: AUR + Homebrew skeletons; install-first README
+
+### Fix: Ctrl+C cancels the turn (does not exit)
+
+- Session-long SIGINT handler via `sigaction` (never restore SIG_DFL while TUI is up)
+- Mid-turn: ISIG on (classic SIGINT) **and** peek detects `0x03` + Kitty CSI-u Ctrl+C (`ESC [ 99;5 u`)
+- Idle Ctrl+C still clears input / hints Ctrl+Q; quit remains Ctrl+Q twice
 
 ### Context window: Grok Build 500K
 
