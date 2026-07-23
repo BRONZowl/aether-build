@@ -135,7 +135,7 @@ Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.
 | Area | Notes |
 |------|--------|
 | **Tools** | Shell, files, grep/glob, web, LSP, todos/goals, Imagine media, plan mode, MCP, skills, subagents, memory, scheduler |
-| **Plan mode** | `/plan` or Shift+Tab (Normal→Plan→Always-approve); plan file `.grok/plan.md`; exit opens **a/s/q** approval review |
+| **Plan mode** | `/plan` or Shift+Tab (Normal→Plan→Always-approve); plan file `.grok/plan.md`; exit opens **a/s/q** approval review; `/view-plan` scrollable preview in TUI |
 | **Subagents** | `explore` / `plan` / `general-purpose`; optional personas, worktree isolation |
 | **Skills & MCP** | Discover skills; configure `[mcp_servers.*]` in config.toml; `/mcp`, `/skills` |
 | **Memory** | File-backed under `~/.grok/memory/`; `/flush`, `/dream`, `/remember` |

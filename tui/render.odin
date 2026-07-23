@@ -572,7 +572,11 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 		}
 		status: string
 		if s.plan_approval.active {
-			status = fmt.tprintf(" %s  | a approve · s revise · q quit · Tab prompt", st)
+			if s.plan_approval.readonly {
+				status = fmt.tprintf(" %s  | q/Esc close · j/k scroll", st)
+			} else {
+				status = fmt.tprintf(" %s  | a approve · s revise · q quit · Tab prompt", st)
+			}
 		} else if s.ask_active {
 			// Question freeform / multi / single select vs tool permission (1-9)
 			if strings.contains(s.ask_summary, "Other>") {

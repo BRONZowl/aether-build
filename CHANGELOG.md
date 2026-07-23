@@ -10,6 +10,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 - REPL exit prompts use the same **a/s/q** letters (legacy y/n still accepted)
 - **Shift+Tab** ring matches Grok: **Normal → Plan → Always-approve → Normal** (Auto/Read-only stay on settings/slash, not this ring)
 - `/keys` documents plan-approval shortcuts
+- **`/view-plan`** (TUI): scrollable read-only plan preview (`q`/Esc close); REPL still dumps text
 
 ### Fix: scroll + permission keys (Grok parity)
 

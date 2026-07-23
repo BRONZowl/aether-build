@@ -18,6 +18,32 @@ test_plan_approval_status_label :: proc(t: ^testing.T) {
 		t,
 		plan_approval_status_label(false) == "No plan written — approve or request changes",
 	)
+	testing.expect(t, plan_approval_status_label(true, true) == "Plan preview")
+	testing.expect(t, plan_approval_status_label(false, true) == "No plan written yet")
+}
+
+@(test)
+test_plan_view_readonly_open_clear :: proc(t: ^testing.T) {
+	tmp := "/tmp/aether-plan-view-ro"
+	_ = os.make_directory_all(tmp)
+	path, _ := filepath.join({tmp, "plan.md"}, context.temp_allocator)
+	src := "# View me\n\nline two\n"
+	testing.expect(t, os.write_entire_file(path, transmute([]byte)src) == nil)
+
+	p: Plan_Approval_View
+	plan_approval_init(&p)
+	defer plan_approval_destroy(&p)
+	plan_approval_open(&p, path, true)
+	testing.expect(t, p.active)
+	testing.expect(t, p.readonly)
+	testing.expect(t, p.has_plan)
+	testing.expect(t, strings.contains(p.plan_body, "View me"), p.plan_body)
+	lab := plan_approval_action_bar_label(&p)
+	testing.expect(t, strings.contains(lab, "q/Esc close"), lab)
+	testing.expect(t, !strings.contains(lab, "approve"), lab)
+	plan_approval_clear(&p)
+	testing.expect(t, !p.active)
+	testing.expect(t, !p.readonly)
 }
 
 @(test)

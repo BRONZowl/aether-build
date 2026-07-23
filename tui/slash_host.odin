@@ -132,6 +132,22 @@ handle_slash :: proc(
 		state_set_status(st, "docs")
 		return true
 	}
+	// /view-plan · /show-plan · /plan view → scrollable read-only plan preview
+	{
+		is_view :=
+			line == "/view-plan" ||
+			line == "/show-plan" ||
+			line == "/plan-view" ||
+			line == "/plan view" ||
+			strings.has_prefix(line, "/plan view ")
+		if is_view {
+			input_clear(st)
+			ws := cwd^ if cwd != nil else (sess.cwd if sess != nil else ".")
+			path := agent.plan_file_path_for_cwd(ws, context.temp_allocator)
+			tui_run_plan_view(path)
+			return true
+		}
+	}
 	// /personas /config-agents → personas modal
 	if line == "/personas" ||
 	   line == "/persona" ||

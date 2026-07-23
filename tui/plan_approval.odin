@@ -37,9 +37,11 @@ Plan_Comment :: struct {
 	text:       string, // owned
 }
 
-// Plan_Approval_View: fullscreen review while exit_plan_mode is parked.
+// Plan_Approval_View: fullscreen review while exit_plan_mode is parked,
+// or read-only /view-plan preview (readonly=true).
 Plan_Approval_View :: struct {
 	active:         bool,
+	readonly:       bool, // /view-plan: scroll only; q/Esc close
 	focus:          Plan_Approval_Focus,
 	plan_path:      string, // owned
 	plan_body:      string, // owned display body (file or placeholder)
@@ -80,6 +82,7 @@ plan_approval_clear :: proc(p: ^Plan_Approval_View) {
 	clear(&p.feedback)
 	clear(&p.comment_buf)
 	p.active = false
+	p.readonly = false
 	p.focus = .Preview
 	p.has_plan = false
 	p.scroll = 0
@@ -90,7 +93,14 @@ plan_approval_clear :: proc(p: ^Plan_Approval_View) {
 }
 
 // plan_approval_status_label matches Grok plan_approval_status_label.
-plan_approval_status_label :: proc(has_plan: bool) -> string {
+// When readonly, labels are for /view-plan (not exit approval).
+plan_approval_status_label :: proc(has_plan: bool, readonly := false) -> string {
+	if readonly {
+		if has_plan {
+			return "Plan preview"
+		}
+		return "No plan written yet"
+	}
 	if has_plan {
 		return "Waiting on plan approval"
 	}
@@ -116,14 +126,15 @@ plan_approval_load_body :: proc(
 	return strings.clone(EMPTY_PLAN_PLACEHOLDER, allocator), false
 }
 
-// plan_approval_open fills view for a parked exit_plan_mode.
-plan_approval_open :: proc(p: ^Plan_Approval_View, plan_path: string) {
+// plan_approval_open fills view for a parked exit_plan_mode (or /view-plan).
+plan_approval_open :: proc(p: ^Plan_Approval_View, plan_path: string, readonly := false) {
 	plan_approval_clear(p)
 	p.plan_path = strings.clone(plan_path)
 	body, has := plan_approval_load_body(plan_path)
 	p.plan_body = body
 	p.has_plan = has
 	p.active = true
+	p.readonly = readonly
 	p.focus = .Preview
 	p.scroll = 0
 	p.sel_line = 0
@@ -179,6 +190,9 @@ plan_approval_format_feedback :: proc(
 
 // plan_approval_action_bar_label — bottom controls strip.
 plan_approval_action_bar_label :: proc(p: ^Plan_Approval_View) -> string {
+	if p.readonly {
+		return " q/Esc close · j/k · ↑/↓ · PgUp/Dn scroll"
+	}
 	if len(p.comments) > 0 {
 		return " a approve w/ comments · s request changes · c comment · q quit · Tab prompt"
 	}
@@ -189,17 +203,20 @@ plan_approval_action_bar_label :: proc(p: ^Plan_Approval_View) -> string {
 write_plan_approval_body :: proc(b: ^strings.Builder, s: ^App_State, cols: int, body_h: int) {
 	p := &s.plan_approval
 	// Header status line inside body
-	label := plan_approval_status_label(p.has_plan)
+	label := plan_approval_status_label(p.has_plan, p.readonly)
 	path_note := p.plan_path if p.plan_path != "" else ".grok/plan.md"
 	write_row(b, fmt.tprintf(" %s", label), cols, .Bar_Reverse, true)
 	write_row(b, fmt.tprintf(" %s", path_note), cols, .Bar_Dim, true)
 
 	// Reserve: 2 header + 1 action bar + optional feedback (2) + optional comment (1)
+	// Read-only view never shows feedback/comment footers.
 	footer_h := 1
-	if p.focus == .Prompt {
-		footer_h = 3
-	} else if p.focus == .Commenting {
-		footer_h = 2
+	if !p.readonly {
+		if p.focus == .Prompt {
+			footer_h = 3
+		} else if p.focus == .Commenting {
+			footer_h = 2
+		}
 	}
 	list_h := body_h - 2 - footer_h
 	if list_h < 1 {
@@ -259,19 +276,21 @@ write_plan_approval_body :: proc(b: ^strings.Builder, s: ^App_State, cols: int, 
 	// Action bar
 	write_row(b, plan_approval_action_bar_label(p), cols, .Bar_Dim, true)
 
-	if p.focus == .Prompt {
-		fb := string(p.feedback[:])
-		write_row(b, " request changes — Enter send · Esc back", cols, .Bar_Dim, true)
-		write_row(b, fmt.tprintf(" ›%s█", fb), cols, .Bar_Reverse, true)
-	} else if p.focus == .Commenting {
-		cb := string(p.comment_buf[:])
-		write_row(
-			b,
-			fmt.tprintf(" comment line %d — Enter save · Esc cancel ›%s█", p.sel_line + 1, cb),
-			cols,
-			.Bar_Reverse,
-			true,
-		)
+	if !p.readonly {
+		if p.focus == .Prompt {
+			fb := string(p.feedback[:])
+			write_row(b, " request changes — Enter send · Esc back", cols, .Bar_Dim, true)
+			write_row(b, fmt.tprintf(" ›%s█", fb), cols, .Bar_Reverse, true)
+		} else if p.focus == .Commenting {
+			cb := string(p.comment_buf[:])
+			write_row(
+				b,
+				fmt.tprintf(" comment line %d — Enter save · Esc cancel ›%s█", p.sel_line + 1, cb),
+				cols,
+				.Bar_Reverse,
+				true,
+			)
+		}
 	}
 }
 
@@ -311,14 +330,14 @@ tui_run_plan_approval :: proc(plan_path: string) -> agent.Plan_Exit_Result {
 	}
 
 	p := &st.plan_approval
-	plan_approval_open(p, plan_path)
+	plan_approval_open(p, plan_path, false)
 	// Also set ask_active so mid-turn chrome treats us as modal (spinner hide).
 	st.ask_active = true
 	delete(st.ask_name)
 	delete(st.ask_summary)
 	st.ask_name = strings.clone("exit_plan_mode")
-	st.ask_summary = strings.clone(plan_approval_status_label(p.has_plan))
-	state_set_status(st, plan_approval_status_label(p.has_plan))
+	st.ask_summary = strings.clone(plan_approval_status_label(p.has_plan, false))
+	state_set_status(st, plan_approval_status_label(p.has_plan, false))
 	render(term, st)
 
 	done := false
@@ -485,4 +504,71 @@ plan_approval_move_sel :: proc(p: ^Plan_Approval_View, delta: int) {
 		return
 	}
 	p.sel_line = clamp(p.sel_line + delta, 0, n - 1)
+}
+
+// tui_run_plan_view: read-only scrollable plan.md preview (/view-plan).
+// q / Esc close; no approve/revise/comment. Reuses Plan_Approval_View paint.
+tui_run_plan_view :: proc(plan_path: string) {
+	st := stream_st()
+	term := stream_term()
+	if st == nil || term == nil {
+		return
+	}
+
+	p := &st.plan_approval
+	plan_approval_open(p, plan_path, true)
+	st.ask_active = true
+	delete(st.ask_name)
+	delete(st.ask_summary)
+	st.ask_name = strings.clone("view_plan")
+	st.ask_summary = strings.clone(plan_approval_status_label(p.has_plan, true))
+	state_set_status(st, plan_approval_status_label(p.has_plan, true))
+	render(term, st)
+
+	done := false
+	for !done {
+		key := read_key()
+		#partial switch key.kind {
+		case .Char:
+			switch key.ch {
+			case 'q', 'Q':
+				done = true
+			case 'j', 'J':
+				plan_approval_move_sel(p, 1)
+			case 'k', 'K':
+				plan_approval_move_sel(p, -1)
+			case:
+			}
+		case .Down:
+			plan_approval_move_sel(p, 1)
+		case .Up:
+			plan_approval_move_sel(p, -1)
+		case .PgDn:
+			plan_approval_move_sel(p, 10)
+		case .PgUp:
+			plan_approval_move_sel(p, -10)
+		case .Home:
+			p.sel_line = 0
+		case .End:
+			lines := plan_body_lines(p.plan_body)
+			if len(lines) > 0 {
+				p.sel_line = len(lines) - 1
+			}
+		case .Esc, .Ctrl_C:
+			done = true
+		case:
+		}
+		if !done {
+			render(term, st)
+		}
+	}
+
+	st.ask_active = false
+	delete(st.ask_name)
+	delete(st.ask_summary)
+	st.ask_name = ""
+	st.ask_summary = ""
+	plan_approval_clear(p)
+	state_set_status(st, "ready")
+	render(term, st)
 }
