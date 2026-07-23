@@ -50,9 +50,9 @@ Details: [packaging/README.md](./packaging/README.md).
 Debian/Ubuntu: `libcurl4-openssl-dev`, `libmbedtls-dev`, `ripgrep`, `build-essential`, `clang`, `llvm`.
 
 ```bash
-make bootstrap-odin          # Odin → ./.tools
+make bootstrap-odin    # Odin → ./.tools
 make build test
-make install                 # → ~/.local/bin or ~/.grok/bin
+make install           # → ~/.local/bin or ~/.grok/bin
 aether-grok --version
 ```
 
@@ -77,9 +77,9 @@ System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
 <h2>Usage</h2>
 
 ```bash
-aether-grok                         # TUI on a TTY; else line REPL
-aether-grok tui                     # force fullscreen UI
-aether-grok chat                    # multi-turn line REPL
+aether-grok                          # TUI on a TTY; else line REPL
+aether-grok tui                      # force fullscreen UI
+aether-grok chat                     # multi-turn line REPL
 aether-grok -p "say hi in three words"
 aether-grok -m grok-4.5 --cwd .
 ```
@@ -138,9 +138,9 @@ More bindings: **`/keys`**. Welcome art: opt out with `AETHER_NO_ASCII_ART=1`.
 ```bash
 make bootstrap-odin
 make build vet test smoke-tui
-make smoke                  # live -p (needs auth)
-make check-license          # Apache-2.0 / SPDX (CI)
-make dist                   # binary tarball + LICENSE/NOTICE
+make smoke             # live -p (needs auth)
+make check-license     # Apache-2.0 / SPDX (CI)
+make dist              # binary tarball + LICENSE/NOTICE
 ```
 
 | Path | Role |
