@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>Aether</h1>
+<h1>Aether Build</h1>
 
 **Aether** is a high-performance coding agent written in **Odin**: headless one-shots, multi-turn REPL, and a fullscreen terminal UI.
 
