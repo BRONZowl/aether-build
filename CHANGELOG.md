@@ -7,6 +7,7 @@ All notable product milestones for **Aether** (Odin).
 ### Welcome screen
 
 - Dropped **New session / Resume session / Quit** shortcut menu under the startup logo (keys still work; use `/keys`)
+- Removed hero border box, version line (`aether-grok 0.1.1`), and “Thanks for trying…” subtitle — logo is centered alone
 
 ## [0.1.1] - 2026-07-23
 

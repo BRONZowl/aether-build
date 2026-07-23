@@ -51,8 +51,8 @@ flatten_blocks :: proc(
 		pref := "·" if compact else "· "
 		wrap_push(out, styles, block_idxs, -1, fmt.tprintf("%s%s", pref, n), .Dim, w, allocator)
 	}
-	// Empty-session welcome is painted by write_welcome_body (Grok stacked/hero
-	// layout) — not as scrollable transcript lines.
+	// Empty-session welcome is painted by write_welcome_body (centered logo) —
+	// not as scrollable transcript lines.
 
 	prev_kind: Block_Kind = .User // force no leading blank before first real block
 	first_block := true

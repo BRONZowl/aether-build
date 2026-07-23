@@ -3,7 +3,7 @@
 // Copyright 2023-2026 SpaceXAI
 // SPDX-License-Identifier: Apache-2.0
 //
-// Welcome *layout* follows Grok Build (stacked / hero, height tiers, menu).
+// Welcome *layout*: centered logo (height tiers); no bordered hero box.
 // Glyph: Grok-style Braille shell (logo07/logo05 canvas + flourishes) with a
 // solid letter "A" in the open center — Aether mark, not a Grok clone.
 //
@@ -22,7 +22,7 @@ BRAND_FULL_MIN_ROWS :: 20
 BRAND_SMALL_MIN_COLS :: 20
 BRAND_FULL_MIN_COLS :: 28
 
-// Hero box (side-by-side logo + menu) — Grok HERO_BOX_MIN_WIDTH = 90.
+// Wide-terminal full logo gate (formerly hero box min width).
 BRAND_HERO_MIN_COLS :: 90
 
 // Canvas matches Grok logo07 / logo05 (braille cells).
@@ -69,8 +69,6 @@ Brand_Menu_Item :: struct {
 }
 
 BRAND_MENU := [0]Brand_Menu_Item{}
-
-BRAND_SUBTITLE :: "Thanks for trying Aether — /about · /help · /feedback"
 
 // Shared slash set for startup-only banners (empty-session welcome + REPL no-art).
 // Grok-facing primaries; keep in sync with slash_catalog display names for these cmds.
@@ -123,7 +121,7 @@ brand_pick_tier :: proc(rows, cols: int) -> Brand_Tier {
 	return .Chip
 }
 
-// brand_use_hero: wide side-by-side logo+menu (Grok hero box).
+// brand_use_hero: wide terminal prefers full logo (no bordered box).
 brand_use_hero :: proc(rows, cols: int) -> bool {
 	if !brand_art_enabled() {
 		return false
@@ -131,7 +129,7 @@ brand_use_hero :: proc(rows, cols: int) -> bool {
 	if cols < BRAND_HERO_MIN_COLS {
 		return false
 	}
-	// Need room for full logo height + chrome
+	// Need room for full logo height + padding/tip
 	if rows < BRAND_FULL_CELLS_H + 6 {
 		return false
 	}
@@ -340,8 +338,4 @@ brand_repl_no_art_banner :: proc(allocator := context.allocator) -> string {
 
 brand_status_line :: proc(allocator := context.allocator) -> string {
 	return fmt.aprintf("%s  %s", BRAND_ART_CHIP, version_string(), allocator = allocator)
-}
-
-brand_hero_subtitle :: proc() -> string {
-	return BRAND_SUBTITLE
 }
