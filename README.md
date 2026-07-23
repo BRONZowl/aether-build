@@ -2,7 +2,7 @@
 
 <h1>Aether Build</h1>
 
-**Aether** is a high-performance coding agent written in **Odin**: headless one-shots, multi-turn REPL, and a fullscreen terminal UI.
+**Aether Build** is a high-performance coding agent written in **Odin**: headless one-shots, multi-turn REPL, and a fullscreen terminal UI.
 
 It is a **peer** to [Grok Build](https://x.ai/cli) (the Rust `grok` CLI)—same problem space and optional `~/.grok` interop, but a **separate codebase and binary**. Neither product requires the other.
 
