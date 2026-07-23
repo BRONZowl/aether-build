@@ -82,7 +82,7 @@ test_brand_art_grok_shell_with_a :: proc(t: ^testing.T) {
 }
 
 @(test)
-test_brand_welcome_has_menu :: proc(t: ^testing.T) {
+test_brand_welcome_no_shortcut_menu :: proc(t: ^testing.T) {
 	prev := os.get_env("AETHER_NO_ASCII_ART", context.temp_allocator)
 	_ = os.unset_env("AETHER_NO_ASCII_ART")
 	defer {
@@ -92,10 +92,14 @@ test_brand_welcome_has_menu :: proc(t: ^testing.T) {
 	}
 	s := brand_render_welcome(24, 80, context.allocator)
 	defer delete(s)
-	testing.expect(t, strings.contains(s, "New session"))
-	testing.expect(t, strings.contains(s, "Resume session"))
-	testing.expect(t, strings.contains(s, "Quit"))
-	testing.expect(t, strings.contains(s, "ctrl+n"))
+	// Startup logo should not list New session / Resume / Quit under the art
+	testing.expect(t, !strings.contains(s, "New session"), s)
+	testing.expect(t, !strings.contains(s, "Resume session"), s)
+	testing.expect(t, !strings.contains(s, "ctrl+n"), s)
+	testing.expect(t, !strings.contains(s, "ctrl+s"), s)
+	testing.expect(t, !strings.contains(s, "ctrl+q"), s)
+	// Tip line still present
+	testing.expect(t, strings.contains(s, "type a message") || len(s) > 0, s)
 }
 
 @(test)

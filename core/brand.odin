@@ -60,18 +60,15 @@ BRAND_ART_SMALL := [5]string {
 
 BRAND_ART_CHIP :: "⣿ aether · odin"
 
-// Welcome menu (stacked + hero) — Grok layout: label left, shortcut right.
-// Keys match Aether TUI bindings (Ctrl+N / Ctrl+S / Ctrl+Q).
+// Welcome menu under the logo (stacked + hero). Intentionally empty: product
+// request was to drop New session / Resume / Quit from the startup chrome.
+// Shortcuts remain available (Ctrl+N / Ctrl+S / Ctrl+Q); see /keys.
 Brand_Menu_Item :: struct {
 	label: string,
 	key:   string,
 }
 
-BRAND_MENU := [3]Brand_Menu_Item {
-	{"New session", "ctrl+n"},
-	{"Resume session", "ctrl+s"},
-	{"Quit", "ctrl+q"},
-}
+BRAND_MENU := [0]Brand_Menu_Item{}
 
 BRAND_SUBTITLE :: "Thanks for trying Aether — /about · /help · /feedback"
 

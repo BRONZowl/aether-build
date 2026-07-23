@@ -4,6 +4,10 @@ All notable product milestones for **Aether** (Odin).
 
 ## Unreleased
 
+### Welcome screen
+
+- Dropped **New session / Resume session / Quit** shortcut menu under the startup logo (keys still work; use `/keys`)
+
 ## [0.1.1] - 2026-07-23
 
 Second public release: TUI parity with Grok Build, safer cancel, and packaging.
