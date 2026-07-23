@@ -49,12 +49,16 @@ Details: [packaging/README.md](./packaging/README.md).
 
 Debian/Ubuntu: `libcurl4-openssl-dev`, `libmbedtls-dev`, `ripgrep`, `build-essential`, `clang`, `llvm`.
 
+</div>
+
 ```bash
 make bootstrap-odin    # Odin → ./.tools
 make build test
 make install           # → ~/.local/bin or ~/.grok/bin
 aether-grok --version
 ```
+
+<div align="center">
 
 Local wrappers without install: `./bin/aether` (same binary as `out/aether`).
 
@@ -67,14 +71,24 @@ Local wrappers without install: `./bin/aether` (same binary as `out/aether`).
 Override install dir: `AETHER_INSTALL_BIN=… make install`.  
 System/package builds: `make DESTDIR=… PREFIX=/usr install-prefix`.
 
-<h3>Authentication</h3>
+</div>
+
+<div align="left">
+
+### Authentication
 
 1. **`export XAI_API_KEY=…`** (recommended)  
 2. Or existing **`~/.grok/auth.json`** session  
 3. **`aether-grok login`** / **`/login`** — in-process device-code sign-in  
 4. **`aether-grok whoami`** — identity only (never prints secrets)
 
+</div>
+
+<div align="center">
+
 <h2>Usage</h2>
+
+</div>
 
 ```bash
 aether-grok                          # TUI on a TTY; else line REPL
@@ -83,6 +97,8 @@ aether-grok chat                     # multi-turn line REPL
 aether-grok -p "say hi in three words"
 aether-grok -m grok-4.5 --cwd .
 ```
+
+<div align="center">
 
 | Flag / command | Meaning |
 |----------------|---------|
@@ -135,6 +151,8 @@ More bindings: **`/keys`**. Welcome art: opt out with `AETHER_NO_ASCII_ART=1`.
 
 <h2>Development</h2>
 
+</div>
+
 ```bash
 make bootstrap-odin
 make build vet test smoke-tui
@@ -142,6 +160,8 @@ make smoke             # live -p (needs auth)
 make check-license     # Apache-2.0 / SPDX (CI)
 make dist              # binary tarball + LICENSE/NOTICE
 ```
+
+<div align="center">
 
 | Path | Role |
 |------|------|
