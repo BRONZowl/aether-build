@@ -38,9 +38,10 @@ term_enter :: proc(t: ^Term_State) -> bool {
 	// alt screen, clear, home, hide cursor
 	// Kitty keyboard progressive enhancement: disambiguate Escape (flag 1)
 	// so Ctrl+M / Shift+Enter are distinct from bare Enter when supported.
-	// Mouse: button tracking (1000) + SGR extended (1006) for wheel (C2.2).
+	// Mouse: button tracking (1000) + button-event (1002) + SGR (1006) for wheel.
+	// 1002 improves wheel delivery on some terminals (foot/kitty/tmux).
 	// Bracketed paste (2004): multi-line paste as one event (C2.6 / M1).
-	fmt.print("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u\x1b[?1000h\x1b[?1006h\x1b[?2004h")
+	fmt.print("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h")
 	term_install_resize_handler()
 	term_update_size(t)
 	return true
@@ -52,7 +53,7 @@ term_leave :: proc(t: ^Term_State) {
 	}
 	term_uninstall_resize_handler()
 	// disable bracketed paste, mouse, pop keyboard mode, show cursor, leave alt screen
-	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
+	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
 	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &t.orig)
 	t.active = false
 	t.mouse_enabled = false
@@ -64,9 +65,9 @@ term_set_mouse :: proc(t: ^Term_State, on: bool) {
 		return
 	}
 	if on {
-		fmt.print("\x1b[?1000h\x1b[?1006h")
+		fmt.print("\x1b[?1000h\x1b[?1002h\x1b[?1006h")
 	} else {
-		fmt.print("\x1b[?1006l\x1b[?1000l")
+		fmt.print("\x1b[?1006l\x1b[?1002l\x1b[?1000l")
 	}
 	t.mouse_enabled = on
 }
@@ -106,7 +107,7 @@ term_suspend_for_pager :: proc(t: ^Term_State) {
 		return
 	}
 	// show cursor, leave alt screen, disable mouse/paste/kkp — keep raw? less needs cooked
-	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
+	fmt.print("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[=0u\x1b[?25h\x1b[0m\x1b[?1049l")
 	_ = posix.tcsetattr(posix.FD(posix.STDIN_FILENO), .TCSANOW, &t.orig)
 }
 
@@ -124,7 +125,7 @@ term_resume_after_pager :: proc(t: ^Term_State) {
 	raw.c_cc[.VMIN] = 1
 	raw.c_cc[.VTIME] = 0
 	_ = posix.tcsetattr(fd, .TCSANOW, &raw)
-	mouse := "\x1b[?1000h\x1b[?1006h" if t.mouse_enabled else ""
+	mouse := "\x1b[?1000h\x1b[?1002h\x1b[?1006h" if t.mouse_enabled else ""
 	fmt.printf("\x1b[?1049h\x1b[2J\x1b[H\x1b[?25l\x1b[=1u%s\x1b[?2004h", mouse)
 	term_update_size(t)
 }

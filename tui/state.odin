@@ -73,6 +73,10 @@ App_State :: struct {
 	focus:           Focus_Pane,
 	// selected transcript block index when focus == Scrollback; -1 = none
 	selected_block:  int,
+	// One-shot: next paint should scroll so selected_block is in view.
+	// Set when selection moves (keys/click/search); NOT on free wheel/PgUp scroll
+	// so ensure_block_visible cannot fight user scrolling.
+	ensure_sel_visible: bool,
 	// input as UTF-8 bytes + cursor byte index
 	input:           [dynamic]u8,
 	cursor:          int,
@@ -131,6 +135,8 @@ App_State :: struct {
 	ask_active:      bool,
 	ask_name:        string, // owned while active
 	ask_summary:     string, // owned while active
+	// Grok plan approval view (exit_plan_mode)
+	plan_approval:   Plan_Approval_View,
 	// Scrollback find (Ctrl+F / /find)
 	search:          Scrollback_Search,
 	// B20: Tab slash-complete cycle state
@@ -146,6 +152,7 @@ state_init :: proc(s: ^App_State) {
 	s.cursor = 0
 	s.scroll = 0
 	s.stream_follow = true
+	s.ensure_sel_visible = false
 	s.live_assist = strings.builder_make()
 	s.status = "ready"
 	s.spinner_tick = 0
@@ -174,6 +181,7 @@ state_init :: proc(s: ^App_State) {
 	s.ask_active = false
 	s.ask_name = ""
 	s.ask_summary = ""
+	plan_approval_init(&s.plan_approval)
 	search_init(&s.search)
 	s.slash_comp_idx = 0
 	s.slash_comp_prefix = ""
@@ -237,6 +245,7 @@ state_destroy :: proc(s: ^App_State) {
 	prompt_queue_destroy(s)
 	delete(s.ask_name)
 	delete(s.ask_summary)
+	plan_approval_destroy(&s.plan_approval)
 	search_destroy(&s.search)
 	if s.slash_comp_prefix != "" {
 		delete(s.slash_comp_prefix)
@@ -262,18 +271,52 @@ state_set_cwd :: proc(s: ^App_State, cwd: string) {
 
 // stream_scroll_adjust: delta > 0 scrolls toward older content (leaves bottom).
 // When offset returns to 0, re-enable stick-to-bottom follow (B31).
+// Free scroll must not re-pin via ensure_sel_visible (wheel / PgUp / Ctrl+U/D).
+//
+// Grok parity: scroll does not require scrollback focus (works from the prompt).
+// Mid-stream: detaching follow also expands the history tail on the next paint.
 stream_scroll_adjust :: proc(s: ^App_State, delta: int) {
 	if delta == 0 {
 		return
 	}
+	// User is intentionally moving the viewport — do not snap back to selection.
+	s.ensure_sel_visible = false
 	if delta > 0 {
+		// Toward older content. Allow large provisional offsets; render clamps
+		// after flatten (and after stream-history expand when follow drops).
 		s.scroll += delta
 		s.stream_follow = false
+		if s.status == "ready" || s.status == "" {
+			state_set_status(s, "scroll")
+		}
 		return
 	}
 	s.scroll = max(0, s.scroll + delta)
 	if s.scroll == 0 {
 		s.stream_follow = true
+		if s.status == "scroll" {
+			state_set_status(s, "ready")
+		}
+	} else {
+		s.stream_follow = false
+	}
+}
+
+// stream_scroll_to_top / _bottom: Grok Home/g and End/G style.
+stream_scroll_to_top :: proc(s: ^App_State) {
+	s.ensure_sel_visible = false
+	s.stream_follow = false
+	// Large offset; render clamps to max_scroll
+	s.scroll = 1_000_000_000
+	state_set_status(s, "scroll")
+}
+
+stream_scroll_to_bottom :: proc(s: ^App_State) {
+	s.ensure_sel_visible = false
+	s.scroll = 0
+	s.stream_follow = true
+	if s.status == "scroll" {
+		state_set_status(s, "ready")
 	}
 }
 
@@ -410,6 +453,7 @@ focus_scrollback :: proc(s: ^App_State) {
 	}
 	if s.selected_block < 0 || s.selected_block >= len(s.blocks) {
 		s.selected_block = len(s.blocks) - 1
+		s.ensure_sel_visible = true
 	}
 }
 
@@ -499,6 +543,7 @@ scrollback_move_sel :: proc(s: ^App_State, delta: int) -> bool {
 	}
 	if s.selected_block < 0 {
 		s.selected_block = len(s.blocks) - 1
+		s.ensure_sel_visible = true
 		return true
 	}
 	n := s.selected_block + delta
@@ -512,6 +557,7 @@ scrollback_move_sel :: proc(s: ^App_State, delta: int) -> bool {
 		return false
 	}
 	s.selected_block = n
+	s.ensure_sel_visible = true
 	return true
 }
 
@@ -526,6 +572,7 @@ scrollback_select_edge :: proc(s: ^App_State, first: bool) -> bool {
 		return false
 	}
 	s.selected_block = n
+	s.ensure_sel_visible = true
 	return true
 }
 
@@ -565,6 +612,7 @@ scrollback_move_sel_kind :: proc(s: ^App_State, dir: int, kind: Block_Kind) -> b
 		return false
 	}
 	s.selected_block = n
+	s.ensure_sel_visible = true
 	return true
 }
 
@@ -713,6 +761,10 @@ input_end :: proc(s: ^App_State) {
 INPUT_PREFIX :: "❯ "
 
 input_line_count :: proc(s: ^App_State, cols: int) -> int {
+	// Plan approval owns the lower chrome (Grok fullscreen review).
+	if s != nil && s.plan_approval.active {
+		return 0
+	}
 	text := input_text(s)
 	// count wrapped lines for "❯ " + text
 	w := max(8, cols - 2)

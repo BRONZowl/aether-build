@@ -432,6 +432,13 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 			i += 1
 			continue
 		}
+		// Ctrl+D half-page down (Grok)
+		if b == 0x04 {
+			stream_scroll_adjust(g_rt.st, -half)
+			changed = true
+			i += 1
+			continue
+		}
 		// Ctrl+K line up
 		if b == 0x0b {
 			stream_scroll_adjust(g_rt.st, 1)
@@ -496,10 +503,10 @@ peek_apply_stream_scroll :: proc(buf: []u8) -> bool {
 									}
 									btn_n = btn_n * 10 + int(btn_str[k] - '0')
 								}
-								if btn_n == 64 || btn_n == 68 || btn_n == 72 || btn_n == 80 {
+								if btn_n == 64 || btn_n == 68 || btn_n == 72 || btn_n == 80 || btn_n == 4 {
 									stream_scroll_adjust(g_rt.st, 3)
 									changed = true
-								} else if btn_n == 65 || btn_n == 69 || btn_n == 73 || btn_n == 81 {
+								} else if btn_n == 65 || btn_n == 69 || btn_n == 73 || btn_n == 81 || btn_n == 5 {
 									stream_scroll_adjust(g_rt.st, -3)
 									changed = true
 								}

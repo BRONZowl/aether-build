@@ -25,12 +25,13 @@ Overlay_Kind :: enum {
 	Fork,
 }
 
-// overlay_kind: highest-priority active overlay (ask steals first).
+// overlay_kind: highest-priority active overlay (ask / plan approval steal first).
 overlay_kind :: proc(s: ^App_State) -> Overlay_Kind {
 	if s == nil {
 		return .None
 	}
-	if s.ask_active {
+	// Plan approval sets ask_active too; treat as Ask for key routing.
+	if s.plan_approval.active || s.ask_active {
 		return .Ask
 	}
 	if s.picker.active {

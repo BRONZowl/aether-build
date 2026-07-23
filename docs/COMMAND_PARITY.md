@@ -38,8 +38,8 @@ Review of **shared** command names. Aether-only commands (`/doctor`, `/soft-bash
 | `/theme` (`t`) | Set theme | Set theme | **Match** |
 | `/feedback` | Send product feedback | Local JSONL under sessions dir | **Match** (local only; remote N/A) |
 | `/remember` | Save memory note | Append memory log | **Match** |
-| `/plan` | Enter plan mode | Plan mode on/off/status | **Match** |
-| `/view-plan` | Show plan | Show plan.md | **Match** |
+| `/plan` | Enter plan mode | Plan mode on/off/status; Shift+Tab Normal→Plan→Always-approve | **Match** |
+| `/view-plan` | Show plan | Show plan.md (scrollable approval view on exit; dump via slash) | **Match** |
 | `/resume` | Session picker | TUI picker / list sessions | **Match** |
 | `/mcps` | Extensions modal | TUI extensions hub (MCPs tab) + CLI | **Match** |
 | `/btw` | Side agent question | Off-transcript model answer (local if offline) | **Match** |

@@ -17,16 +17,16 @@ Key_Kind :: enum {
 	Backspace,
 	Esc,
 	Ctrl_C,
-	Ctrl_D, // quit alt (VS Code family)
-	Ctrl_Q, // quit
+	Ctrl_D, // scroll half page down (Grok scrollback); not quit
+	Ctrl_Q, // quit (double-press)
 	Ctrl_S, // session picker (Grok)
 	Ctrl_N, // new session (double-press, Grok)
 	Ctrl_O, // toggle YOLO / always-approve (Grok)
 	Ctrl_F, // scrollback search / find (Grok-shaped)
 	Ctrl_M, // toggle multiline (when disambiguated from Enter)
-	Ctrl_U, // scroll half page up
-	Ctrl_K, // scroll line up
-	Ctrl_J, // scroll line down
+	Ctrl_U, // scroll half page up (Grok)
+	Ctrl_K, // scroll line up (Grok)
+	Ctrl_J, // scroll line down (Grok)
 	Ctrl_V, // paste (text + clipboard image / path → Image #N)
 	Up,
 	Down,
@@ -37,7 +37,7 @@ Key_Kind :: enum {
 	Home,
 	End,
 	Tab, // toggle prompt / scrollback focus (Grok)
-	Shift_Tab, // cycle: ask → plan → auto → always-approve → read-only
+	Shift_Tab, // cycle: Normal → Plan → Always-Approve (Grok)
 	Mouse_Wheel_Up, // SGR/X10 wheel (C2.2)
 	Mouse_Wheel_Down,
 	Mouse_Click, // left press (C2.3); x/y 1-based
@@ -370,11 +370,11 @@ decode_mouse_sgr :: proc(params: string, press: bool) -> Key {
 	if len(parts) >= 3 {
 		my = parts[2]
 	}
-	// SGR wheel: 64 up, 65 down
-	if btn == 64 || btn == 68 || btn == 72 || btn == 80 {
+	// SGR wheel: 64/65 standard; 4/5 some terminals; 68/69 shift+wheel; higher with mods
+	if btn == 64 || btn == 68 || btn == 72 || btn == 80 || btn == 4 {
 		return Key{kind = .Mouse_Wheel_Up, mouse_btn = btn, mouse_x = mx, mouse_y = my}
 	}
-	if btn == 65 || btn == 69 || btn == 73 || btn == 81 {
+	if btn == 65 || btn == 69 || btn == 73 || btn == 81 || btn == 5 {
 		return Key{kind = .Mouse_Wheel_Down, mouse_btn = btn, mouse_x = mx, mouse_y = my}
 	}
 	// Left button press only (btn 0); ignore motion (32+) and releases
@@ -409,10 +409,11 @@ decode_mouse_x10 :: proc() -> Key {
 	btn := int(cb) - 32
 	mx := int(cx) - 32
 	my := int(cy) - 32
-	if btn == 64 || btn == 4 {
+	// X10: wheel often 64/65 after -32; some send 4/5
+	if btn == 64 || btn == 4 || btn == 96 {
 		return Key{kind = .Mouse_Wheel_Up, mouse_btn = btn, mouse_x = mx, mouse_y = my}
 	}
-	if btn == 65 || btn == 5 {
+	if btn == 65 || btn == 5 || btn == 97 {
 		return Key{kind = .Mouse_Wheel_Down, mouse_btn = btn, mouse_x = mx, mouse_y = my}
 	}
 	// left press
@@ -486,7 +487,7 @@ decode_csi_u :: proc(params: string) -> Key {
 			return Key{kind = .Ctrl_Q}
 		case 99, 67: // c
 			return Key{kind = .Ctrl_C}
-		case 100, 68: // d
+		case 100, 68: // d — Grok half-page down (not quit)
 			return Key{kind = .Ctrl_D}
 		case 117, 85: // u
 			return Key{kind = .Ctrl_U}
@@ -504,6 +505,35 @@ decode_csi_u :: proc(params: string) -> Key {
 			return Key{kind = .Ctrl_F}
 		case 118, 86: // v
 			return Key{kind = .Ctrl_V}
+		}
+	}
+	// PageUp / PageDown (Kitty functional keys / xterm private use)
+	// Common: 5/6 with ~ are handled in decode_csi_tilde; CSI-u often uses:
+	// 57354/PageUp, 57355/PageDown (Kitty) or 57360/57361 in some maps.
+	if !ctrl && !alt {
+		switch code {
+		case 57354, 57360, 408:
+			return Key{kind = .PgUp}
+		case 57355, 57361, 409:
+			return Key{kind = .PgDn}
+		case 57352, 328: // Up
+			return Key{kind = .Up}
+		case 57353, 336: // Down
+			return Key{kind = .Down}
+		case 57350, 331: // Left
+			if shift {
+				return Key{kind = .Shift_Left}
+			}
+			return Key{kind = .Left}
+		case 57351, 333: // Right
+			if shift {
+				return Key{kind = .Shift_Right}
+			}
+			return Key{kind = .Right}
+		case 57356, 327: // Home
+			return Key{kind = .Home}
+		case 57357, 335: // End
+			return Key{kind = .End}
 		}
 	}
 	// printable with no mods

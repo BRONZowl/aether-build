@@ -303,7 +303,8 @@ run :: proc(opts: agent.Headless_Options) -> int {
 				dirty = true
 			}
 
-		case .Ctrl_Q, .Ctrl_D:
+		case .Ctrl_Q:
+			// Quit is Ctrl+Q only (Grok: Ctrl+D is half-page down while scrolling)
 			st.esc_first_ns = 0
 			st.new_first_ns = 0
 			if st.quit_first_ns != 0 && now - st.quit_first_ns <= QUIT_CONFIRM_NS {
@@ -313,6 +314,11 @@ run :: proc(opts: agent.Headless_Options) -> int {
 				state_set_status(&st, "press again to quit")
 				dirty = true
 			}
+
+		case .Ctrl_D:
+			// Grok: half-page down (toward newer content)
+			stream_scroll_adjust(&st, -max(1, term.rows / 2))
+			dirty = true
 
 		case .Ctrl_N:
 			// Grok: double-press within 1s → new session (normal only; no worktree)
@@ -339,7 +345,7 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			dirty = true
 
 		case .Shift_Tab:
-			// Slash menu: reverse highlight; else Grok mode cycle (ask→plan→…).
+			// Slash menu: reverse highlight; else Grok mode cycle (Normal→Plan→Always-Approve).
 			if st.focus == .Prompt && slash_menu_navigate(&st, -1) {
 				dirty = true
 			} else {
@@ -478,19 +484,28 @@ run :: proc(opts: agent.Headless_Options) -> int {
 			}
 
 		case .Home:
-			if st.focus == .Prompt {
+			if st.focus == .Scrollback {
+				// Grok-shaped: jump to oldest content
+				stream_scroll_to_top(&st)
+				_ = scrollback_select_edge(&st, true)
+				dirty = true
+			} else if st.focus == .Prompt {
 				input_home(&st)
 				dirty = true
 			}
 
 		case .End:
-			if st.focus == .Prompt {
+			if st.focus == .Scrollback {
+				stream_scroll_to_bottom(&st)
+				_ = scrollback_select_edge(&st, false)
+				dirty = true
+			} else if st.focus == .Prompt {
 				input_end(&st)
 				dirty = true
 			}
 
 		case .Mouse_Wheel_Up:
-			// Wheel: scroll toward older content (increase scroll offset)
+			// Wheel: scroll toward older content (works from prompt or scrollback)
 			stream_scroll_adjust(&st, 3)
 			dirty = true
 

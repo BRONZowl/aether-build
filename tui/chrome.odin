@@ -31,8 +31,11 @@ composer_use_box :: proc(cols: int) -> bool {
 // composer_frame_rows: chrome rows around the prompt text.
 // Boxed: blank pad + top border + bottom border (Grok vpad + rails).
 // Compact: none. Narrow non-compact: dim info line only under field.
+// Plan approval: no composer chrome (feedback lives in the approval body).
 composer_frame_rows :: proc(s: ^App_State, cols: int) -> (top, bottom: int) {
-	_ = s
+	if s != nil && s.plan_approval.active {
+		return 0, 0
+	}
 	if composer_use_box(cols) {
 		// 1 blank gap above box + 1 top rail; 1 bottom rail with caption
 		return 2, 1
@@ -58,7 +61,11 @@ status_row_visible :: proc(s: ^App_State) -> bool {
 	if s == nil {
 		return false
 	}
-	if s.ask_active || s.streaming || s.multiline_mode {
+	if s.plan_approval.active || s.ask_active || s.streaming || s.multiline_mode {
+		return true
+	}
+	// Detached from follow: show scroll position like Grok scrollbar chrome
+	if !s.stream_follow {
 		return true
 	}
 	if s.focus == .Scrollback || s.search.active || s.queue_pane_active {

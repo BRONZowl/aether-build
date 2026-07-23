@@ -41,9 +41,10 @@ toggle_yolo :: proc(
 	}
 }
 
-// cycle_mode: Grok-shaped Shift+Tab ring.
-// With plan mode: ask → plan → auto → always-approve → read-only → ask.
-// With AETHER_NO_PLAN_MODE: ask → auto → always-approve → read-only → ask.
+// cycle_mode: Grok Shift+Tab ring — Normal → Plan → Always-Approve → Normal.
+// Reference: user-guide/19-plan-mode.md + actions/defaults CycleMode.
+// Auto / Read-Only stay available via settings and slash commands, not this ring.
+// When AETHER_NO_PLAN_MODE: Normal ↔ Always-Approve only (Ctrl+O-shaped).
 cycle_mode :: proc(
 	st: ^App_State,
 	perm: ^core.Permission_Mode,
@@ -71,47 +72,59 @@ cycle_mode :: proc(
 		delete(st.perm)
 		st.perm = strings.clone(core.permission_mode_string(perm^))
 		_ = core.persist_permission_mode(perm^)
-		state_set_status(st, fmt.tprintf("mode: %s", st.perm))
 	}
-	if agent.plan_mode_enabled() {
-		// plan Active/Pending/Exit_Pending → auto (leave plan into accept-edits)
-		if agent.plan_mode_is_active() ||
-		   agent.plan_mode_is_pending() ||
-		   agent.plan_mode_is_exit_pending() {
-			_ = agent.user_exit_plan_mode(cwd, st.streaming, context.temp_allocator)
-			sync_sess_plan()
-			apply_perm(st, perm, perm_before, .Auto)
-			return
-		}
-		// Not in plan: ask → plan; auto → always; always → ro; ro → ask
-		switch perm^ {
-		case .Ask:
-			_ = agent.user_enter_plan_mode(cwd, "", context.temp_allocator)
-			sync_sess_plan()
-			// Keep underlying permission as ask; header shows plan chip via agent state
-			perm_before^ = .Ask
-			delete(st.perm)
-			st.perm = strings.clone(core.permission_mode_string(perm^))
-			state_set_status(st, "mode: plan")
-			return
-		case .Auto:
-			apply_perm(st, perm, perm_before, .Always_Approve)
-			return
-		case .Always_Approve:
-			apply_perm(st, perm, perm_before, .Read_Only)
-			return
-		case .Read_Only:
+
+	ws := cwd if cwd != "" else "."
+
+	if !agent.plan_mode_enabled() {
+		// Plan disabled: toggle Always-Approve only
+		if perm^ == .Always_Approve {
 			apply_perm(st, perm, perm_before, .Ask)
-			return
+			state_set_status(st, "mode: ask")
+		} else {
+			if perm^ != .Always_Approve {
+				perm_before^ = perm^
+			}
+			apply_perm(st, perm, perm_before, .Always_Approve)
+			state_set_status(st, "mode: always-approve")
 		}
+		return
 	}
-	// Plan mode disabled: permission-only cycle (includes auto)
-	perm^ = core.next_permission_mode(perm^)
+
+	// In plan (any lifecycle state) → leave plan, land Always-Approve (Grok)
+	if agent.plan_mode_is_active() ||
+	   agent.plan_mode_is_pending() ||
+	   agent.plan_mode_is_exit_pending() {
+		_ = agent.user_exit_plan_mode(ws, st.streaming, context.temp_allocator)
+		sync_sess_plan()
+		if perm^ != .Always_Approve {
+			perm_before^ = perm^
+		}
+		apply_perm(st, perm, perm_before, .Always_Approve)
+		state_set_status(st, "mode: always-approve")
+		return
+	}
+
+	// Always-Approve → Normal (Ask); keep Auto/RO only if that was underlying
+	if perm^ == .Always_Approve {
+		// Return to last non-yolo mode, defaulting to Ask
+		rest := perm_before^
+		if rest == .Always_Approve {
+			rest = .Ask
+		}
+		apply_perm(st, perm, perm_before, rest)
+		state_set_status(st, fmt.tprintf("mode: %s", st.perm))
+		return
+	}
+
+	// Normal (Ask / Auto / Read_Only) → Plan
+	_ = agent.user_enter_plan_mode(ws, "", context.temp_allocator)
+	sync_sess_plan()
+	// Keep underlying permission; header shows plan chip via agent state
 	if perm^ != .Always_Approve {
 		perm_before^ = perm^
 	}
 	delete(st.perm)
 	st.perm = strings.clone(core.permission_mode_string(perm^))
-	_ = core.persist_permission_mode(perm^)
-	state_set_status(st, fmt.tprintf("mode: %s", st.perm))
+	state_set_status(st, "mode: plan")
 }

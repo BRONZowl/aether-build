@@ -116,6 +116,11 @@ test_decode_mouse_sgr_click_and_wheel :: proc(t: ^testing.T) {
 	testing.expect(t, k3.kind == .Mouse_Wheel_Up)
 	k4 := decode_mouse_sgr("<65;1;1", true)
 	testing.expect(t, k4.kind == .Mouse_Wheel_Down)
+	// Some terminals send button 4/5 for wheel under 1000/1002
+	k4b := decode_mouse_sgr("<4;1;1", true)
+	testing.expect(t, k4b.kind == .Mouse_Wheel_Up)
+	k5b := decode_mouse_sgr("<5;1;1", true)
+	testing.expect(t, k5b.kind == .Mouse_Wheel_Down)
 	// middle press
 	k5 := decode_mouse_sgr("<1;8;3", true)
 	testing.expect(t, k5.kind == .Mouse_Middle)

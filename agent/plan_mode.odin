@@ -495,10 +495,29 @@ exit_plan_mode_impl :: proc(
 		)
 	case .Approved:
 		_ = deactivate_approved()
+		// Grok: approve w/ comments attaches review notes to the approval result.
+		fb := strings.trim_space(res.feedback)
 		if content == "" {
+			if fb != "" {
+				return fmt.aprintf(
+					"Plan mode exit approved. No plan content was found at %s — you can proceed with coding.\n\nUser comments:\n%s",
+					plan_path,
+					fb,
+					allocator = allocator,
+				)
+			}
 			return fmt.aprintf(
 				"Plan mode exit approved. No plan content was found at %s — you can proceed with coding.",
 				plan_path,
+				allocator = allocator,
+			)
+		}
+		if fb != "" {
+			return fmt.aprintf(
+				"Your plan has been approved. You can now start coding.\n\nPlan file: %s\n\n## Plan:\n%s\n\n## User comments:\n%s",
+				plan_path,
+				content,
+				fb,
 				allocator = allocator,
 			)
 		}
@@ -533,7 +552,8 @@ default_plan_enter_ask :: proc() -> bool {
 	return t == "y" || t == "yes"
 }
 
-// default_plan_exit_ask: TTY y / n [feedback] / a; headless auto-approve.
+// default_plan_exit_ask: REPL/TTY — Grok letters a/s/q (legacy y/n still accepted).
+// Headless auto-approves unless AETHER_PLAN_EXIT_ASK=1.
 default_plan_exit_ask :: proc(plan_path, plan_preview: string) -> Plan_Exit_Result {
 	force_ask := false
 	if v := os.get_env("AETHER_PLAN_EXIT_ASK", context.temp_allocator); v == "1" ||
@@ -554,27 +574,33 @@ default_plan_exit_ask :: proc(plan_path, plan_preview: string) -> Plan_Exit_Resu
 		}
 		fmt.eprintf("  preview: %s\n", pv)
 	}
-	fmt.eprintf("  [y] approve  [n] revise  [a] abandon\n  choice: ")
+	fmt.eprintf("  [a] approve  [s] request changes  [q] quit plan\n  (legacy: y/n)\n  choice: ")
 	line, ok := read_stdin_line(context.temp_allocator)
 	if !ok {
 		return Plan_Exit_Result{outcome = .Cancelled}
 	}
 	t := strings.trim_space(line)
 	low := strings.to_lower(t, context.temp_allocator)
-	if low == "y" || low == "yes" {
+	// Grok primary letters
+	if low == "a" || low == "approve" || low == "y" || low == "yes" {
 		return Plan_Exit_Result{outcome = .Approved}
 	}
-	if low == "a" || low == "abandon" {
+	if low == "q" || low == "quit" || low == "abandon" {
 		return Plan_Exit_Result{outcome = .Abandoned}
 	}
-	// n or n <feedback> or freeform feedback
+	// s / n / freeform → revise (Cancelled)
 	fb := ""
-	if strings.has_prefix(low, "n ") || strings.has_prefix(low, "no ") {
-		// rest after first space
+	if strings.has_prefix(low, "s ") ||
+	   strings.has_prefix(low, "n ") ||
+	   strings.has_prefix(low, "no ") {
 		if i := strings.index_byte(t, ' '); i >= 0 && i + 1 < len(t) {
 			fb = strings.trim_space(t[i + 1:])
 		}
-	} else if low != "n" && low != "no" && low != "" {
+	} else if low != "s" &&
+	          low != "n" &&
+	          low != "no" &&
+	          low != "revise" &&
+	          low != "" {
 		// treat whole line as feedback cancel
 		fb = t
 	}

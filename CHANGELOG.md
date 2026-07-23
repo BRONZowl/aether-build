@@ -4,6 +4,24 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Plan mode (Grok parity)
+
+- **Plan approval view** on `exit_plan_mode`: scrollable plan preview (or empty-plan placeholder), action bar **`a` approve · `s` request changes · `q` quit**, line comments (`c`/Enter), Tab preview↔feedback prompt
+- REPL exit prompts use the same **a/s/q** letters (legacy y/n still accepted)
+- **Shift+Tab** ring matches Grok: **Normal → Plan → Always-approve → Normal** (Auto/Read-only stay on settings/slash, not this ring)
+- `/keys` documents plan-approval shortcuts
+
+### Fix: scroll + permission keys (Grok parity)
+
+- Scroll: Ctrl+D half-page down (quit is Ctrl+Q only); mouse 1002 + wheel buttons 4/5; CSI-u PageUp/Down/arrows; status shows when detached from follow; Home/End jump in scrollback
+- Mid-stream history expands on first scroll-up so older messages are reachable
+- Permission prompts: Grok numbered radio list (`1 Allow once`, `2 Always allow on all sessions`, …) with **1-9 / j/k / Enter / Esc** — not y/n/a/d
+
+### Fix: unable to scroll transcript
+
+- Free wheel / PgUp / Ctrl+U no longer snaps back to the selected scrollback block every paint (ensure-visible only after selection moves)
+- Mid-stream history tail expands when you scroll up so older messages are reachable before the turn ends
+
 ### TUI chrome (context + effort)
 
 - Top bar: drop permission/model chips; show Grok-style context **`used / window`** (e.g. `12K / 131K`)

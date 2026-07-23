@@ -66,6 +66,7 @@ apply_mouse_click :: proc(st: ^App_State, term: ^Term_State, mx, my: int) -> boo
 			if bi >= 0 && bi < len(st.blocks) {
 				if st.selected_block != bi {
 					st.selected_block = bi
+					st.ensure_sel_visible = true
 					changed = true
 				}
 			}

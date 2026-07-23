@@ -10,14 +10,67 @@ import "core:unicode/utf8"
 import "aether:agent"
 import "aether:core"
 
-// tui_modal_yn shows ask modal with name/summary; returns true on y/Enter.
+// tui_modal_yn shows ask modal with name/summary; returns true on allow.
 // (Still used by plan-exit and callers that only need binary choice.)
 tui_modal_yn :: proc(title, name, summary: string) -> bool {
 	dec := tui_modal_ask(title, name, summary, allow_always = false)
 	return dec == .Once || dec == .Always
 }
 
-// tui_modal_ask: Deny / Once / Always / Never session. Keys a/d when grants enabled.
+// Permission option row — Grok permission_view numbered radio list.
+// Keys: 1–9 select, j/k or ↑↓ move, Enter confirm, Esc/Ctrl+C cancel.
+Ask_Option :: struct {
+	label: string,
+	dec:   core.Ask_Decision,
+}
+
+// tui_perm_options builds Grok-shaped permission choices.
+// Full grants (session allow/deny): Allow once · Always allow on all sessions ·
+// Reject once · Never allow this session.
+// Without grants: Allow once · Reject once only (plan enter / simple y-n).
+tui_perm_options :: proc(allow_always: bool, allocator := context.temp_allocator) -> []Ask_Option {
+	if allow_always && core.session_allow_enabled() {
+		opts := make([]Ask_Option, 4, allocator)
+		opts[0] = {"Allow once", .Once}
+		opts[1] = {"Always allow on all sessions", .Always}
+		opts[2] = {"Reject once", .Deny}
+		opts[3] = {"Never allow this session", .Never}
+		return opts
+	}
+	opts := make([]Ask_Option, 2, allocator)
+	opts[0] = {"Allow once", .Once}
+	opts[1] = {"Reject once", .Deny}
+	return opts
+}
+
+// tui_perm_paint_summary formats radio rows into ask_summary (Grok-style).
+// active_idx is 0-based; rows are " 1 (*) Allow once" / " 2 ( ) Reject once".
+tui_perm_paint_summary :: proc(
+	summary: string,
+	opts: []Ask_Option,
+	active_idx: int,
+	allocator := context.allocator,
+) -> string {
+	b := strings.builder_make(allocator)
+	if strings.trim_space(summary) != "" {
+		strings.write_string(&b, summary)
+		if !strings.has_suffix(summary, "\n") {
+			strings.write_byte(&b, '\n')
+		}
+		strings.write_byte(&b, '\n')
+	}
+	for o, i in opts {
+		mark := "( )"
+		if i == active_idx {
+			mark = "(*)"
+		}
+		fmt.sbprintf(&b, " %d %s %s\n", i + 1, mark, o.label)
+	}
+	strings.write_string(&b, "1-9 select · j/k · Enter · Esc cancel")
+	return strings.to_string(b)
+}
+
+// tui_modal_ask: Grok permission_view parity — numbered options, not y/n/a/d.
 tui_modal_ask :: proc(
 	title, name, summary: string,
 	allow_always := true,
@@ -27,47 +80,76 @@ tui_modal_ask :: proc(
 	if st == nil || term == nil {
 		return .Deny
 	}
+	opts := tui_perm_options(allow_always, context.temp_allocator)
+	// Default cursor: Allow once (index 0). Grok often prefers last-used; we
+	// start on Allow once as the safe default.
+	active := 0
 	delete(st.ask_name)
 	delete(st.ask_summary)
 	st.ask_name = strings.clone(name)
-	st.ask_summary = strings.clone(summary)
+	st.ask_summary = tui_perm_paint_summary(summary, opts, active)
 	st.ask_active = true
-	state_set_status(st, title)
+	state_set_status(st, title if title != "" else "permission")
 	render(term, st)
 
 	dec: core.Ask_Decision = .Deny
-	grants := allow_always && core.session_allow_enabled()
-	for {
+	chosen := false
+	for !chosen {
 		key := read_key()
 		#partial switch key.kind {
 		case .Char:
-			if key.ch == 'y' || key.ch == 'Y' {
-				dec = .Once
-				break
+			// Digit shortcut 1–9 (Grok permission_view)
+			if key.ch >= '1' && key.ch <= '9' {
+				idx := int(key.ch - '1')
+				if idx >= 0 && idx < len(opts) {
+					dec = opts[idx].dec
+					chosen = true
+				}
+				continue
 			}
-			if key.ch == 'n' || key.ch == 'N' {
-				dec = .Deny
-				break
+			// j/k vim-style move (Grok)
+			if key.ch == 'j' || key.ch == 'J' {
+				if active + 1 < len(opts) {
+					active += 1
+				}
+			} else if key.ch == 'k' || key.ch == 'K' {
+				if active > 0 {
+					active -= 1
+				}
+			} else {
+				continue
 			}
-			if grants && (key.ch == 'a' || key.ch == 'A') {
-				dec = .Always
-				break
+			delete(st.ask_summary)
+			st.ask_summary = tui_perm_paint_summary(summary, opts, active)
+			render(term, st)
+			continue
+		case .Down:
+			if active + 1 < len(opts) {
+				active += 1
+				delete(st.ask_summary)
+				st.ask_summary = tui_perm_paint_summary(summary, opts, active)
+				render(term, st)
 			}
-			if grants && (key.ch == 'd' || key.ch == 'D') {
-				dec = .Never
-				break
+			continue
+		case .Up:
+			if active > 0 {
+				active -= 1
+				delete(st.ask_summary)
+				st.ask_summary = tui_perm_paint_summary(summary, opts, active)
+				render(term, st)
 			}
 			continue
 		case .Enter:
-			dec = .Once
-			break
+			if active >= 0 && active < len(opts) {
+				dec = opts[active].dec
+			}
+			chosen = true
 		case .Esc, .Ctrl_C:
 			dec = .Deny
-			break
+			chosen = true
 		case:
 			continue
 		}
-		break
 	}
 
 	st.ask_active = false
@@ -318,12 +400,9 @@ tui_ask_user_question :: proc(arguments_json: string) -> string {
 }
 
 // tui_ask_tool is the Turn_Options.on_ask handler (nested key loop on alt-screen).
-// y/Enter = once, n/Esc = deny, a = always, d = never (Grok AllowAlways / RejectAlways).
+// Grok permission_view: numbered radio options, j/k · Enter · 1-9 (not y/n/a/d).
 tui_ask_tool :: proc(name, summary: string) -> core.Ask_Decision {
-	title := fmt.tprintf("approve %s? y/n/a/d", name)
-	if !core.session_allow_enabled() {
-		title = fmt.tprintf("approve %s? y/n", name)
-	}
+	title := fmt.tprintf("allow %s?", name)
 	dec := tui_modal_ask(title, name, summary, allow_always = true)
 	st := stream_st()
 	term := stream_term()
@@ -345,9 +424,13 @@ tui_ask_tool :: proc(name, summary: string) -> core.Ask_Decision {
 	return dec
 }
 
-// tui_plan_enter_ask: approve model enter_plan_mode tool.
+// tui_plan_enter_ask: approve model enter_plan_mode tool (Grok numbered options).
 tui_plan_enter_ask :: proc() -> bool {
-	ok := tui_modal_yn("enter plan mode? y/n", "enter_plan_mode", "explore first; only .grok/plan.md writable")
+	ok := tui_modal_yn(
+		"enter plan mode?",
+		"enter_plan_mode",
+		"explore first; only .grok/plan.md writable",
+	)
 	st := stream_st()
 	term := stream_term()
 	if st != nil {
@@ -363,89 +446,9 @@ tui_plan_enter_ask :: proc() -> bool {
 	return ok
 }
 
-// tui_plan_exit_ask: y approve / n revise / a abandon (Grok plan approval outcomes).
+// tui_plan_exit_ask: Grok plan approval view (a/s/q + preview). plan_preview unused
+// (body is re-read from plan_path so the user sees the on-disk plan file).
 tui_plan_exit_ask :: proc(plan_path, plan_preview: string) -> agent.Plan_Exit_Result {
-	sum := plan_preview
-	if sum == "" {
-		sum = "(empty plan file)"
-	}
-	st := stream_st()
-	term := stream_term()
-	res := agent.Plan_Exit_Result {
-		outcome = .Cancelled,
-	}
-	if st == nil || term == nil {
-		// headless fallback inside TUI package — should not happen mid-stream
-		return agent.default_plan_exit_ask(plan_path, plan_preview)
-	}
-	delete(st.ask_name)
-	delete(st.ask_summary)
-	st.ask_name = strings.clone("exit_plan_mode")
-	st.ask_summary = strings.clone(sum)
-	st.ask_active = true
-	state_set_status(st, "exit plan? y=approve n=revise a=abandon")
-	render(term, st)
-
-	for {
-		key := read_key()
-		#partial switch key.kind {
-		case .Char:
-			if key.ch == 'y' || key.ch == 'Y' {
-				res.outcome = .Approved
-				break
-			}
-			if key.ch == 'a' || key.ch == 'A' {
-				res.outcome = .Abandoned
-				break
-			}
-			if key.ch == 'n' || key.ch == 'N' {
-				// optional freeform feedback
-				res.outcome = .Cancelled
-				fb, cancelled := tui_ask_user_freeform(st, term)
-				if !cancelled && strings.trim_space(fb) != "" {
-					// Plan_Exit_Result.feedback is not owned long-term; clone into temp
-					// for exit_plan_mode_impl which only reads during the call.
-					res.feedback = fb
-				} else {
-					delete(fb)
-				}
-				break
-			}
-			continue
-		case .Enter:
-			res.outcome = .Approved
-			break
-		case .Esc, .Ctrl_C:
-			res.outcome = .Cancelled
-			break
-		case:
-			continue
-		}
-		break
-	}
-
-	st.ask_active = false
-	delete(st.ask_name)
-	delete(st.ask_summary)
-	st.ask_name = ""
-	st.ask_summary = ""
-
-	switch res.outcome {
-	case .Approved:
-		state_set_status(st, "plan exit approved")
-		if stream_sess() != nil {
-			stream_sess().plan_mode = false
-		}
-	case .Abandoned:
-		state_set_status(st, "plan abandoned")
-		if stream_sess() != nil {
-			stream_sess().plan_mode = false
-		}
-	case .Cancelled:
-		state_set_status(st, "plan revise — still planning")
-	}
-	if term != nil {
-		render(term, st)
-	}
-	return res
+	_ = plan_preview
+	return tui_run_plan_approval(plan_path)
 }

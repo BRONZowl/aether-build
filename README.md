@@ -135,7 +135,7 @@ Sessions live under `~/.grok/aether/sessions/`. Project rules load from `AGENTS.
 | Area | Notes |
 |------|--------|
 | **Tools** | Shell, files, grep/glob, web, LSP, todos/goals, Imagine media, plan mode, MCP, skills, subagents, memory, scheduler |
-| **Plan mode** | `/plan` or Shift+Tab — edits limited to `.grok/plan.md` until exit |
+| **Plan mode** | `/plan` or Shift+Tab (Normal→Plan→Always-approve); plan file `.grok/plan.md`; exit opens **a/s/q** approval review |
 | **Subagents** | `explore` / `plan` / `general-purpose`; optional personas, worktree isolation |
 | **Skills & MCP** | Discover skills; configure `[mcp_servers.*]` in config.toml; `/mcp`, `/skills` |
 | **Memory** | File-backed under `~/.grok/memory/`; `/flush`, `/dream`, `/remember` |
@@ -154,7 +154,7 @@ Full tool names and flags: in-product **`/tools`**, or the tool registry under `
 | Enter | Send (or newline in multiline) |
 | Ctrl+M | Toggle multiline (when prompt focused) |
 | Ctrl+S | Session picker |
-| Shift+Tab | Cycle permission / plan modes |
+| Shift+Tab | Cycle Normal → Plan → Always-approve (Grok) |
 | Ctrl+O | Toggle always-approve |
 | Tab | Complete / focus scrollback |
 | Ctrl+F | Find in transcript |

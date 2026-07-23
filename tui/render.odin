@@ -54,20 +54,22 @@ flatten_blocks :: proc(
 
 	prev_kind: Block_Kind = .User // force no leading blank before first real block
 	first_block := true
-	// Mid-stream: only paint a short tail of history so each frame stays cheap
-	// (full re-markdown of a long session freezes the main thread → Ctrl+C dead).
+	// Mid-stream: only paint a short tail while stick-to-bottom is on so each
+	// frame stays cheap (full re-markdown of a long session freezes the main
+	// thread). When the user scrolls up (stream_follow=false), expand to the
+	// full transcript so wheel/PgUp can reach older content.
 	STREAM_HISTORY_TAIL :: 12
 	start_bi := 0
-	if s.streaming && len(s.blocks) > STREAM_HISTORY_TAIL {
+	if s.streaming && s.stream_follow && len(s.blocks) > STREAM_HISTORY_TAIL {
 		start_bi = len(s.blocks) - STREAM_HISTORY_TAIL
-		// Notice that older transcript is hidden during stream
+		// Notice that older transcript is hidden while following the stream
 		pref := "·" if compact else "· "
 		wrap_push(
 			out,
 			styles,
 			block_idxs,
 			-1,
-			fmt.tprintf("%s… %d earlier messages (shown after turn)", pref, start_bi),
+			fmt.tprintf("%s… %d earlier messages (scroll up to expand)", pref, start_bi),
 			.Dim,
 			w,
 			allocator,
@@ -457,10 +459,16 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	if s.scroll > max_scroll {
 		s.scroll = max_scroll
 	}
-	// Keep selected block visible when scrollback-focused
+	// Keep selected block visible only after an explicit selection change.
+	// Free wheel/PgUp clears ensure_sel_visible so this cannot fight scrolling.
 	modal_open := overlay_is_open(s)
-	if s.focus == .Scrollback && s.selected_block >= 0 && !modal_open {
+	if s.ensure_sel_visible && s.focus == .Scrollback && s.selected_block >= 0 && !modal_open {
 		ensure_block_visible(s, block_idxs[:], body_h, total)
+		s.ensure_sel_visible = false
+		// re-clamp after ensure may change scroll
+		if s.scroll > max_scroll {
+			s.scroll = max_scroll
+		}
 	}
 	start := max(0, total - body_h - s.scroll)
 	end := min(total, start + body_h)
@@ -478,7 +486,9 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	}
 
 	// body rows (or modal overlays / Grok-parity welcome)
-	if s.ask_active {
+	if s.plan_approval.active {
+		write_plan_approval_body(&b, s, cols, body_h)
+	} else if s.ask_active {
 		write_ask_body(&b, s, cols, body_h)
 	} else if s.picker.active {
 		write_picker_body(&b, &s.picker, cols, body_h)
@@ -561,8 +571,10 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 			scroll_info = fmt.tprintf("  [%d/%d]", total - s.scroll, total)
 		}
 		status: string
-		if s.ask_active {
-			// Question freeform / multi / single select vs tool approve (y/n/a/d)
+		if s.plan_approval.active {
+			status = fmt.tprintf(" %s  | a approve · s revise · q quit · Tab prompt", st)
+		} else if s.ask_active {
+			// Question freeform / multi / single select vs tool permission (1-9)
 			if strings.contains(s.ask_summary, "Other>") {
 				status = fmt.tprintf(" %s  | type · Enter submit · Esc = Other", st)
 			} else if strings.contains(s.ask_summary, "digit toggle") {
@@ -570,7 +582,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 			} else if strings.contains(s.ask_summary, "1-9 select") {
 				status = fmt.tprintf(" %s  | digit select · Esc cancel", st)
 			} else {
-				status = fmt.tprintf(" %s  | y allow · n deny · a always · d never", st)
+				// Tool permission (Grok permission_view keys)
+				status = fmt.tprintf(" %s  | 1-9 · j/k · Enter · Esc", st)
 			}
 		} else if s.picker.active {
 			status = fmt.tprintf(
@@ -897,6 +910,10 @@ write_input :: proc(
 	frame_bot: int,
 	screen_rows: int,
 ) {
+	// Grok plan approval: no main composer (feedback is inside the approval body).
+	if s != nil && s.plan_approval.active {
+		return
+	}
 	// Boxed when we have a bottom rail and at least one top chrome row
 	use_box := frame_bot > 0 && frame_top > 0 && composer_use_box(cols)
 	// Inner content width for text wrapping
@@ -1146,12 +1163,16 @@ write_composer_bottom_rail :: proc(
 	if flag_tok != "" && !core.ui_color_disabled() && flag_sgr != "" {
 		// Prefer " · flag" form so we don't match model name substrings
 		needle := fmt.tprintf(" · %s", flag_tok)
-		if i := strings.index(bot, needle); i >= 0 {
-			flag_at = i + len(" · ")
+		flag_idx := strings.index(bot, needle)
+		if flag_idx >= 0 {
+			flag_at = flag_idx + len(" · ")
 			flag_end = flag_at + len(flag_tok)
-		} else if i := strings.index(bot, flag_tok); i >= 0 {
-			flag_at = i
-			flag_end = i + len(flag_tok)
+		} else {
+			flag_idx = strings.index(bot, flag_tok)
+			if flag_idx >= 0 {
+				flag_at = flag_idx
+				flag_end = flag_idx + len(flag_tok)
+			}
 		}
 	}
 	cap_style := th.dim if th.dim != "" else "\x1b[2m"
@@ -1464,14 +1485,16 @@ write_ask_body :: proc(b: ^strings.Builder, s: ^App_State, cols: int, body_h: in
 	is_multi := strings.contains(s.ask_summary, "digit toggle")
 	is_question :=
 		is_freeform || is_multi || strings.contains(s.ask_summary, "1-9 select")
+	// Tool permission: Grok numbered options (footer also embedded in ask_summary).
 	title := " allow tool?"
-	footer := " y/Enter allow · n/Esc deny · a always · d never"
+	footer := " 1-9 select · j/k · Enter · Esc cancel"
 	if s.ask_name == "exit_plan_mode" {
+		// Fallback path if plan_approval view not active (should be rare)
 		title = " exit plan mode?"
-		footer = " y approve · n revise · a abandon · Esc cancel"
+		footer = " a approve · s revise · q quit · Esc cancel"
 	} else if s.ask_name == "enter_plan_mode" {
 		title = " enter plan mode?"
-		footer = " y/Enter allow · n/Esc decline"
+		footer = " 1-9 select · j/k · Enter · Esc cancel"
 	} else if is_freeform {
 		title = " freeform answer"
 		footer = " Enter submit · Esc = Other · Ctrl+C cancel"

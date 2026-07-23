@@ -83,6 +83,7 @@ search_goto_current :: proc(s: ^App_State) {
 	}
 	s.focus = .Scrollback
 	s.selected_block = bi
+	s.ensure_sel_visible = true
 }
 
 search_next :: proc(s: ^App_State) {
