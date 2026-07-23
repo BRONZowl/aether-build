@@ -363,7 +363,7 @@ run_slash :: proc(
 		emit_line(out, fmt.tprintf("autosave:  %v", sess.auto_save))
 		chars := estimate_message_chars(sess.msgs[:])
 		toks := estimate_tokens(chars)
-		window := default_context_window()
+		window := context_window_for_model(sess.model)
 		pct := context_usage_pct(toks, window)
 		emit_line(
 			out,

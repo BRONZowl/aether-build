@@ -430,6 +430,24 @@ should_auto_compact :: proc(msgs: []Chat_Message) -> bool {
 	return pct >= auto_compact_threshold_pct()
 }
 
+// should_auto_compact_for_model: same as should_auto_compact but uses the
+// model catalog window (Grok Build 500K) when known.
+should_auto_compact_for_model :: proc(msgs: []Chat_Message, model: string) -> bool {
+	if !auto_compact_enabled() {
+		return false
+	}
+	if count_non_system(msgs) < AUTO_COMPACT_MIN_NON_SYSTEM {
+		return false
+	}
+	window := context_window_for_model(model)
+	if window <= 0 {
+		return false
+	}
+	toks := estimate_tokens(estimate_message_chars(msgs))
+	pct := context_usage_pct(toks, window)
+	return pct >= auto_compact_threshold_pct()
+}
+
 // maybe_auto_compact runs heuristic compact once when over threshold.
 // Returns user-visible notice or "".
 // Prefer sess when available (flush + memory latch); else compact msgs only via temporary Session shell.
@@ -441,17 +459,18 @@ maybe_auto_compact :: proc(
 	allocator := context.allocator,
 ) -> string {
 	if sess != nil {
-		if !should_auto_compact(sess.msgs[:]) {
+		m := model if model != "" else sess.model
+		if !should_auto_compact_for_model(sess.msgs[:], m) {
 			return ""
 		}
 		// Always heuristic for auto (fast/offline-safe)
-		out := run_session_compact(sess, model, "", true, perm, context.temp_allocator)
+		out := run_session_compact(sess, m, "", true, perm, context.temp_allocator)
 		if strings.contains(out, "compacted") {
 			return fmt.aprintf("aether: auto-compact — %s", out, allocator = allocator)
 		}
 		return ""
 	}
-	if msgs == nil || !should_auto_compact(msgs[:]) {
+	if msgs == nil || !should_auto_compact_for_model(msgs[:], model) {
 		return ""
 	}
 	// Build a transient session wrapper so apply path works
@@ -495,11 +514,13 @@ handle_compact_slash :: proc(
 	}
 	if al == "status" {
 		en := auto_compact_enabled()
+		win := context_window_for_model(model)
 		return fmt.aprintf(
-			"auto-compact: %s\nthreshold:    %d%% of window\nwindow:       %d tokens (est.)\nmin msgs:     %d non-system\nopt-out:      AETHER_NO_AUTO_COMPACT=1  AETHER_AUTO_COMPACT_PCT=0\nauto mode:    heuristic only (manual /compact may use model)",
+			"auto-compact: %s\nthreshold:    %d%% of window\nwindow:       %d tokens (est.; model=%s)\nmin msgs:     %d non-system\nopt-out:      AETHER_NO_AUTO_COMPACT=1  AETHER_AUTO_COMPACT_PCT=0\nauto mode:    heuristic only (manual /compact may use model)",
 			"enabled" if en else "disabled",
 			auto_compact_threshold_pct(),
-			default_context_window(),
+			win,
+			model if model != "" else "(default)",
 			AUTO_COMPACT_MIN_NON_SYSTEM,
 			allocator = allocator,
 		)

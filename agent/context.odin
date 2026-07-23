@@ -10,14 +10,59 @@ import "core:os"
 import "core:strconv"
 import "core:strings"
 
-DEFAULT_CONTEXT_WINDOW :: 131_072
+// DEFAULT_CONTEXT_WINDOW matches Grok Build's default model (`grok-build`)
+// in xai-grok-models/default_models.json (context_window: 500000).
+// Used when the model is unknown and AETHER_CONTEXT_WINDOW is unset.
+DEFAULT_CONTEXT_WINDOW :: 500_000
 
-// default_context_window from AETHER_CONTEXT_WINDOW or DEFAULT_CONTEXT_WINDOW.
-default_context_window :: proc() -> int {
+// context_window_for_model: Grok-shaped per-model window (catalog parity).
+// Env AETHER_CONTEXT_WINDOW always wins (see default_context_window / resolve).
+//
+// Table is intentionally small; unknown ids fall back to DEFAULT_CONTEXT_WINDOW.
+context_window_for_model :: proc(model: string) -> int {
+	if win, ok := env_context_window_override(); ok {
+		return win
+	}
+	m := strings.to_lower(strings.trim_space(model), context.temp_allocator)
+	if m == "" {
+		return DEFAULT_CONTEXT_WINDOW
+	}
+	// Exact / product ids (Grok catalog)
+	switch m {
+	case "grok-build", "grok-code", "grok-code-fast-1":
+		return 500_000
+	case "grok-4", "grok-4.5", "grok-4-0709", "grok-4-1-fast-reasoning", "grok-4-1-fast-non-reasoning":
+		return 500_000
+	case "grok-3", "grok-3-mini", "grok-2", "grok-2-latest":
+		return 131_072
+	}
+	// Prefix heuristics for versioned / fine-tuned ids
+	if strings.has_prefix(m, "grok-build") ||
+	   strings.has_prefix(m, "grok-4") ||
+	   strings.has_prefix(m, "grok-code") {
+		return 500_000
+	}
+	if strings.has_prefix(m, "grok-3") || strings.has_prefix(m, "grok-2") {
+		return 131_072
+	}
+	return DEFAULT_CONTEXT_WINDOW
+}
+
+// env_context_window_override: AETHER_CONTEXT_WINDOW=N when set and valid.
+env_context_window_override :: proc() -> (int, bool) {
 	if v := os.get_env("AETHER_CONTEXT_WINDOW", context.temp_allocator); v != "" {
 		if n, ok := strconv.parse_int(v); ok && n > 0 {
-			return n
+			return n, true
 		}
+	}
+	return 0, false
+}
+
+// default_context_window: env override or product default (500K, Grok Build).
+// Prefer context_window_for_model(session.model) when the model id is known.
+default_context_window :: proc() -> int {
+	if win, ok := env_context_window_override(); ok {
+		return win
 	}
 	return DEFAULT_CONTEXT_WINDOW
 }
@@ -88,16 +133,18 @@ format_tokens_compact :: proc(n: int, allocator := context.allocator) -> string 
 }
 
 // estimate_context_usage: used tokens, window, remaining, pct from msgs + live draft chars.
+// model selects the catalog window (Grok Build = 500K); empty → product default.
 estimate_context_usage :: proc(
 	msgs: []Chat_Message,
 	live: string,
+	model: string = "",
 ) -> (
 	used, window, remaining, pct: int,
 ) {
 	chars := estimate_message_chars(msgs)
 	chars += len(live)
 	used = estimate_tokens(chars)
-	window = default_context_window()
+	window = context_window_for_model(model)
 	remaining = window - used
 	if remaining < 0 {
 		remaining = 0
@@ -153,7 +200,7 @@ format_context_status :: proc(sess: ^Session, allocator := context.allocator) ->
 	}
 	chars := estimate_message_chars(sess.msgs[:])
 	toks := estimate_tokens(chars)
-	window := default_context_window()
+	window := context_window_for_model(sess.model)
 	pct := context_usage_pct(toks, window)
 	bar := usage_bar(pct, context.temp_allocator)
 	sys, user, asst, tool := count_roles(sess.msgs[:])
@@ -177,7 +224,7 @@ format_context_status :: proc(sess: ^Session, allocator := context.allocator) ->
 	}
 
 	return fmt.aprintf(
-		"context window:  %d (est.)\nused (est.):     %d tokens (~%d chars)\nusage:           %d%%  %s\nmessages:        %d (system %d, user %d, asst %d, tool %d)\nmodel:           %s\ncwd:             %s\nsession:         %s\nplan:            %s\nmemory inject:   %s\ntokenizer:       chars/4 heuristic (AETHER_CONTEXT_WINDOW to override window)",
+		"context window:  %d (est.; model catalog / AETHER_CONTEXT_WINDOW)\nused (est.):     %d tokens (~%d chars)\nusage:           %d%%  %s\nmessages:        %d (system %d, user %d, asst %d, tool %d)\nmodel:           %s\ncwd:             %s\nsession:         %s\nplan:            %s\nmemory inject:   %s\ntokenizer:       chars/4 heuristic (AETHER_CONTEXT_WINDOW overrides window)",
 		window,
 		toks,
 		chars,

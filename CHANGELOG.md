@@ -4,6 +4,12 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ## Unreleased
 
+### Context window: Grok Build 500K
+
+- Default context window is **500_000** (was 131_072), matching Rust `grok-build` model catalog
+- Per-model lookup via `context_window_for_model` (top bar, `/context`, auto-compact)
+- `AETHER_CONTEXT_WINDOW=N` still overrides
+
 ### Plan mode (Grok parity)
 
 - **Plan approval view** on `exit_plan_mode`: scrollable plan preview (or empty-plan placeholder), action bar **`a` approve · `s` request changes · `q` quit**, line comments (`c`/Enter), Tab preview↔feedback prompt
@@ -25,7 +31,7 @@ All notable product milestones for **Aether** (Odin). Version remains `0.1.0-dev
 
 ### TUI chrome (context + effort)
 
-- Top bar: drop permission/model chips; show Grok-style context **`used / window`** (e.g. `12K / 131K`)
+- Top bar: drop permission/model chips; show Grok-style context **`used / window`** (e.g. `12K / 500K`)
 - Composer bottom rail: **`model · [effort] · mode`** so `/effort` updates live on the input frame
 - Compact token formatting helper shared with context estimates
 - **Fix `/clear`/`/new`:** abort sticky mid-turn streaming chrome, re-focus prompt, clamp selection, keep live session pointer for context bar

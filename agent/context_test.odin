@@ -33,6 +33,33 @@ test_format_tokens_compact :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(s2, "K"), s2)
 	s3 := format_tokens_compact(1_500_000, context.temp_allocator)
 	testing.expect(t, strings.contains(s3, "M"), s3)
+	s4 := format_tokens_compact(500_000, context.temp_allocator)
+	testing.expect(t, s4 == "500K", s4)
+}
+
+@(test)
+test_context_window_for_model_grok_build :: proc(t: ^testing.T) {
+	// Clear env so catalog values apply
+	prev := os.get_env("AETHER_CONTEXT_WINDOW", context.temp_allocator)
+	os.unset_env("AETHER_CONTEXT_WINDOW")
+	defer {
+		if prev != "" {
+			os.set_env("AETHER_CONTEXT_WINDOW", prev)
+		}
+	}
+
+	testing.expect(t, context_window_for_model("grok-build") == 500_000)
+	testing.expect(t, context_window_for_model("GROK-BUILD") == 500_000)
+	testing.expect(t, context_window_for_model("grok-4.5") == 500_000)
+	testing.expect(t, context_window_for_model("") == DEFAULT_CONTEXT_WINDOW)
+	testing.expect(t, DEFAULT_CONTEXT_WINDOW == 500_000)
+	testing.expect(t, default_context_window() == 500_000)
+
+	// Env override wins over model catalog
+	os.set_env("AETHER_CONTEXT_WINDOW", "131072")
+	testing.expect(t, context_window_for_model("grok-build") == 131_072)
+	testing.expect(t, default_context_window() == 131_072)
+	os.unset_env("AETHER_CONTEXT_WINDOW")
 }
 
 @(test)

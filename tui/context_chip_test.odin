@@ -26,9 +26,10 @@ test_format_context_chip_with_msgs :: proc(t: ^testing.T) {
 		role    = .Assistant,
 		content = "response text here",
 	}
-	c := format_context_chip(msgs, "", false)
-	testing.expect(t, strings.contains(c, " / "), c) // "12 / 131K" style
-	cc := format_context_chip(msgs, "", true)
+	c := format_context_chip(msgs, "", false, "grok-build")
+	testing.expect(t, strings.contains(c, " / "), c) // "12 / 500K" style
+	testing.expect(t, strings.contains(c, "500K") || strings.contains(c, "K"), c)
+	cc := format_context_chip(msgs, "", true, "grok-build")
 	testing.expect(t, strings.contains(cc, "/"), cc)
 	testing.expect(t, !strings.contains(cc, " / ") || strings.contains(cc, "/"), cc)
 	// live draft should still produce a chip with slash

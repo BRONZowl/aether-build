@@ -75,7 +75,7 @@ handle_status_slash :: proc(
 		// context rough
 		chars := estimate_message_chars(sess.msgs[:])
 		toks := estimate_tokens(chars)
-		window := default_context_window()
+		window := context_window_for_model(sess.model)
 		pct := context_usage_pct(toks, window)
 		strings.write_string(
 			&b,

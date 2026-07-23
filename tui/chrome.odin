@@ -159,7 +159,8 @@ format_top_bar :: proc(s: ^App_State, cols: int) -> string {
 	} else if stream_sess() != nil {
 		msgs = stream_sess().msgs[:]
 	}
-	ctx := strings.trim_space(format_context_chip(msgs, live, compact))
+	model := s.model if s != nil else ""
+	ctx := strings.trim_space(format_context_chip(msgs, live, compact, model))
 	if ctx != "" {
 		write_chip(&right_b, &first, ctx)
 	}

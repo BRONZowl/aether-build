@@ -12,13 +12,15 @@ import "aether:core"
 
 // format_context_chip: Grok-style used/window for top bar (B26).
 // msgs = session history; live = in-flight assistant draft (streaming).
-// Returns "12K / 131K" (or compact "12K/131K"); always shows window once known.
+// model selects catalog window (grok-build → 500K). Always shows window.
+// Returns "12K / 500K" (or compact "12K/500K").
 format_context_chip :: proc(
 	msgs: []agent.Chat_Message,
 	live: string,
 	compact: bool,
+	model: string = "",
 ) -> string {
-	used, window, _, _ := agent.estimate_context_usage(msgs, live)
+	used, window, _, _ := agent.estimate_context_usage(msgs, live, model)
 	u := agent.format_tokens_compact(used, context.temp_allocator)
 	w := agent.format_tokens_compact(window, context.temp_allocator)
 	if compact {
