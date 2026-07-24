@@ -111,6 +111,39 @@ test_discover_claude_cursor_rules_dirs :: proc(t: ^testing.T) {
 	_ = os.unset_env("AETHER_NO_CLAUDE_RULES")
 }
 
+// Regression: build_system_prompt with AGENTS.md present must not abort
+// (allocator mismatch free(): invalid pointer when rules used temp_allocator).
+@(test)
+test_build_system_prompt_with_project_rules :: proc(t: ^testing.T) {
+	dir := fmt.tprintf("/tmp/aether-rules-prompt-%d", os.get_pid())
+	_ = os.remove_all(dir)
+	defer os.remove_all(dir)
+	_ = os.make_directory_all(dir)
+
+	agents, _ := filepath.join({dir, "AGENTS.md"}, context.temp_allocator)
+	_ = os.write_entire_file(agents, transmute([]byte)string("# UnrealLab policy\nDo not patch .uasset by hand.\n"))
+	_, _, _, _ = os.process_exec(
+		{command = {"git", "init"}, working_dir = dir},
+		context.temp_allocator,
+	)
+
+	prev := os.get_env("AETHER_NO_PROJECT_RULES", context.temp_allocator)
+	_ = os.unset_env("AETHER_NO_PROJECT_RULES")
+	defer {
+		if prev != "" {
+			_ = os.set_env("AETHER_NO_PROJECT_RULES", prev)
+		} else {
+			_ = os.unset_env("AETHER_NO_PROJECT_RULES")
+		}
+	}
+
+	prompt := build_system_prompt(dir, .Always_Approve, context.allocator, "")
+	defer delete(prompt)
+	testing.expect(t, strings.contains(prompt, "Project rules"), prompt)
+	testing.expect(t, strings.contains(prompt, "UnrealLab policy") || strings.contains(prompt, ".uasset"), prompt)
+	testing.expect(t, strings.contains(prompt, "aether-grok"), prompt)
+}
+
 @(test)
 test_prompt_history_collect_filter :: proc(t: ^testing.T) {
 	msgs := []Chat_Message {

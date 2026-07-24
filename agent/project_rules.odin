@@ -53,12 +53,13 @@ Rule_File :: struct {
 	content: string,
 }
 
-destroy_rule_files :: proc(files: []Rule_File) {
+// destroy_rule_files frees path/content/slice with the same allocator used by discover_project_rules.
+destroy_rule_files :: proc(files: []Rule_File, allocator := context.allocator) {
 	for f in files {
-		delete(f.path)
-		delete(f.content)
+		delete(f.path, allocator)
+		delete(f.content, allocator)
 	}
-	delete(files)
+	delete(files, allocator)
 }
 
 // discover_project_rules: global homes then repo root→cwd (or cwd only).
@@ -151,7 +152,7 @@ format_project_rules_section :: proc(cwd: string, allocator := context.allocator
 	if len(files) == 0 {
 		return ""
 	}
-	defer destroy_rule_files(files)
+	defer destroy_rule_files(files, allocator)
 
 	b := strings.builder_make(allocator)
 	strings.write_string(&b, "\n\n## Project rules\n\n")

@@ -80,10 +80,12 @@ Guidelines:
 		base = with_skills
 	}
 	// Project rules (AGENTS.md etc.) — Grok parity; opt out AETHER_NO_PROJECT_RULES=1
-	if rules := format_project_rules_section(cwd, context.temp_allocator); rules != "" {
-		// clone into allocator with base
+	// Use the same permanent allocator as `base` (not temp_allocator): destroy_rule_files
+	// must free with the owning allocator; temp+heap mismatch caused free(): invalid pointer.
+	if rules := format_project_rules_section(cwd, allocator); rules != "" {
 		with_rules := fmt.aprintf("%s%s", base, rules, allocator = allocator)
 		delete(base)
+		delete(rules)
 		base = with_rules
 	}
 	return base
