@@ -51,9 +51,59 @@ utf8_seq_len :: proc(lead: u8) -> int {
 	return 1 // invalid lead — treat as single byte
 }
 
+// utf8_decode_valid returns codepoint and byte length if s[i:] starts a valid
+// non-overlong, non-surrogate UTF-8 sequence; otherwise ok=false.
+utf8_decode_valid :: proc(s: string, i: int) -> (cp: int, n: int, ok: bool) {
+	if i >= len(s) {
+		return 0, 0, false
+	}
+	lead := s[i]
+	if lead < 0x80 {
+		return int(lead), 1, true
+	}
+	need := utf8_seq_len(lead)
+	if need <= 1 || i + need > len(s) {
+		return 0, 1, false
+	}
+	for k in 1 ..< need {
+		if (s[i + k] & 0xc0) != 0x80 {
+			return 0, 1, false
+		}
+	}
+	// Decode codepoint
+	switch need {
+	case 2:
+		cp = int(lead & 0x1f) << 6 | int(s[i + 1] & 0x3f)
+		if cp < 0x80 {
+			return 0, 1, false // overlong
+		}
+	case 3:
+		cp = int(lead & 0x0f) << 12 | int(s[i + 1] & 0x3f) << 6 | int(s[i + 2] & 0x3f)
+		if cp < 0x800 {
+			return 0, 1, false // overlong
+		}
+		if cp >= 0xd800 && cp <= 0xdfff {
+			return 0, 1, false // UTF-16 surrogates illegal in UTF-8
+		}
+	case 4:
+		cp = int(lead & 0x07) << 18 |
+			int(s[i + 1] & 0x3f) << 12 |
+			int(s[i + 2] & 0x3f) << 6 |
+			int(s[i + 3] & 0x3f)
+		if cp < 0x10000 || cp > 0x10ffff {
+			return 0, 1, false // overlong or out of range
+		}
+	case:
+		return 0, 1, false
+	}
+	return cp, need, true
+}
+
 // json_string_escape escapes a string for inclusion inside a JSON string value.
-// Control bytes (< 0x20) become \u00xx; quotes/backslashes and \n\r\t are escaped.
-// Invalid UTF-8 bytes are replaced with U+FFFD so the request remains valid JSON.
+// Control bytes (< 0x20) become \u00xx except NUL → \ufffd (chat APIs reject U+0000
+// in message content even when JSON-escaped). Quotes/backslashes and \n\r\t are
+// escaped. Invalid / overlong UTF-8 is replaced with U+FFFD so the request stays
+// valid JSON and passes model API validators (e.g. messages[N].content: invalid).
 json_string_escape :: proc(s: string, allocator := context.allocator) -> string {
 	b := strings.builder_make_len_cap(0, len(s) + 8, allocator)
 	i := 0
@@ -75,29 +125,19 @@ json_string_escape :: proc(s: string, allocator := context.allocator) -> string 
 		case '\t':
 			strings.write_string(&b, "\\t")
 			i += 1
+		case 0:
+			// APIs (OpenAI/xAI chat) reject null codepoints in message content.
+			strings.write_string(&b, "\\ufffd")
+			i += 1
 		case:
-			if ch < 0x20 {
+			if ch < 0x20 || ch == 0x7f {
 				strings.write_string(&b, fmt.tprintf("\\u%04x", ch))
 				i += 1
 			} else if ch < 0x80 {
 				strings.write_byte(&b, ch)
 				i += 1
 			} else {
-				// Multi-byte UTF-8 — validate full sequence before emitting raw bytes
-				need := utf8_seq_len(ch)
-				if need <= 1 || i + need > len(s) {
-					// invalid lead or truncated sequence
-					strings.write_string(&b, "\\ufffd")
-					i += 1
-					continue
-				}
-				ok := true
-				for k in 1 ..< need {
-					if (s[i + k] & 0xc0) != 0x80 {
-						ok = false
-						break
-					}
-				}
+				_, need, ok := utf8_decode_valid(s, i)
 				if !ok {
 					strings.write_string(&b, "\\ufffd")
 					i += 1
