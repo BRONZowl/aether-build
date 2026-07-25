@@ -92,7 +92,8 @@ test:
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test mcp -collection:aether=.
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test skills -collection:aether=.
 	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test hooks -collection:aether=. -define:ODIN_TEST_THREADS=1
-	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test tui -collection:aether=.
+	# Threads=1: markdown/theme tests toggle NO_COLOR process-wide (races under parallel).
+	AETHER_NO_DESKTOP_NOTIFY=1 $(ODIN) test tui -collection:aether=. -define:ODIN_TEST_THREADS=1
 
 # Apache-2.0 LICENSE/NOTICE + first-party SPDX coverage
 check-license:

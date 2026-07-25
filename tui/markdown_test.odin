@@ -8,21 +8,35 @@ import "core:os"
 import "core:strings"
 import "core:testing"
 
+// md_color_env_push / md_color_env_pop: isolate color-related tests from process
+// env (CI NO_COLOR, and other tests that set monochrome). Prefer make test with
+// ODIN_TEST_THREADS=1 for this package — env is process-global.
+md_color_env_push :: proc() -> (prev_nc, prev_ac: string) {
+	prev_nc = os.get_env("NO_COLOR", context.temp_allocator)
+	prev_ac = os.get_env("AETHER_NO_COLOR", context.temp_allocator)
+	_ = os.unset_env("NO_COLOR")
+	_ = os.unset_env("AETHER_NO_COLOR")
+	return
+}
+
+md_color_env_pop :: proc(prev_nc, prev_ac: string) {
+	if prev_nc != "" {
+		_ = os.set_env("NO_COLOR", prev_nc)
+	} else {
+		_ = os.unset_env("NO_COLOR")
+	}
+	if prev_ac != "" {
+		_ = os.set_env("AETHER_NO_COLOR", prev_ac)
+	} else {
+		_ = os.unset_env("AETHER_NO_COLOR")
+	}
+}
+
 @(test)
 test_write_md_inline_visible_styles :: proc(t: ^testing.T) {
 	// Color path: force color on for this test (CI often sets NO_COLOR=1)
-	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
-	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
-	_ = os.unset_env("NO_COLOR")
-	_ = os.unset_env("AETHER_NO_COLOR")
-	defer {
-		if prev_nc != "" {
-			_ = os.set_env("NO_COLOR", prev_nc)
-		}
-		if prev_ac != "" {
-			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
-		}
-	}
+	prev_nc, prev_ac := md_color_env_push()
+	defer md_color_env_pop(prev_nc, prev_ac)
 
 	b: strings.Builder
 	strings.builder_init(&b, context.temp_allocator)
@@ -46,18 +60,8 @@ test_write_md_inline_visible_styles :: proc(t: ^testing.T) {
 
 @(test)
 test_write_md_inline_soft_no_harsh_sgr :: proc(t: ^testing.T) {
-	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
-	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
-	_ = os.unset_env("NO_COLOR")
-	_ = os.unset_env("AETHER_NO_COLOR")
-	defer {
-		if prev_nc != "" {
-			_ = os.set_env("NO_COLOR", prev_nc)
-		}
-		if prev_ac != "" {
-			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
-		}
-	}
+	prev_nc, prev_ac := md_color_env_push()
+	defer md_color_env_pop(prev_nc, prev_ac)
 	b: strings.Builder
 	strings.builder_init(&b, context.temp_allocator)
 	_ = write_md_inline(&b, "`x` and **y**", 80)
@@ -232,18 +236,8 @@ test_push_markdown_prose_table :: proc(t: ^testing.T) {
 
 @(test)
 test_write_md_inline_ordered_list :: proc(t: ^testing.T) {
-	prev_nc := os.get_env("NO_COLOR", context.temp_allocator)
-	prev_ac := os.get_env("AETHER_NO_COLOR", context.temp_allocator)
-	_ = os.unset_env("NO_COLOR")
-	_ = os.unset_env("AETHER_NO_COLOR")
-	defer {
-		if prev_nc != "" {
-			_ = os.set_env("NO_COLOR", prev_nc)
-		}
-		if prev_ac != "" {
-			_ = os.set_env("AETHER_NO_COLOR", prev_ac)
-		}
-	}
+	prev_nc, prev_ac := md_color_env_push()
+	defer md_color_env_pop(prev_nc, prev_ac)
 	b: strings.Builder
 	strings.builder_init(&b, context.temp_allocator)
 	n := write_md_inline(&b, "1. first item", 80)
