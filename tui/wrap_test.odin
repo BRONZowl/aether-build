@@ -95,3 +95,31 @@ test_frame_needs_full_clear_on_resize :: proc(t: ^testing.T) {
 	testing.expect(t, frame_needs_full_clear(80, 24, 60, 24))
 	testing.expect(t, frame_needs_full_clear(80, 24, 80, 40))
 }
+
+// Regression: invalid UTF-8 must not SIGILL in write_fit (resume/render path).
+// Old code used rune_size(U+FFFD)=3 while only 1 invalid byte was consumed.
+@(test)
+test_write_fit_invalid_utf8_no_trap :: proc(t: ^testing.T) {
+	buf := [5]u8{'a', 0xFF, 0xFE, 'b', 'c'}
+	text := string(buf[:])
+	b: strings.Builder
+	strings.builder_init(&b, context.temp_allocator)
+	n := write_fit(&b, text, 10)
+	s := strings.to_string(b)
+	testing.expect(t, n == 5, "five source units (a, bad, bad, b, c)")
+	testing.expect(t, len(s) == 5, s)
+	// Truncate mid-stream
+	strings.builder_reset(&b)
+	n = write_fit(&b, text, 2)
+	s = strings.to_string(b)
+	testing.expect(t, n == 2)
+	testing.expect(t, len(s) == 2)
+	// Multi-byte emoji still counts as one display rune, three bytes
+	emoji := "x👍y"
+	strings.builder_reset(&b)
+	n = write_fit(&b, emoji, 2)
+	s = strings.to_string(b)
+	testing.expect(t, n == 2)
+	testing.expect(t, strings.has_prefix(s, "x"), s)
+	testing.expect(t, len(s) == 1 + len("👍"), s)
+}

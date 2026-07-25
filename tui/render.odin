@@ -745,15 +745,30 @@ write_row_content :: proc(b: ^strings.Builder, text: string, style: Line_Style, 
 	}
 }
 
+// write_fit writes at most `cols` display runes of text (byte-accurate).
+// Advances with decode_rune sizes — NOT utf8.rune_size of the decoded rune.
+// Invalid UTF-8 becomes U+FFFD with size 1 in the source; rune_size(U+FFFD)=3
+// would overshoot len(text) and trap (SIGILL via slice_handle_error) — seen when
+// resuming sessions with binary/tool bytes or mid-sequence slices.
 write_fit :: proc(b: ^strings.Builder, text: string, cols: int) -> int {
+	if cols <= 0 || len(text) == 0 {
+		return 0
+	}
 	n := 0
 	end := 0
-	for r in text {
-		if n + 1 > cols {
-			break
+	for end < len(text) && n < cols {
+		_, sz := utf8.decode_rune(text[end:])
+		if sz <= 0 {
+			sz = 1
 		}
+		if end + sz > len(text) {
+			sz = len(text) - end
+		}
+		end += sz
 		n += 1
-		end += utf8.rune_size(r)
+	}
+	if end > len(text) {
+		end = len(text)
 	}
 	strings.write_string(b, text[:end])
 	return n

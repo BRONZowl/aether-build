@@ -417,16 +417,23 @@ format_table_data_line :: proc(cells: []string, widths: []int, allocator := cont
 		}
 		// strip markers for pad width; keep simple plain text in table cells for alignment
 		plain := strip_md_markers(cell, context.temp_allocator)
-		// truncate plain to width
+		// truncate plain to width (byte-accurate decode; see write_fit)
 		trunc := plain
 		n := 0
 		end := 0
-		for r in plain {
-			if n >= widths[c] {
-				break
+		for end < len(plain) && n < widths[c] {
+			_, sz := utf8.decode_rune(plain[end:])
+			if sz <= 0 {
+				sz = 1
 			}
+			if end + sz > len(plain) {
+				sz = len(plain) - end
+			}
+			end += sz
 			n += 1
-			end += utf8.rune_size(r)
+		}
+		if end > len(plain) {
+			end = len(plain)
 		}
 		trunc = plain[:end]
 		pad := widths[c] - n
