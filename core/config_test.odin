@@ -141,7 +141,8 @@ auto_compact_pct = 90
 	}
 
 	reset_runtime_flags()
-	cfg := load_runtime_config("", dir, 0, "", context.allocator)
+	// -1 = no CLI override (keep TOML/default)
+	cfg := load_runtime_config("", dir, -1, "", context.allocator)
 	defer destroy_runtime_config(&cfg)
 
 	testing.expect(t, cfg.model == "from-file", cfg.model)
@@ -155,4 +156,9 @@ auto_compact_pct = 90
 	cfg2 := load_runtime_config("", dir, 99, "", context.allocator)
 	defer destroy_runtime_config(&cfg2)
 	testing.expect(t, cfg2.max_turns == 99)
+
+	// CLI 0 = unlimited (overrides TOML)
+	cfg3 := load_runtime_config("", dir, 0, "", context.allocator)
+	defer destroy_runtime_config(&cfg3)
+	testing.expect(t, cfg3.max_turns == 0)
 }

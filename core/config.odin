@@ -243,6 +243,7 @@ destroy_config_layer :: proc(L: ^Config_Layer) {
 // load_runtime_config merges defaults → ~/.grok/config.toml → aether.toml → CLI.
 // Env kill-switches are not applied here; gate helpers check env first.
 // Ends by applying product flags to process globals.
+// max_turns_override: <0 = unset (TOML/default); 0 = unlimited; >0 = cap.
 load_runtime_config :: proc(
 	model_override: string,
 	cwd_override: string,
@@ -290,7 +291,8 @@ load_runtime_config :: proc(
 		delete(cfg.model)
 		cfg.model = strings.clone(model_override, allocator)
 	}
-	if max_turns_override > 0 {
+	// >= 0 means CLI set a value (0 = unlimited). < 0 means unset → keep TOML/default.
+	if max_turns_override >= 0 {
 		cfg.max_turns = max_turns_override
 	}
 	if permission_mode_override != "" {
@@ -345,7 +347,8 @@ apply_toml_file :: proc(cfg: ^Runtime_Config, path: string, allocator := context
 			append(&cfg.permission_deny, strings.clone(s, allocator))
 		}
 	}
-	if L.has_max_turns && L.max_turns > 0 {
+	// 0 = unlimited tool iterations; >0 = cap (has_max_turns set for either).
+	if L.has_max_turns && L.max_turns >= 0 {
 		cfg.max_turns = L.max_turns
 	}
 	if L.has_auto_compact_pct {
@@ -492,7 +495,8 @@ parse_toml_layer :: proc(path: string, allocator := context.allocator) -> Config
 			}
 		case "[agent]":
 			if key == "max_turns" {
-				if n, nok := parse_toml_int(val); nok && n > 0 {
+				// 0 = unlimited; positive = per-prompt tool-loop cap
+				if n, nok := parse_toml_int(val); nok && n >= 0 {
 					L.max_turns = n
 					L.has_max_turns = true
 				}

@@ -23,9 +23,9 @@ theme = "tokyonight"
 # enabled = true
 # threshold_pct = 80
 
-# Loaded: [agent] max_turns
-# [agent]
-# max_turns = 20
+# Loaded: [agent] max_turns  (0 = unlimited tool rounds per prompt; default 20)
+[agent]
+max_turns = 0
 
 # Loaded: [memory] enabled, auto_dream; [memory.initial_injection] enabled
 [memory]

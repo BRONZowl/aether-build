@@ -154,7 +154,9 @@ run_agent_turn :: proc(
 		with_memory,
 		deny_slice,
 	)
-	turns := opts.max_turns if opts.max_turns > 0 else 20
+	// max_turns > 0: hard cap; max_turns <= 0: unlimited (cancel with Ctrl+C / status cancel).
+	turns_cap := opts.max_turns
+	unlimited := turns_cap <= 0
 
 	// One-shot plan activation / exit reminders for user toggles and session resume
 	if maybe_inject_plan_reminders(msgs, opts.workspace) {
@@ -244,7 +246,7 @@ run_agent_turn :: proc(
 	core.hang_log("run_agent_turn enter")
 	defer core.hang_log("run_agent_turn exit")
 
-	for turn_i in 0 ..< turns {
+	for turn_i := 0; unlimited || turn_i < turns_cap; turn_i += 1 {
 		if cancelled(opts) {
 			emit_status(opts, "cancelled")
 			return "", 4
@@ -262,7 +264,11 @@ run_agent_turn :: proc(
 				emit_history(opts)
 			}
 		}
-		emit_status(opts, fmt.tprintf("sampling %d/%d…", turn_i + 1, turns))
+		if unlimited {
+			emit_status(opts, fmt.tprintf("sampling %d…", turn_i + 1))
+		} else {
+			emit_status(opts, fmt.tprintf("sampling %d/%d…", turn_i + 1, turns_cap))
+		}
 		if opts.verbose && !opts.quiet {
 			fmt.eprintf("aether: POST %s/chat/completions\n", host_of(live_creds.base_url))
 		}
@@ -393,11 +399,12 @@ run_agent_turn :: proc(
 		}
 	}
 
-	emit_status(opts, fmt.tprintf("max turns (%d) — history kept", turns))
+	// Reached only when turns_cap > 0 (unlimited loop returns inside on final answer).
+	emit_status(opts, fmt.tprintf("max turns (%d) — history kept", turns_cap))
 	if !opts.quiet {
 		fmt.eprintf(
 			"aether: max tool iterations (%d); history kept — continue or /clear\n",
-			turns,
+			turns_cap,
 		)
 	}
 	if note := goal_check_budget(msgs[:]); note != "" {

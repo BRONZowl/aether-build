@@ -75,7 +75,8 @@ destroy_parse_result :: proc(r: ^Parse_Result) {
 parse :: proc() -> Parse_Result {
 	args := os.args[1:]
 	result := Parse_Result {
-		max_turns = 0,
+		// -1 = not set (use TOML/default); 0 = unlimited; >0 = cap
+		max_turns = -1,
 	}
 	if len(args) == 0 {
 		result.command = default_interactive()
@@ -134,7 +135,7 @@ parse :: proc() -> Parse_Result {
 			i += 1
 			n, ok := strconv.parse_int(args[i])
 			if !ok || n < 0 {
-				fmt.eprintln("aether: invalid --max-turns value")
+				fmt.eprintln("aether: invalid --max-turns value (use 0 for unlimited)")
 				result.command = .Help
 				return result
 			}
@@ -246,7 +247,7 @@ print_help :: proc() {
 	fmt.println("Agent flags (auth: XAI_API_KEY or ~/.grok/auth.json):")
 	fmt.println("  -p, --print, --single TEXT   One-shot session, print answer, exit")
 	fmt.println("  -m, --model ID               Model override (default from aether.toml)")
-	fmt.println("  --max-turns N                Cap tool loop turns per prompt (default 20)")
+	fmt.println("  --max-turns N                Cap tool loop turns (0=unlimited; default 20)")
 	fmt.println("  --cwd DIR                    Workspace root for tools (default: process cwd)")
 	fmt.println("  -q, --quiet                  Suppress progress on stderr")
 	fmt.println("  --verbose                    Auth banner + progress diagnostics")
