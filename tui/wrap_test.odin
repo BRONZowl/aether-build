@@ -7,6 +7,7 @@ package tui
 
 import "core:strings"
 import "core:testing"
+import "core:unicode/utf8"
 
 @(test)
 test_wrap_soft_keeps_first_letter :: proc(t: ^testing.T) {
@@ -82,6 +83,34 @@ test_wrap_reflows_when_width_shrinks :: proc(t: ^testing.T) {
 	testing.expect(t, strings.contains(joined, "quick"), joined)
 	testing.expect(t, strings.contains(joined, "river"), joined)
 	testing.expect(t, strings.contains(joined, "bank"), joined)
+}
+
+// Short prefix + long word must soft-wrap at the space (not mid-word).
+@(test)
+test_wrap_soft_after_short_prefix :: proc(t: ^testing.T) {
+	lines := wrap_text_lines("a supercalifragilistic", 10, context.temp_allocator)
+	testing.expect(t, len(lines) >= 2, "expected soft wrap to 2+ lines")
+	testing.expect(t, strings.has_prefix(strings.trim_right_space(lines[0]), "a"), lines[0])
+	// Second line must start with the long word, not mid-word "ifrag…"
+	testing.expect(t, strings.has_prefix(lines[1], "super"), lines[1])
+	for ln in lines {
+		testing.expect(t, !strings.has_prefix(ln, "ifrag"), ln)
+	}
+}
+
+// Paths soft-break after '/' when no spaces.
+@(test)
+test_wrap_soft_break_on_slash :: proc(t: ^testing.T) {
+	src := "path/to/very/long/filename_without_spaces.odin"
+	lines := wrap_text_lines(src, 16, context.temp_allocator)
+	testing.expect(t, len(lines) >= 2, "path should wrap")
+	// Prefer breaks after slash, not mid-segment when possible
+	joined := strings.join(lines, "", context.temp_allocator)
+	testing.expect(t, joined == src || strings.contains(joined, "filename"), joined)
+	// No line longer than width
+	for ln in lines {
+		testing.expect(t, utf8.rune_count(ln) <= 16, ln)
+	}
 }
 
 @(test)

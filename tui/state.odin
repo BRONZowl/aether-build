@@ -768,8 +768,8 @@ input_line_count :: proc(s: ^App_State, cols: int) -> int {
 		return 0
 	}
 	text := input_text(s)
-	// count wrapped lines for "❯ " + text
-	w := max(8, cols - 2)
+	// count wrapped lines for "❯ " + text (must match write_input hard-wrap)
+	w := max(1, cols - 2)
 	lines := 1
 	col := 2 // prompt prefix columns
 	for r in text {

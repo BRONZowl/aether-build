@@ -44,9 +44,10 @@ flatten_blocks :: proc(
 	clear(out)
 	clear(styles)
 	clear(block_idxs)
-	// B8 compact: use full width (pad 1 col only via max(8,cols-1) → almost full)
+	// B8 compact: use full width (pad 1 col only via max(1,cols-1) → almost full).
+	// Never wrap wider than the terminal (old max(8,…) could exceed narrow cols).
 	compact := core.compact_mode_enabled()
-	w := max(8, cols - 1) if compact else max(8, cols - 2)
+	w := max(1, cols - 1) if compact else max(1, cols - 2)
 	for n in s.notices {
 		pref := "·" if compact else "· "
 		wrap_push(out, styles, block_idxs, -1, fmt.tprintf("%s%s", pref, n), .Dim, w, allocator)
@@ -115,7 +116,8 @@ flatten_blocks :: proc(
 			accent := "│ " if !compact else "│"
 			if bl.expanded {
 				head := fmt.tprintf("%s%s▾ %s", ts, accent, title)
-				mark_line(out, styles, block_idxs, bi, head, .Tool, allocator)
+				// Wrap long tool titles (mark_line alone truncates at paint)
+				wrap_push(out, styles, block_idxs, bi, head, .Tool, w, allocator)
 				result := tool_result_section(bl.text)
 				// Trim trailing blank lines in tool output
 				result = strings.trim_right_space(result)
@@ -128,11 +130,11 @@ flatten_blocks :: proc(
 				}
 				if len(lines) > n {
 					extra := fmt.tprintf("%s… +%d", ind, len(lines) - n)
-					mark_line(out, styles, block_idxs, bi, extra, .Dim, allocator)
+					wrap_push(out, styles, block_idxs, bi, extra, .Dim, w, allocator)
 				}
 			} else {
 				line := fmt.tprintf("%s%s%s", ts, accent, title)
-				mark_line(out, styles, block_idxs, bi, line, .Tool, allocator)
+				wrap_push(out, styles, block_idxs, bi, line, .Tool, w, allocator)
 			}
 		}
 	}
@@ -264,9 +266,19 @@ tool_body_looks_error :: proc(body: string) -> bool {
 	return strings.has_prefix(r, "error:") || strings.has_prefix(r, "Error:")
 }
 
+// wrap_break_after: preferred soft-break *after* this byte when no space fits
+// (paths/URLs: break after / - _ . etc.).
+wrap_break_after :: proc(c: u8) -> bool {
+	switch c {
+	case '/', '\\', '-', '_', '.', ',', ';', ':', '=', '?', '&':
+		return true
+	}
+	return false
+}
+
 // wrap_text_lines breaks text into display rows of at most `width` runes.
-// Soft-wraps on spaces when possible; hard-breaks long tokens. Trims leading
-// spaces on continuation lines. Pure helper for tests + wrap_push.
+// Soft-wraps on spaces/tabs when possible; else after path/URL punctuation;
+// else hard-breaks long tokens. Trims leading spaces on continuation lines.
 wrap_text_lines :: proc(
 	text: string,
 	width: int,
@@ -281,57 +293,67 @@ wrap_text_lines :: proc(
 	start := 0
 	for start < len(text) {
 		line_start := start
-		// hard break on newline
+
+		// Explicit newline within this visual line → take it (no width fill).
+		// Scan up to `w` runes for '\n'.
+		end := start
+		cols := 0
 		nl := -1
-		limit := min(start + w * 4, len(text)) // byte scan upper bound
-		for i in start ..< limit {
-			if text[i] == '\n' {
-				nl = i
+		for end < len(text) && cols < w {
+			if text[end] == '\n' {
+				nl = end
 				break
 			}
-		}
-		end: int
-		if nl >= 0 {
-			end = nl
-		} else {
-			// take up to `width` display runes
-			end = start
-			cols := 0
-			for end < len(text) && cols < w {
-				if text[end] == '\n' {
-					break
-				}
-				_, sz := utf8.decode_rune(text[end:])
-				if sz <= 0 {
-					sz = 1
-				}
-				end += sz
-				cols += 1
+			_, sz := utf8.decode_rune(text[end:])
+			if sz <= 0 {
+				sz = 1
 			}
-			if end < len(text) && text[end] != '\n' {
-				// prefer word boundary: back up to first char of overflowing word
-				sp := end
-				for sp > start && text[sp - 1] != ' ' {
-					sp -= 1
-				}
-				if sp > start + w / 4 {
-					end = sp
-				}
-			}
+			end += sz
+			cols += 1
 		}
-		append(&out, strings.clone(text[line_start:end], allocator))
 		if nl >= 0 {
+			append(&out, strings.clone(text[line_start:nl], allocator))
 			start = nl + 1
-		} else if end > line_start {
-			// Advanced: next line starts at end (first char of next word after soft wrap).
-			// Do NOT treat start==end after assignment as "stuck" — that dropped the
-			// first letter of every soft-wrapped word.
+			continue
+		}
+
+		// Filled `w` runes (or hit EOF). Soft-wrap if more content remains.
+		if end < len(text) && end > start {
+			// 1) last space/tab in (start, end) — break before next word
+			sp := end
+			for sp > start && text[sp - 1] != ' ' && text[sp - 1] != '\t' {
+				sp -= 1
+			}
+			if sp > start {
+				// Old code required sp > start+w/4, which forced mid-word breaks
+				// after short prefixes ("a supercal…" → "a supercal"|"if…").
+				end = sp
+			} else {
+				// 2) last path/punct break (keep punctuation on this line)
+				p := end
+				for p > start {
+					if wrap_break_after(text[p - 1]) && p < end && p > start {
+						end = p
+						break
+					}
+					p -= 1
+					for p > start && text[p] >= 0x80 && text[p] < 0xc0 {
+						p -= 1
+					}
+				}
+			}
+		}
+
+		append(&out, strings.clone(text[line_start:end], allocator))
+		if end > line_start {
+			// Next line starts at end; skip spaces so words aren't indented oddly.
+			// Do NOT treat start==end as "stuck" — that dropped the first letter
+			// of soft-wrapped words historically.
 			start = end
-			for start < len(text) && text[start] == ' ' {
+			for start < len(text) && (text[start] == ' ' || text[start] == '\t') {
 				start += 1
 			}
 		} else {
-			// True stall (e.g. pathological width) — force one rune to avoid infinite loop
 			_, size := utf8.decode_rune(text[line_start:])
 			start = line_start + max(1, size)
 		}
@@ -437,8 +459,10 @@ frame_needs_full_clear :: proc(prev_cols, prev_rows, cols, rows: int) -> bool {
 
 render :: proc(term: ^Term_State, s: ^App_State) {
 	term_update_size(term)
-	rows := max(6, term.rows)
-	cols := max(20, term.cols)
+	// Use real terminal size for wrap/paint. Flooring cols to 20 made narrow
+	// terminals paint 20-col lines into a smaller window (looked like wrap failed).
+	rows := max(1, term.rows)
+	cols := max(1, term.cols)
 	// Capture previous geometry before overwriting (for resize erase decision).
 	prev_cols := s.last_cols
 	prev_rows := s.last_rows
