@@ -95,7 +95,8 @@ App_State :: struct {
 	// Grok Build: multiline mode (Enter inserts newline; Shift/Alt+Enter sends)
 	multiline_mode:  bool,
 	quit:            bool,
-	last_cols:       int,
+	last_cols:       int, // terminal cols from previous paint (0 = never painted)
+	last_rows:       int, // terminal rows from previous paint (0 = never painted)
 	last_redraw_ns:  i64,
 	// double-gesture timestamps (0 = none pending)
 	esc_first_ns:    i64,
@@ -159,6 +160,7 @@ state_init :: proc(s: ^App_State) {
 	s.last_spinner_ns = 0
 	s.multiline_mode = false
 	s.last_cols = 0
+	s.last_rows = 0
 	s.esc_first_ns = 0
 	s.quit_first_ns = 0
 	s.new_first_ns = 0

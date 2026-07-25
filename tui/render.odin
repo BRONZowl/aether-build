@@ -425,11 +425,26 @@ push_assistant :: proc(
 	}
 }
 
+// frame_needs_full_clear: true on first paint or when terminal geometry changed.
+// Resize reflows wrap/chrome height; without erase, stale alt-screen glyphs look
+// like word-wrap failed. Typing-only paints keep home-only (no flicker).
+frame_needs_full_clear :: proc(prev_cols, prev_rows, cols, rows: int) -> bool {
+	if prev_cols == 0 || prev_rows == 0 {
+		return true
+	}
+	return prev_cols != cols || prev_rows != rows
+}
+
 render :: proc(term: ^Term_State, s: ^App_State) {
 	term_update_size(term)
 	rows := max(6, term.rows)
 	cols := max(20, term.cols)
+	// Capture previous geometry before overwriting (for resize erase decision).
+	prev_cols := s.last_cols
+	prev_rows := s.last_rows
+	full_clear := frame_needs_full_clear(prev_cols, prev_rows, cols, rows)
 	s.last_cols = cols
+	s.last_rows = rows
 
 	input_h := input_line_count(s, cols)
 	frame_top, frame_bot := composer_frame_rows(s, cols)
@@ -476,8 +491,17 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	end := min(total, start + body_h)
 
 	b := strings.builder_make(context.temp_allocator)
-	// full clear + home once per frame (reliable; alt screen)
-	strings.write_string(&b, "\x1b[H\x1b[J")
+	// CSI ?2026 = synchronized update (Kitty/Alacritty/Ghostty): apply the
+	// whole frame atomically so the user never sees a blank intermediate.
+	// Hide cursor during paint; write_input repositions and shows it.
+	// On resize/first paint: erase display so reflowed wrap does not leave ghosts.
+	// On typing: home only — rows are width-padded (avoids flash).
+	strings.write_string(&b, "\x1b[?2026h\x1b[?25l")
+	if full_clear {
+		strings.write_string(&b, "\x1b[H\x1b[J")
+	} else {
+		strings.write_string(&b, "\x1b[H")
+	}
 
 	// row 1 — Grok-shaped top bar: branch · cwd | context chips
 	header := format_top_bar(s, cols)
@@ -663,6 +687,8 @@ render :: proc(term: ^Term_State, s: ^App_State) {
 	// composer block (optional box + text + bottom caption) + cursor
 	write_input(&b, s, cols, input_h, frame_top, frame_bot, rows)
 
+	// End synchronized update so the terminal presents the frame at once.
+	strings.write_string(&b, "\x1b[?2026l")
 	fmt.print(strings.to_string(b))
 }
 

@@ -69,3 +69,29 @@ test_wrap_push_preserves_world :: proc(t: ^testing.T) {
 		testing.expect(t, !strings.has_prefix(ln, "orld"), ln)
 	}
 }
+
+// Narrower width must produce more soft-wrap lines (resize reflow contract).
+@(test)
+test_wrap_reflows_when_width_shrinks :: proc(t: ^testing.T) {
+	src := "The quick brown fox jumps over the lazy dog near the river bank."
+	wide := wrap_text_lines(src, 40, context.temp_allocator)
+	narrow := wrap_text_lines(src, 12, context.temp_allocator)
+	testing.expect(t, len(narrow) > len(wide), "narrow should wrap to more lines")
+	// All source words still present after reflow
+	joined := strings.join(narrow, " ", context.temp_allocator)
+	testing.expect(t, strings.contains(joined, "quick"), joined)
+	testing.expect(t, strings.contains(joined, "river"), joined)
+	testing.expect(t, strings.contains(joined, "bank"), joined)
+}
+
+@(test)
+test_frame_needs_full_clear_on_resize :: proc(t: ^testing.T) {
+	// First paint
+	testing.expect(t, frame_needs_full_clear(0, 0, 80, 24))
+	testing.expect(t, frame_needs_full_clear(0, 24, 80, 24))
+	// Unchanged geometry — typing path (no erase)
+	testing.expect(t, !frame_needs_full_clear(80, 24, 80, 24))
+	// Width or height change — resize reflow path
+	testing.expect(t, frame_needs_full_clear(80, 24, 60, 24))
+	testing.expect(t, frame_needs_full_clear(80, 24, 80, 40))
+}
