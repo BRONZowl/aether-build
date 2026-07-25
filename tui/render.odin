@@ -276,18 +276,18 @@ wrap_break_after :: proc(c: u8) -> bool {
 	return false
 }
 
-// wrap_text_lines breaks text into display rows of at most `width` runes.
-// Soft-wraps on spaces/tabs when possible; else after path/URL punctuation;
-// else hard-breaks long tokens. Trims leading spaces on continuation lines.
-wrap_text_lines :: proc(
-	text: string,
-	width: int,
-	allocator := context.allocator,
-) -> []string {
-	out := make([dynamic]string, 0, 8, allocator)
+// Wrap_Seg is one visual row of wrapped body text [start, end) in byte offsets.
+Wrap_Seg :: struct {
+	start, end: int,
+}
+
+// wrap_body_segs fills segs with soft-wrap segments (spaces → path punct → hard).
+// Shared by wrap_text_lines, composer paint, height, and cursor mapping.
+wrap_body_segs :: proc(text: string, width: int, segs: ^[dynamic]Wrap_Seg) {
+	clear(segs)
 	if len(text) == 0 {
-		append(&out, strings.clone("", allocator))
-		return out[:]
+		append(segs, Wrap_Seg{0, 0})
+		return
 	}
 	w := max(1, width)
 	start := 0
@@ -295,7 +295,6 @@ wrap_text_lines :: proc(
 		line_start := start
 
 		// Explicit newline within this visual line → take it (no width fill).
-		// Scan up to `w` runes for '\n'.
 		end := start
 		cols := 0
 		nl := -1
@@ -312,24 +311,20 @@ wrap_text_lines :: proc(
 			cols += 1
 		}
 		if nl >= 0 {
-			append(&out, strings.clone(text[line_start:nl], allocator))
+			append(segs, Wrap_Seg{line_start, nl})
 			start = nl + 1
 			continue
 		}
 
 		// Filled `w` runes (or hit EOF). Soft-wrap if more content remains.
 		if end < len(text) && end > start {
-			// 1) last space/tab in (start, end) — break before next word
 			sp := end
 			for sp > start && text[sp - 1] != ' ' && text[sp - 1] != '\t' {
 				sp -= 1
 			}
 			if sp > start {
-				// Old code required sp > start+w/4, which forced mid-word breaks
-				// after short prefixes ("a supercal…" → "a supercal"|"if…").
 				end = sp
 			} else {
-				// 2) last path/punct break (keep punctuation on this line)
 				p := end
 				for p > start {
 					if wrap_break_after(text[p - 1]) && p < end && p > start {
@@ -344,11 +339,8 @@ wrap_text_lines :: proc(
 			}
 		}
 
-		append(&out, strings.clone(text[line_start:end], allocator))
+		append(segs, Wrap_Seg{line_start, end})
 		if end > line_start {
-			// Next line starts at end; skip spaces so words aren't indented oddly.
-			// Do NOT treat start==end as "stuck" — that dropped the first letter
-			// of soft-wrapped words historically.
 			start = end
 			for start < len(text) && (text[start] == ' ' || text[start] == '\t') {
 				start += 1
@@ -358,7 +350,76 @@ wrap_text_lines :: proc(
 			start = line_start + max(1, size)
 		}
 	}
+}
+
+// wrap_text_lines breaks text into display rows of at most `width` runes.
+// Soft-wraps on spaces/tabs when possible; else after path/URL punctuation;
+// else hard-breaks long tokens. Trims leading spaces on continuation lines.
+wrap_text_lines :: proc(
+	text: string,
+	width: int,
+	allocator := context.allocator,
+) -> []string {
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_body_segs(text, width, &segs)
+	out := make([dynamic]string, 0, len(segs), allocator)
+	for seg in segs {
+		append(&out, strings.clone(text[seg.start:seg.end], allocator))
+	}
 	return out[:]
+}
+
+// composer_text_width: body wrap width after "❯ " / continuation indent.
+// Matches write_input box vs plain chrome so height and paint agree.
+composer_text_width :: proc(s: ^App_State, cols: int) -> (text_w, prefix_cols, cont_indent: int) {
+	prefix_cols = 2
+	cont_indent = 2
+	use_box := s != nil && composer_use_box(cols) && !s.plan_approval.active
+	// Plan approval has no composer; still return a sane width.
+	if s != nil && s.plan_approval.active {
+		use_box = false
+	}
+	inner_w: int
+	if use_box {
+		// "│ " + content + " │"
+		inner_w = max(1, cols - 4)
+	} else {
+		inner_w = max(1, cols)
+	}
+	text_w = max(1, inner_w - prefix_cols)
+	return
+}
+
+// wrap_input_segs: body soft-wrap for the composer (incl. trailing empty after final \n).
+wrap_input_segs :: proc(body: string, text_w: int, segs: ^[dynamic]Wrap_Seg) {
+	wrap_body_segs(body, text_w, segs)
+	if len(body) > 0 && body[len(body) - 1] == '\n' {
+		// Visual empty row after explicit newline (multiline mode)
+		append(segs, Wrap_Seg{len(body), len(body)})
+	}
+	if len(segs) == 0 {
+		append(segs, Wrap_Seg{0, 0})
+	}
+}
+
+// rune_count_bytes counts runes in text[lo:hi).
+rune_count_bytes :: proc(text: string, lo, hi: int) -> int {
+	a := max(0, lo)
+	b := min(len(text), hi)
+	if a >= b {
+		return 0
+	}
+	n := 0
+	p := a
+	for p < b {
+		_, sz := utf8.decode_rune(text[p:])
+		if sz <= 0 {
+			sz = 1
+		}
+		p += sz
+		n += 1
+	}
+	return n
 }
 
 wrap_push :: proc(
@@ -987,18 +1048,7 @@ write_input :: proc(
 	}
 	// Boxed when we have a bottom rail and at least one top chrome row
 	use_box := frame_bot > 0 && frame_top > 0 && composer_use_box(cols)
-	// Inner content width for text wrapping
-	// box: "│ " + content + " │" → content cols-4; first line uses "❯ " (2) inside content
-	// plain: full width for "❯ " + text
-	inner_w: int
-	prefix_cols := 2 // "❯ "
-	cont_indent := 2 // spaces under continuation
-	if use_box {
-		inner_w = max(8, cols - 4) // inside side borders + one pad space each side
-	} else {
-		inner_w = max(8, cols)
-	}
-	text_w := max(4, inner_w - prefix_cols) // wrap width for body after prefix
+	text_w, prefix_cols, cont_indent := composer_text_width(s, cols)
 
 	text := input_text(s)
 	show_placeholder := text == "" && s.focus == .Prompt && !s.streaming
@@ -1007,62 +1057,22 @@ write_input :: proc(
 		body = "Type a message…"
 	}
 
-	// Build display lines: first has ❯ , continuations indented
+	// Soft-wrap body (same rules as transcript), then attach prefix/indent
 	disp_lines := make([dynamic]string, 0, 8, context.temp_allocator)
-	// Wrap body into text_w columns, then attach prefix/indent
-	wrap_body := make([dynamic]string, 0, 8, context.temp_allocator)
-	{
-		start := 0
-		for start <= len(body) {
-			if start == len(body) {
-				if len(body) > 0 && body[len(body) - 1] == '\n' {
-					append(&wrap_body, "")
-				} else if len(wrap_body) == 0 {
-					append(&wrap_body, "")
-				}
-				break
-			}
-			end := start
-			col := 0
-			for end < len(body) && col < text_w {
-				if body[end] == '\n' {
-					break
-				}
-				_, sz := utf8.decode_rune(body[end:])
-				if sz <= 0 {
-					sz = 1
-				}
-				end += sz
-				col += 1
-			}
-			append(&wrap_body, body[start:end])
-			if end < len(body) && body[end] == '\n' {
-				start = end + 1
-			} else if end >= len(body) {
-				break
-			} else {
-				start = end
-			}
-			if len(wrap_body) > 64 {
-				break
-			}
-		}
-		if len(wrap_body) == 0 {
-			append(&wrap_body, "")
-		}
-	}
-	for i in 0 ..< len(wrap_body) {
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_input_segs(body, text_w, &segs)
+	for i in 0 ..< len(segs) {
+		seg := segs[i]
+		chunk := body[seg.start:seg.end]
 		if i == 0 {
-			append(&disp_lines, fmt.tprintf("%s%s", INPUT_PREFIX, wrap_body[i]))
+			append(&disp_lines, fmt.tprintf("%s%s", INPUT_PREFIX, chunk))
 		} else {
 			// indent continuation under text (same width as prefix)
-			ind := "  "
-			append(&disp_lines, fmt.tprintf("%s%s", ind, wrap_body[i]))
+			append(&disp_lines, fmt.tprintf("%s%s", "  ", chunk))
 		}
 	}
 
-	// Cursor: byte index in first-line coordinates of "❯ "+text (or indent+text)
-	// Map s.cursor within body to display line/col
+	// Cursor: map body byte cursor through the same soft-wrap segs
 	cur_row, cur_col := map_cursor_to_display(body, s.cursor, text_w, prefix_cols, cont_indent)
 	if show_placeholder {
 		cur_row = 0
@@ -1427,6 +1437,7 @@ write_composer_content_row :: proc(
 
 // map_cursor_to_display maps body byte cursor to (row, col) in display lines
 // where row 0 has prefix_cols of chevron and later rows have cont_indent.
+// Uses the same soft-wrap segs as write_input / input_line_count.
 map_cursor_to_display :: proc(
 	body: string,
 	cursor: int,
@@ -1443,78 +1454,44 @@ map_cursor_to_display :: proc(
 	if cur > len(body) {
 		cur = len(body)
 	}
-	// Walk same wrap algorithm as write_input
-	start := 0
-	r := 0
-	for start <= len(body) {
-		end := start
-		c := 0
-		for end < len(body) && c < text_w {
-			if body[end] == '\n' {
-				break
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_input_segs(body, text_w, &segs)
+	indent_for :: proc(i, prefix_cols, cont_indent: int) -> int {
+		return prefix_cols if i == 0 else cont_indent
+	}
+	for i in 0 ..< len(segs) {
+		seg := segs[i]
+		ind := indent_for(i, prefix_cols, cont_indent)
+		// Strict interior of this segment [start, end)
+		if cur >= seg.start && cur < seg.end {
+			rn := rune_count_bytes(body, seg.start, cur)
+			return i, ind + rn
+		}
+		// Caret exactly at end: if next seg starts here, prefer next row
+		// (soft-wrap boundary: insertion before next word belongs on next line).
+		if cur == seg.end {
+			if i + 1 < len(segs) && segs[i + 1].start == cur {
+				continue
 			}
-			_, sz := utf8.decode_rune(body[end:])
-			if sz <= 0 {
-				sz = 1
-			}
-			if end < cur && end + sz > cur {
-				// cursor mid-rune — sit at end
-			}
-			end += sz
-			c += 1
-			if end >= cur && start <= cur {
-				// cursor in this segment
-				// count runes from start to cur
-				rn := 0
-				p := start
-				for p < cur && p < end {
-					_, sz2 := utf8.decode_rune(body[p:])
-					if sz2 <= 0 {
-						sz2 = 1
-					}
-					p += sz2
-					rn += 1
-				}
-				indent := prefix_cols if r == 0 else cont_indent
-				return r, indent + rn
+			rn := rune_count_bytes(body, seg.start, seg.end)
+			return i, ind + rn
+		}
+		// Skipped spaces/tabs between soft-wrapped segments
+		if i + 1 < len(segs) {
+			next := segs[i + 1]
+			if cur > seg.end && cur < next.start {
+				rn := rune_count_bytes(body, seg.start, seg.end)
+				return i, ind + rn
 			}
 		}
-		// segment [start,end)
-		if cur >= start && cur <= end {
-			rn := 0
-			p := start
-			for p < cur && p < end {
-				_, sz2 := utf8.decode_rune(body[p:])
-				if sz2 <= 0 {
-					sz2 = 1
-				}
-				p += sz2
-				rn += 1
-			}
-			indent := prefix_cols if r == 0 else cont_indent
-			return r, indent + rn
-		}
-		if end < len(body) && body[end] == '\n' {
-			if cur == end {
-				indent := prefix_cols if r == 0 else cont_indent
-				return r, indent + c
-			}
-			start = end + 1
-			r += 1
-			continue
-		}
-		if end >= len(body) {
-			indent := prefix_cols if r == 0 else cont_indent
-			if cur >= end {
-				return r, indent + c
-			}
-			break
-		}
-		start = end
-		r += 1
-		if r > 64 {
-			break
-		}
+	}
+	// Fallback: end of last row
+	if len(segs) > 0 {
+		i := len(segs) - 1
+		seg := segs[i]
+		ind := indent_for(i, prefix_cols, cont_indent)
+		rn := rune_count_bytes(body, seg.start, seg.end)
+		return i, ind + rn
 	}
 	return 0, prefix_cols
 }

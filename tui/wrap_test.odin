@@ -5,6 +5,7 @@
 #+build linux, darwin, freebsd, openbsd, netbsd
 package tui
 
+import "core:fmt"
 import "core:strings"
 import "core:testing"
 import "core:unicode/utf8"
@@ -123,6 +124,62 @@ test_frame_needs_full_clear_on_resize :: proc(t: ^testing.T) {
 	// Width or height change — resize reflow path
 	testing.expect(t, frame_needs_full_clear(80, 24, 60, 24))
 	testing.expect(t, frame_needs_full_clear(80, 24, 80, 40))
+}
+
+// Composer soft-wrap: segs break at spaces like transcript wrap.
+@(test)
+test_wrap_input_segs_soft_words :: proc(t: ^testing.T) {
+	body := "hello wonderful world"
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_input_segs(body, 12, &segs)
+	testing.expect(t, len(segs) >= 2, "expected soft wrap")
+	// First segment should end at a word boundary (after "hello ")
+	s0 := body[segs[0].start:segs[0].end]
+	testing.expect(t, strings.contains(s0, "hello"), s0)
+	testing.expect(t, !strings.contains(s0, "wonderful") || strings.has_suffix(strings.trim_right_space(s0), "hello"), s0)
+	// Second starts with wonderful
+	s1 := body[segs[1].start:segs[1].end]
+	testing.expect(t, strings.has_prefix(s1, "wonderful") || strings.has_prefix(s1, "world"), s1)
+}
+
+@(test)
+test_map_cursor_soft_wrap_rows :: proc(t: ^testing.T) {
+	body := "hello wonderful world"
+	// width 12: "hello " / "wonderful " / "world" (approx)
+	text_w := 12
+	// cursor at start of "wonderful"
+	idx := strings.index(body, "wonderful")
+	testing.expect(t, idx > 0)
+	row, col := map_cursor_to_display(body, idx, text_w, 2, 2)
+	testing.expect(t, row >= 1, fmt.tprintf("row=%d col=%d", row, col))
+	testing.expect(t, col == 2, fmt.tprintf("col should be indent 2, got %d row=%d", col, row))
+	// cursor in skipped space between soft wraps (space before wonderful)
+	if idx > 0 && body[idx - 1] == ' ' {
+		row2, _ := map_cursor_to_display(body, idx - 1, text_w, 2, 2)
+		// space may be end of row 0 or gap → stable non-negative
+		testing.expect(t, row2 >= 0)
+	}
+}
+
+@(test)
+test_input_line_count_matches_soft_segs :: proc(t: ^testing.T) {
+	st: App_State
+	state_init(&st)
+	defer state_destroy(&st)
+	// Long prose without newlines
+	msg := "word wrap should soft break the composer input field nicely now"
+	for r in msg {
+		input_insert_rune(&st, r)
+	}
+	cols := 40
+	text_w, _, _ := composer_text_width(&st, cols)
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_input_segs(input_text(&st), text_w, &segs)
+	want := len(segs)
+	if want < 1 do want = 1
+	if want > MAX_INPUT_LINES do want = MAX_INPUT_LINES
+	got := input_line_count(&st, cols)
+	testing.expect(t, got == want, fmt.tprintf("got %d want %d text_w=%d segs=%d", got, want, text_w, len(segs)))
 }
 
 // Regression: invalid UTF-8 must not SIGILL in write_fit (resume/render path).

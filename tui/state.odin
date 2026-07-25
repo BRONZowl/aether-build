@@ -768,27 +768,16 @@ input_line_count :: proc(s: ^App_State, cols: int) -> int {
 		return 0
 	}
 	text := input_text(s)
-	// count wrapped lines for "❯ " + text (must match write_input hard-wrap)
-	w := max(1, cols - 2)
-	lines := 1
-	col := 2 // prompt prefix columns
-	for r in text {
-		if r == '\n' {
-			lines += 1
-			col = 0
-			continue
-		}
-		col += 1
-		if col >= w {
-			lines += 1
-			col = 0
-		}
+	// Soft-wrap segs must match write_input / map_cursor_to_display.
+	text_w, _, _ := composer_text_width(s, cols)
+	segs := make([dynamic]Wrap_Seg, 0, 8, context.temp_allocator)
+	wrap_input_segs(text, text_w, &segs)
+	lines := len(segs)
+	if lines < 1 {
+		lines = 1
 	}
 	if lines > MAX_INPUT_LINES {
 		return MAX_INPUT_LINES
-	}
-	if lines < 1 {
-		return 1
 	}
 	return lines
 }
